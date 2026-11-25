@@ -69,7 +69,7 @@
 |---|---:|---|
 | `docker version --format 'client={{.Client.Version}} server={{.Server.Version}}'` | 0 | Client/Server 28.5.1；只读环境检查 |
 | `docker image inspect helsome/miniclaw-agent:latest --format '{{.Id}}'` | 1 | 镜像不存在；作为 R01 安全隔离补测的阻塞证据 |
-|`npm run docs:check` | 0 | 通过：128 个仓库 Markdown 文件一致性检查 |
+|`npm run docs:check` | 0 | 通过：134 个仓库 Markdown 文件一致性检查 |
 | `git diff --check` | 0 | 通过：无空白错误或冲突标记 |
 
 PR #3 的历史定向测试为 8 个测试文件、58 passed、0 failed、0 skipped、exit 0；此结果不是本轮重跑。因 R01 条件不足，本轮没有运行 Agent 补充测试，故不存在可报告的新工具调用、事件顺序或 fixture 哈希。
