@@ -1,6 +1,6 @@
-# RetailOps V0.2 总体初始计划（待审批）
+# RetailOps V0.2 总体初始计划（APPROVED）
 
-版本：0.2-plan-draft｜日期：2026-11-25｜当前执行范围：仅计划，不实施、不批量创建远程 Issue。
+版本：0.2｜状态：APPROVED｜批准日期：2026-11-25｜计划批准不代表功能已实施或任务自动认领。
 
 ## 1. 调查基线与事实
 
@@ -8,7 +8,7 @@
 - PR #1、#3、#4 已合并；Issue #2 仍 Open。核心 Host/local-pi 调查与修订已归档，独立隔离只读测试 BLOCKED；真实普通对话、工具调用、错误回流、刷新持久化已有历史报告证据。原完整运行基线 PARTIAL；Goal、Product Durable、外部 MCP、审批、Container Runner 等真实验证不能推定通过。
 - 固定 SHA 读取的仓库文档：[架构 V0.1](https://github.com/2Zest/OpenDot-RetailOps/blob/6bb46a49352bd3ae452ada7e1ceeb0953e574c4c/docs/retailops/RETAILOPS-ARCHITECTURE.md)、[旧路线图](https://github.com/2Zest/OpenDot-RetailOps/blob/6bb46a49352bd3ae452ada7e1ceeb0953e574c4c/docs/retailops/RETAILOPS-ROADMAP.md)、[基线](https://github.com/2Zest/OpenDot-RetailOps/blob/6bb46a49352bd3ae452ada7e1ceeb0953e574c4c/docs/retailops/RETAILOPS-BASELINE.md)、[R1 审查](https://github.com/2Zest/OpenDot-RetailOps/blob/6bb46a49352bd3ae452ada7e1ceeb0953e574c4c/docs/retailops/reviews/RETAIL-00B-01-REVIEW.md)。
 - 另读取用户当前会话中的 `RETAILOPS-SCENARIO-V0.2.md`（随包保存原件）。在当前远程集成树中未发现该文件或正式 PRD；因此新业务方向是用户已选定、细节待 00C 正式确认的候选需求，不假定远程 PRD 已冻结。
-- 旧路线图以竞品/叠券/跨店调拨为 P0/P1；新需求以单店临期损耗/补货为主。00C 才正式更新旧路线图；不重写原历史证据。本计划新增编号是候选内部编号，不是 GitHub issue number。已存在 #2 继续用原编号；00B-01-R2 作为关联补测任务，不重复原调查。
+- 旧路线图以竞品/叠券/跨店调拨为 P0/P1；新需求以单店临期损耗/补货为主。00C 才正式更新旧路线图；不重写原历史证据。本计划新增编号是 RETAIL 内部编号；实际 GitHub Issue 映射记录于 dependency-graph.json。已存在 #2 继续用原编号；00B-01-R2 作为关联补测任务，不重复原调查。
 
 ## 2. 需求基线及范围
 
@@ -29,7 +29,7 @@
 
 ## 3. 计划执行门槛
 
-G0：用户确认本总体计划、范围、任务拆分与依赖后才登记首批 Issue。00C 正式 PRD 尚未批准前只能开展准备/调查。G1：00C + 00D 合并且合同冻结后开始领域契约实现；01P 还需 00A-01 消除脚本权限基线阻塞，其他原项目失败单独记录，若影响当期测试则阻塞相应任务。G2：00F 与 00B-01-R2、00B-03V 真实验证通过后才接入真实只读工具；若目标路径不支持自动读，需明确逐次审批或经批准的最小安全适配，不扩大权限例外。G3：00B-04V、00B-02V 各自为 Handoff、Durable 集成硬门槛。G4：V0 单 SKU 完整安全执行、恢复与反馈通过后进入 V1 补货执行。G5：Eval、UI、Goal 验收完成后进入最终发布，任何真实运行能力 BLOCKED 均不可宣称已实现。计划图中没有表达的跨模块接口变更不得偷偷执行，提出变更并重新计算依赖。
+G0：已于 2026-11-25 获用户批准，门槛解除。后续任务仍受 G1–G5、DAG 硬依赖、逐 Issue 认领授权与节点验收要求约束。00C 正式 PRD 尚未批准前只能开展准备/调查。G1：00C + 00D 合并且合同冻结后开始领域契约实现；01P 还需 00A-01 消除脚本权限基线阻塞，其他原项目失败单独记录，若影响当期测试则阻塞相应任务。G2：00F 与 00B-01-R2、00B-03V 真实验证通过后才接入真实只读工具；若目标路径不支持自动读，需明确逐次审批或经批准的最小安全适配，不扩大权限例外。G3：00B-04V、00B-02V 各自为 Handoff、Durable 集成硬门槛。G4：V0 单 SKU 完整安全执行、恢复与反馈通过后进入 V1 补货执行。G5：Eval、UI、Goal 验收完成后进入最终发布，任何真实运行能力 BLOCKED 均不可宣称已实现。计划图中没有表达的跨模块接口变更不得偷偷执行，提出变更并重新计算依赖。
 
 ## 4. 任务 DAG 与调度
 
@@ -96,4 +96,4 @@ G0：用户确认本总体计划、范围、任务拆分与依赖后才登记首
 
 ## 7. 计划阶段完成标准与下一步
 
-总体计划批准后，先同步场景草案与本计划入独立文档 PR，保留旧文档。待主控批准首批独立任务的细化 Plan 后逐项登记 GitHub Issue，避免重复 #2。00C 才定稿正式 PRD；不批量执行所有 Issue。本次仅产生初始契约、初始 Plan 和 DAG，未启动 subagent、未创建远程 Issue、未执行测试或业务代码。后续每次只认领依赖已满足且已批准的任务。
+总体计划已获批准；本次批准记录更新沿用独立文档 PR，保留旧文档。待主控批准首批独立任务的细化 Plan 后逐项登记 GitHub Issue，避免重复 #2。00C 才定稿正式 PRD；不批量执行所有 Issue。归档时仅产生初始契约、初始 Plan 和 DAG；远程 Issue 与当前执行状态见项目管理记录。后续每次只认领依赖已满足且已批准的任务。

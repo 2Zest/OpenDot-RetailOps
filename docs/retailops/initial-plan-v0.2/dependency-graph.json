@@ -1,7 +1,7 @@
 {
-  "status": "PROPOSED",
+  "status": "APPROVED",
   "baseline": "6bb46a49352bd3ae452ada7e1ceeb0953e574c4c",
-  "requires_plan_approval": true,
+  "requires_plan_approval": false,
   "nodes": [
     {
       "id": "RETAIL-00A-01",
@@ -1497,5 +1497,10 @@
       "issue_number": 42,
       "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/42"
     }
+  },
+  "approval_record": {
+    "approved_at": "2026-11-25",
+    "approved_plan_commit": "08679239c1e9959f465e74f1b191085ce86c2c4b",
+    "g0_released": true
   }
 }
