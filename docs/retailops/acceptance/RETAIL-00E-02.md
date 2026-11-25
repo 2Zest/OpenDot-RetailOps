@@ -41,58 +41,57 @@ Issue / Plan / 节点：同 N0；N1。
 
 ## N2 — 抽样分析 store/product/date/缺货
 
-Issue / Plan / 节点：同 N0；N2。HEAD/worktree/角色：独立 worktree；Data Research Agent。
-依赖：无硬依赖；样本是公开 API 返回的真实数据。
-允许路径：文档；JSON仅在 ignored data/retail-00e-02/，不得stage。
-预期标准：真实样本、字段、覆盖、缺失与缺货 profile。
-实际动作/命令/退出码：按 store_id=0 AND product_id=38 查 train/eval；响应90和7行；Python 3标准库 JSON profile exit 0。97行无null、复合键唯一、日期连续，库存标签97/97吻合。销量使用1e-9容差；训练11行最大尾差4.44e-16。
-证据/模式：真实公开 API 响应及SHA-256；仅描述单序列，不是模拟数据或runtime。
+Issue / Plan / 节点：同 N0；N2。操作前 worktree HEAD bc78d31c532fd547140a1bf88f89b3ac895d0b10；分支 docs/retail-00e-02；Data Research Agent。
+依赖：无硬依赖；真实公开 Filter API 响应。允许修改调查/回执文档；原始JSON只在 ignored data/retail-00e-02/。
+预期标准：可复核的真实样本、字段类型/单位、候选覆盖、唯一键、日期连续、缺货标签和样本选择验证。
+实际命令/退出码：报告“可复现筛选和profile命令”中的Python 3脚本实际执行exit 0。revision/main核验匹配c374e85975c82816c495acfa904cc55ab14a47d3；train/eval各重复请求两次，返回分别90/7行，响应两次相同且与ignore缓存逐字节一致。验证19字段API类型、值类型、null、单series键、连续日期、24项小时数组、stock-hour标签，以及销量和在1e-9内；训练11行尾差，最大4.440892098500626e-16。过滤结果所有行均为store0/product38，未混拼。
+证据/模式：公开API请求URL、数据卡SHA、train/eval响应SHA、忽略目录样本；无模型/runtime。coverage=1个编码store×1个SKU，不代表门店全SKU。
 
 | 对齐层 | 预期语义 | 实际事实及证据 | 判定 |
 |---|---|---|---|
-| PRD / 总体计划 | 判断公开数据证据和覆盖范围 | 一条真实序列，明确不外推 | PASS |
-| Issue / Plan | 字段、覆盖、缺失和缺货可复核 | 97行结构及标签结果见报告 | PASS |
-| 节点标准 | 留下输入、输出、命令和结果 | API查询、样本哈希和profile已记 | PASS |
+| PRD / 总体计划 | 用真实公开样本支持调查且避免外推 | 单一真实store-SKU、97日；门店全SKU数未测量 | PASS |
+| Issue / Plan | schema、覆盖、单位、缺失、标签有证据 | 19字段类型、单位限制、唯一键、连续性和缺货标签见报告 | PASS |
+| 节点标准 | 可复现筛选与profile，并确认结果 | revision固定检查、双次查询和缓存逐字节相同；命令exit0 | PASS |
 
-偏差：无。复测：落盘样本复核哈希/profile。风险：未下载全量文件，单序列不代表总体。决定：继续。记录者/时间：执行 Agent，2026-11-26。
+偏差：无。复测：API每split重复两次，body与缓存完全一致；复跑profile脚本通过。尚未验证：其它SKU/门店、全量缺失覆盖和业务单位映射。决定：继续N3。记录者/时间：执行 Agent，2026-11-26。
 
-## N3 — 确定时间边界
+## N3 — 确定时间边界、V0/V1条件与来源缺失
 
-Issue / Plan / 节点：同 N0；N3。总体计划/SHA：同 N0。HEAD/worktree/角色：独立 worktree；Data Research Agent。
-依赖证据：基线源码固定 SHA 8af694a09a5a427d1d50648d348c022565a781f2。允许路径：报告、回执。
-预期标准：时间顺序的 train/validation/test 方案和未来泄漏检查。
-实际结果：train 2024-03-28至06-11（76日），validation 06-12至06-25（14日），test 06-26至07-02（7日）；静态检查 baseline ssa_forecasting.py 第5、7–9、19–22、47、50、66、70行；未运行模型。
-证据/模式：报告引用固定源码SHA及行号；静态检查，非算法验收。
+Issue / Plan / 节点：同 N0；N3。操作前 HEAD bc78d31c532fd547140a1bf88f89b3ac895d0b10；分支 docs/retail-00e-02；Data Research Agent。
+依赖证据：场景固定SHA e8db2b6b983e9cd2eeca79e596f81b2e5b93663a；baseline代码SHA 8af694a09a5a427d1d50648d348c022565a781f2。允许路径仅调查和回执文档。
+预期标准：时间有序、无未来目标泄漏的候选划分；说明单SKU V0和多SKU V1的证据边界及数据源分类。
+实际结果：候选train 2024-03-28至06-11（76日）、validation 06-12至06-25（14日）、test 06-26至07-02（7日）。对单series日期窗连续无重叠；跨SKU共同窗口尚未验证。报告新增V0/V1适用条件、场景缺失业务字段、PUBLIC_HISTORICAL/SIMULATED/DERIVED/LIVE_DEVICE映射及未来协变量/目标标签防泄漏要求。静态核验baseline ssa_forecasting.py真实1-based行5、7–9、19–22、47、50、66、70；未训练或运行模型。
+证据/模式：报告内固定commit链接与源码行号；静态调查+公开样本profile，不是算法验收。
 
 | 对齐层 | 预期语义 | 实际事实及证据 | 判定 |
 |---|---|---|---|
-| PRD / 总体计划 | 时间顺序且避免未来目标泄漏 | 边界递增、不重叠，官方eval最后7日 | PASS |
-| Issue / Plan | 输出边界建议而非算法 | 仅形成候选方案 | PASS |
-| 节点标准 | 固定源码和行号证据 | 基线按06-25/06-26切分并使用90日encoder | PASS |
+| PRD / 总体计划 | 根据经营场景明确数据支撑及限制 | 公开历史销量不能冒充库存/批次/价格，V0/V1边界列明 | PASS |
+| Issue / Plan | 输出时间划分和完整数据缺口，不实施算法 | 无训练/导入；多SKU coverage标未验证 | PASS |
+| 节点标准 | 按日期审查未来泄漏并引用固定源码 | 76/14/7时序方案；基线按6/25与6/26切分，评价缺货标签仅条件过滤 | PASS |
 
-偏差：无。复测：检查日期交界连续。风险：其它序列须重新核验覆盖；模型/指标未运行。决定：继续N4，不解锁下游。记录者/时间：执行 Agent，2026-11-26。
+偏差：无。复测：日期交界连续，train-end紧邻eval-start；报告所附profile断言通过。风险：多series共同日期、未来天气/促销实际可用时间仍需后续验证。决定：进入N4受控回归；不解锁下游。记录者/时间：执行 Agent，2026-11-26。
 
 ## N4 — 定向检查与文档回归
 
-Issue / Plan / 节点：同 N0；N4。HEAD/worktree/角色：独立 worktree；Data Research Agent。
-允许路径：调查/验收文档；不修公共 roadmap。预期：profile、git diff --check、npm run docs:check结果和失败归类。
-实际动作/退出码：profile exit 0；本工作树 npm run docs:check exit 1，报告 docs/retailops/RETAILOPS-ROADMAP.md:1 指向不存在的 planning/v0.2/RETAILOPS-MASTER-PLAN-V0.2.md。本工作树 git diff --cached --check exit 0（仅暂存两份文档）。
-证据/模式：主控预检和仓库文档静态检查。
+Issue / Plan / 节点：同 N0；N4。HEAD/worktree/角色：PR #79任务分支；Data Research Agent。
+允许路径：报告/回执文档；不修公共roadmap。预期：样本检查与文档检查的实际命令、退出码、失败归类。
+实际动作/退出码：本轮报告所附网络筛选/profile命令已实际执行，exit 0；本轮git diff --check实际执行exit 0。此前本工作树npm run docs:check exit 1，唯一报告项为 docs/retailops/RETAILOPS-ROADMAP.md:1 引用不存在的 planning/v0.2/RETAILOPS-MASTER-PLAN-V0.2.md。依照主控调度，等待公共链接修复合并后再运行docs:check；本轮不运行依赖安装、不改公共文档。
+证据/模式：本轮脚本实际结果；此前docs:check失败输出。文档静态检查。
 
 | 对齐层 | 预期语义 | 实际事实及证据 | 判定 |
 |---|---|---|---|
-| PRD / 总体计划 | 如实记录失败，不扩范围 | 既存坏链只记录 | PASS |
-| Issue / Plan | 回归并分类失败，不降低标准 | profile通过，docs:check基线失败 | BLOCKED |
-| 节点标准 | 测试结果和退出码齐全 | docs:check exit 1，不声称通过 | BLOCKED |
+| PRD / 总体计划 | 不扩大到公共文档修复 | 错链只记录，等待公共修复 | PASS |
+| Issue / Plan | 定向样本profile与docs回归如实记录 | 样本验证exit0；文档回归被外部已知基线错误阻断 | BLOCKED |
+| 节点标准 | 测试结果真实、退出码齐全 | docs:check此前exit1；公共修复未合并前不重试 | BLOCKED |
 
-偏差 BASELINE-DOCS-LINK：公共检查指向遗留不存在路径；超出本任务范围，建议单独修复。复测不更改无关文档。风险：公共文档CI可能失败。决定：BLOCKED，提交调查供主控Review，不标DONE。记录者/时间：执行 Agent，2026-11-26。
+偏差 BASELINE-DOCS-LINK：公共roadmap遗留路径；由独立公共修复处理，本任务不包含。风险：docs:check暂不能通过。决定：保持BLOCKED，等待修复合并后重跑docs:check；不标DONE。记录者/时间：执行 Agent，2026-11-26。
 
 ## N5 — 交付与 Review
 
 Issue / Plan / 节点：Issue #13 RETAIL-00E-02；RETAIL-00E-02-PLAN.md；N5。总体计划/SHA：同 N0。HEAD/worktree/角色：PR创建时的head SHA为d9b7d9bc6a00f9b636289e974220e7d69922178a；docs/retail-00e-02；Data Research Agent。
 依赖/PR：PR #79 — https://github.com/2Zest/OpenDot-RetailOps/pull/79；目标分支 develop/retailops；当前 Open、未合并，等待独立 Review。主控已将 Issue #13 正文/标签同步为 REVIEW。
 允许路径/预期：调查报告和节点回执，不含原始数据；独立中文 PR 关联 #13。
-实际结果：PR #79 创建时的head SHA为d9b7d9bc6a00f9b636289e974220e7d69922178a。本次回执修订以新中文提交推送至同一分支，届时PR head会随之更新；PR 保持开放，尚未 Review 或合并；不关闭 Issue、不标 DONE。两份报告已交付，无业务代码或数据文件。
+实际结果：PR #79 创建时的head SHA为d9b7d9bc6a00f9b636289e974220e7d69922178a。后续已有文档回执提交；本轮调查补充也将作为中文文档提交推送至同一分支并推进PR head。PR 保持开放，尚未 Review 或合并；不关闭 Issue、不标 DONE。两份报告已交付，无业务代码或数据文件。
 证据/模式：PR #79、固定 head SHA、调查报告与本回执；公开元信息和单序列 profile，非训练/runtime。
 
 | 对齐层 | 预期语义 | 实际事实及证据 | 判定 |
