@@ -84,3 +84,17 @@ docker buildx build --load --pull --platform linux/amd64 \
 ## 结论与后续边界
 
 N0：**PASS**。N1：**BLOCKED**，原因是 Debian APT 代理对包文件请求连续返回 HTTP 502，两次原 Dockerfile 构建均失败；原始日志已附。仅提交此阶段回执和构建证据。保持 Issue Open/BLOCKED 且 GitHub 未分配；不标记 DONE、不解锁 #8/#16/#17/#18、不运行 N2/N3。任何后续构建需重新确认窗口与网络条件。
+## Review 追加：构建日志校验与正确环境文档检查
+
+- 压缩日志 SHA-256 复核：attempt-1 baf5790dbf710a0dfc7d7193b4c576532c7050b819b1ecc4ebc88e8aae46ed70；attempt-2 88ec98d43d2bd4dee39255980ee05f0c0511dca616f4f68447f9a329913b7429，均与原记录一致。
+- gzip -t 两份日志均退出 0；解压后 SHA-256 分别为 be393cde1a44f322339ef0e4395ee3a7ada4d6d1ff30df79b7e0b86172b96b08、289ee089fb1232c98441b3ceef82ca10d2ea894fec91623dfa0d08ee2afad70，与原记录一致。
+- 凭据扫描：对 GitHub Token、AWS Access Key、OpenAI 样式 API Key、Authorization Bearer/Basic、URL 用户信息、npm token 和常见 secret assignment 模式扫描，两个解压日志均无匹配。
+- 正确的 WSL 环境为 Node v24.22.3、npm 11.19.1。命令 PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm run docs:check 退出码 1；此分支尚未包含公共修复，失败仍为 docs/retailops/RETAILOPS-ROADMAP.md:1 指向缺失 planning/v0.2/RETAILOPS-MASTER-PLAN-V0.2.md。保留前一次误用 Windows Node/npm 的历史记录，不把本次结果写成 PASS。
+- 网络最小排查建议（本轮未执行构建或网络重试）：后续如获授权，先在同一 BuildKit/代理出口检查日志中失败的精确 .deb URL 响应码与代理缓存/上游日志；分别对比 WSL 主机与构建网络对该包文件的可达性。InRelease 元数据 HTTP 200 不证明包池文件可用。若仍为 502，交由代理/网络维护方排查；不建议改 Dockerfile、切换APT源、绕过代理或放宽安全策略。
+
+### Review 后三层语义复核
+
+- 总体计划/场景：BLOCKED，缺少可信且可验证的目标镜像。
+- Issue/Plan：BLOCKED，原 Dockerfile 两次构建失败；未改变 N1 结论。
+- N1 节点标准：BLOCKED，smoke 未运行，兼容性未验证。
+- 追加验证只核对归档日志和文档检查，不进入 N2/N3，不解锁 #8/#16/#17/#18。
