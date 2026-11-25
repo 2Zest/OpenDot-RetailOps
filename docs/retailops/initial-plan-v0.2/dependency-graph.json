@@ -1,0 +1,1501 @@
+{
+  "status": "PROPOSED",
+  "baseline": "6bb46a49352bd3ae452ada7e1ceeb0953e574c4c",
+  "requires_plan_approval": true,
+  "nodes": [
+    {
+      "id": "RETAIL-00A-01",
+      "title": "Linux 脚本权限修复",
+      "stage": "P",
+      "role": "工程",
+      "depends_on": [],
+      "topological_level": 1,
+      "github_issue_number": 6,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/6",
+      "depends_on_issue_links": [],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-01P",
+          "number": 20,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/20"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-00F",
+      "title": "独立 Agent 安全验证环境",
+      "stage": "P",
+      "role": "安全环境",
+      "depends_on": [],
+      "topological_level": 1,
+      "github_issue_number": 7,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/7",
+      "depends_on_issue_links": [],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-00B-01-R2",
+          "number": 8,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/8"
+        },
+        {
+          "id": "RETAIL-00B-02V",
+          "number": 16,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/16"
+        },
+        {
+          "id": "RETAIL-00B-03V",
+          "number": 17,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/17"
+        },
+        {
+          "id": "RETAIL-00B-04V",
+          "number": 18,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/18"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-00B-01-R2",
+      "title": "补齐 Runtime 隔离只读验收",
+      "stage": "P",
+      "role": "运行验证",
+      "depends_on": [
+        "RETAIL-00F"
+      ],
+      "topological_level": 2,
+      "github_issue_number": 8,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/8",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-00F",
+          "number": 7,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/7"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-04",
+          "number": 25,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/25"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-00B-02",
+      "title": "Durable 源码契约调查",
+      "stage": "P",
+      "role": "运行时",
+      "depends_on": [],
+      "topological_level": 1,
+      "github_issue_number": 9,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/9",
+      "depends_on_issue_links": [],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-00C",
+          "number": 14,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/14"
+        },
+        {
+          "id": "RETAIL-00B-02V",
+          "number": 16,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/16"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-00B-03",
+      "title": "MCP 工具授权与审批调查",
+      "stage": "P",
+      "role": "安全",
+      "depends_on": [],
+      "topological_level": 1,
+      "github_issue_number": 10,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/10",
+      "depends_on_issue_links": [],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-00C",
+          "number": 14,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/14"
+        },
+        {
+          "id": "RETAIL-00B-03V",
+          "number": 17,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/17"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-00B-04H",
+      "title": "Handoff 独立风控接口调查",
+      "stage": "P",
+      "role": "协作",
+      "depends_on": [],
+      "topological_level": 1,
+      "github_issue_number": 11,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/11",
+      "depends_on_issue_links": [],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-00C",
+          "number": 14,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/14"
+        },
+        {
+          "id": "RETAIL-00B-04V",
+          "number": 18,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/18"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-00E-01",
+      "title": "单店经营开源业务研究",
+      "stage": "P",
+      "role": "领域",
+      "depends_on": [],
+      "topological_level": 1,
+      "github_issue_number": 12,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/12",
+      "depends_on_issue_links": [],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-00C",
+          "number": 14,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/14"
+        },
+        {
+          "id": "RETAIL-03",
+          "number": 22,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/22"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-00E-02",
+      "title": "公开经营数据可行性调查",
+      "stage": "P",
+      "role": "数据",
+      "depends_on": [],
+      "topological_level": 1,
+      "github_issue_number": 13,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/13",
+      "depends_on_issue_links": [],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-00C",
+          "number": 14,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/14"
+        },
+        {
+          "id": "RETAIL-02",
+          "number": 21,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/21"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-00C",
+      "title": "PRD 与领域架构 V0.2 定稿",
+      "stage": "P",
+      "role": "架构",
+      "depends_on": [
+        "RETAIL-00B-02",
+        "RETAIL-00B-03",
+        "RETAIL-00B-04H",
+        "RETAIL-00E-01",
+        "RETAIL-00E-02"
+      ],
+      "topological_level": 2,
+      "github_issue_number": 14,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/14",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-00B-02",
+          "number": 9,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/9"
+        },
+        {
+          "id": "RETAIL-00B-03",
+          "number": 10,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/10"
+        },
+        {
+          "id": "RETAIL-00B-04H",
+          "number": 11,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/11"
+        },
+        {
+          "id": "RETAIL-00E-01",
+          "number": 12,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/12"
+        },
+        {
+          "id": "RETAIL-00E-02",
+          "number": 13,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/13"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-00D",
+          "number": 15,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/15"
+        },
+        {
+          "id": "RETAIL-01",
+          "number": 19,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/19"
+        },
+        {
+          "id": "RETAIL-05P",
+          "number": 24,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/24"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-00D",
+      "title": "工程执行与验收规范",
+      "stage": "P",
+      "role": "工程",
+      "depends_on": [
+        "RETAIL-00C"
+      ],
+      "topological_level": 3,
+      "github_issue_number": 15,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/15",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-00C",
+          "number": 14,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/14"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-01",
+          "number": 19,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/19"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-00B-02V",
+      "title": "Node Durable 独立运行验证",
+      "stage": "P",
+      "role": "运行时",
+      "depends_on": [
+        "RETAIL-00F",
+        "RETAIL-00B-02"
+      ],
+      "topological_level": 2,
+      "github_issue_number": 16,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/16",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-00F",
+          "number": 7,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/7"
+        },
+        {
+          "id": "RETAIL-00B-02",
+          "number": 9,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/9"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-00B-04V",
+          "number": 18,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/18"
+        },
+        {
+          "id": "RETAIL-11",
+          "number": 31,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/31"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-00B-03V",
+      "title": "MCP exact-call 授权独立验证",
+      "stage": "P",
+      "role": "安全",
+      "depends_on": [
+        "RETAIL-00F",
+        "RETAIL-00B-03"
+      ],
+      "topological_level": 2,
+      "github_issue_number": 17,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/17",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-00F",
+          "number": 7,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/7"
+        },
+        {
+          "id": "RETAIL-00B-03",
+          "number": 10,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/10"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-04",
+          "number": 25,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/25"
+        },
+        {
+          "id": "RETAIL-09",
+          "number": 29,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/29"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-00B-04V",
+      "title": "独立风控 Handoff 运行验证",
+      "stage": "P",
+      "role": "协作",
+      "depends_on": [
+        "RETAIL-00F",
+        "RETAIL-00B-04H",
+        "RETAIL-00B-02V"
+      ],
+      "topological_level": 3,
+      "github_issue_number": 18,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/18",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-00F",
+          "number": 7,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/7"
+        },
+        {
+          "id": "RETAIL-00B-04H",
+          "number": 11,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/11"
+        },
+        {
+          "id": "RETAIL-00B-02V",
+          "number": 16,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/16"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-08",
+          "number": 28,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/28"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-01",
+      "title": "零售领域契约",
+      "stage": "V0",
+      "role": "领域",
+      "depends_on": [
+        "RETAIL-00C",
+        "RETAIL-00D"
+      ],
+      "topological_level": 4,
+      "github_issue_number": 19,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/19",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-00C",
+          "number": 14,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/14"
+        },
+        {
+          "id": "RETAIL-00D",
+          "number": 15,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/15"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-01P",
+          "number": 20,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/20"
+        },
+        {
+          "id": "RETAIL-05P",
+          "number": 24,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/24"
+        },
+        {
+          "id": "RETAIL-13A",
+          "number": 35,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/35"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-01P",
+      "title": "零售领域持久化",
+      "stage": "V0",
+      "role": "存储",
+      "depends_on": [
+        "RETAIL-01",
+        "RETAIL-00A-01"
+      ],
+      "topological_level": 5,
+      "github_issue_number": 20,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/20",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-01",
+          "number": 19,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/19"
+        },
+        {
+          "id": "RETAIL-00A-01",
+          "number": 6,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/6"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-02",
+          "number": 21,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/21"
+        },
+        {
+          "id": "RETAIL-03",
+          "number": 22,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/22"
+        },
+        {
+          "id": "RETAIL-07",
+          "number": 26,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/26"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-02",
+      "title": "公开历史数据导入",
+      "stage": "V0",
+      "role": "数据",
+      "depends_on": [
+        "RETAIL-01P",
+        "RETAIL-00E-02"
+      ],
+      "topological_level": 6,
+      "github_issue_number": 21,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/21",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-01P",
+          "number": 20,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/20"
+        },
+        {
+          "id": "RETAIL-00E-02",
+          "number": 13,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/13"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-05F",
+          "number": 23,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/23"
+        },
+        {
+          "id": "RETAIL-04",
+          "number": 25,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/25"
+        },
+        {
+          "id": "RETAIL-03M",
+          "number": 33,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/33"
+        },
+        {
+          "id": "RETAIL-14",
+          "number": 37,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/37"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-03",
+      "title": "单 SKU 经营仿真器",
+      "stage": "V0",
+      "role": "仿真",
+      "depends_on": [
+        "RETAIL-01P",
+        "RETAIL-00E-01"
+      ],
+      "topological_level": 6,
+      "github_issue_number": 22,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/22",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-01P",
+          "number": 20,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/20"
+        },
+        {
+          "id": "RETAIL-00E-01",
+          "number": 12,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/12"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-04",
+          "number": 25,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/25"
+        },
+        {
+          "id": "RETAIL-10",
+          "number": 30,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/30"
+        },
+        {
+          "id": "RETAIL-12",
+          "number": 32,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/32"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-05F",
+      "title": "需求恢复与预测工具算法",
+      "stage": "V0",
+      "role": "算法",
+      "depends_on": [
+        "RETAIL-02"
+      ],
+      "topological_level": 7,
+      "github_issue_number": 23,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/23",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-02",
+          "number": 21,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/21"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-04",
+          "number": 25,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/25"
+        },
+        {
+          "id": "RETAIL-13A",
+          "number": 35,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/35"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-05P",
+      "title": "临期折扣与损耗测算",
+      "stage": "V0",
+      "role": "算法",
+      "depends_on": [
+        "RETAIL-01",
+        "RETAIL-00C"
+      ],
+      "topological_level": 5,
+      "github_issue_number": 24,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/24",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-01",
+          "number": 19,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/19"
+        },
+        {
+          "id": "RETAIL-00C",
+          "number": 14,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/14"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-04",
+          "number": 25,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/25"
+        },
+        {
+          "id": "RETAIL-08",
+          "number": 28,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/28"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-04",
+      "title": "零售只读工具接入",
+      "stage": "V0",
+      "role": "工具",
+      "depends_on": [
+        "RETAIL-00B-01-R2",
+        "RETAIL-00B-03V",
+        "RETAIL-02",
+        "RETAIL-03",
+        "RETAIL-05F",
+        "RETAIL-05P"
+      ],
+      "topological_level": 8,
+      "github_issue_number": 25,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/25",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-00B-01-R2",
+          "number": 8,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/8"
+        },
+        {
+          "id": "RETAIL-00B-03V",
+          "number": 17,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/17"
+        },
+        {
+          "id": "RETAIL-02",
+          "number": 21,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/21"
+        },
+        {
+          "id": "RETAIL-03",
+          "number": 22,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/22"
+        },
+        {
+          "id": "RETAIL-05F",
+          "number": 23,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/23"
+        },
+        {
+          "id": "RETAIL-05P",
+          "number": 24,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/24"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-06",
+          "number": 27,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/27"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-07",
+      "title": "经营决策草案状态与证据",
+      "stage": "V0",
+      "role": "工作流",
+      "depends_on": [
+        "RETAIL-01P"
+      ],
+      "topological_level": 6,
+      "github_issue_number": 26,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/26",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-01P",
+          "number": 20,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/20"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-06",
+          "number": 27,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/27"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-06",
+      "title": "经营分析 Agent（临期场景）",
+      "stage": "V0",
+      "role": "Agent",
+      "depends_on": [
+        "RETAIL-04",
+        "RETAIL-07"
+      ],
+      "topological_level": 9,
+      "github_issue_number": 27,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/27",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-04",
+          "number": 25,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/25"
+        },
+        {
+          "id": "RETAIL-07",
+          "number": 26,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/26"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-08",
+          "number": 28,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/28"
+        },
+        {
+          "id": "RETAIL-14",
+          "number": 37,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/37"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-08",
+      "title": "独立风控审查",
+      "stage": "V0",
+      "role": "协作",
+      "depends_on": [
+        "RETAIL-06",
+        "RETAIL-00B-04V",
+        "RETAIL-05P"
+      ],
+      "topological_level": 10,
+      "github_issue_number": 28,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/28",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-06",
+          "number": 27,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/27"
+        },
+        {
+          "id": "RETAIL-00B-04V",
+          "number": 18,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/18"
+        },
+        {
+          "id": "RETAIL-05P",
+          "number": 24,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/24"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-09",
+          "number": 29,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/29"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-09",
+      "title": "零售业务审批",
+      "stage": "V0",
+      "role": "审批",
+      "depends_on": [
+        "RETAIL-08",
+        "RETAIL-00B-03V"
+      ],
+      "topological_level": 11,
+      "github_issue_number": 29,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/29",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-08",
+          "number": 28,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/28"
+        },
+        {
+          "id": "RETAIL-00B-03V",
+          "number": 17,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/17"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-10",
+          "number": 30,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/30"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-10",
+      "title": "受控仿真调价执行",
+      "stage": "V0",
+      "role": "执行",
+      "depends_on": [
+        "RETAIL-09",
+        "RETAIL-03"
+      ],
+      "topological_level": 12,
+      "github_issue_number": 30,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/30",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-09",
+          "number": 29,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/29"
+        },
+        {
+          "id": "RETAIL-03",
+          "number": 22,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/22"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-11",
+          "number": 31,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/31"
+        },
+        {
+          "id": "RETAIL-12",
+          "number": 32,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/32"
+        },
+        {
+          "id": "RETAIL-20A",
+          "number": 40,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/40"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-11",
+      "title": "经营任务 Durable 恢复接入",
+      "stage": "V0",
+      "role": "运行时",
+      "depends_on": [
+        "RETAIL-10",
+        "RETAIL-00B-02V"
+      ],
+      "topological_level": 13,
+      "github_issue_number": 31,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/31",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-10",
+          "number": 30,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/30"
+        },
+        {
+          "id": "RETAIL-00B-02V",
+          "number": 16,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/16"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-03M",
+          "number": 33,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/33"
+        },
+        {
+          "id": "RETAIL-13B",
+          "number": 36,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/36"
+        },
+        {
+          "id": "RETAIL-15",
+          "number": 38,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/38"
+        },
+        {
+          "id": "RETAIL-19",
+          "number": 39,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/39"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-12",
+      "title": "单 SKU 经营反馈与指标",
+      "stage": "V0",
+      "role": "评估",
+      "depends_on": [
+        "RETAIL-10",
+        "RETAIL-03"
+      ],
+      "topological_level": 13,
+      "github_issue_number": 32,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/32",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-10",
+          "number": 30,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/30"
+        },
+        {
+          "id": "RETAIL-03",
+          "number": 22,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/22"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-03M",
+          "number": 33,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/33"
+        },
+        {
+          "id": "RETAIL-13B",
+          "number": 36,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/36"
+        },
+        {
+          "id": "RETAIL-14",
+          "number": 37,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/37"
+        },
+        {
+          "id": "RETAIL-19",
+          "number": 39,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/39"
+        },
+        {
+          "id": "RETAIL-20A",
+          "number": 40,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/40"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-03M",
+      "title": "多 SKU 仿真数据扩展",
+      "stage": "V1",
+      "role": "仿真",
+      "depends_on": [
+        "RETAIL-11",
+        "RETAIL-12",
+        "RETAIL-02"
+      ],
+      "topological_level": 14,
+      "github_issue_number": 33,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/33",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-11",
+          "number": 31,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/31"
+        },
+        {
+          "id": "RETAIL-12",
+          "number": 32,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/32"
+        },
+        {
+          "id": "RETAIL-02",
+          "number": 21,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/21"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-18C",
+          "number": 34,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/34"
+        },
+        {
+          "id": "RETAIL-14",
+          "number": 37,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/37"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-18C",
+      "title": "单店双渠道库存预占",
+      "stage": "V1",
+      "role": "库存",
+      "depends_on": [
+        "RETAIL-03M"
+      ],
+      "topological_level": 15,
+      "github_issue_number": 34,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/34",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-03M",
+          "number": 33,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/33"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-13B",
+          "number": 36,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/36"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-13A",
+      "title": "补货计算算法",
+      "stage": "V1",
+      "role": "算法",
+      "depends_on": [
+        "RETAIL-05F",
+        "RETAIL-01"
+      ],
+      "topological_level": 8,
+      "github_issue_number": 35,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/35",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-05F",
+          "number": 23,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/23"
+        },
+        {
+          "id": "RETAIL-01",
+          "number": 19,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/19"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-13B",
+          "number": 36,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/36"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-13B",
+      "title": "补货决策执行闭环",
+      "stage": "V1",
+      "role": "业务",
+      "depends_on": [
+        "RETAIL-13A",
+        "RETAIL-18C",
+        "RETAIL-11",
+        "RETAIL-12"
+      ],
+      "topological_level": 16,
+      "github_issue_number": 36,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/36",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-13A",
+          "number": 35,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/35"
+        },
+        {
+          "id": "RETAIL-18C",
+          "number": 34,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/34"
+        },
+        {
+          "id": "RETAIL-11",
+          "number": 31,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/31"
+        },
+        {
+          "id": "RETAIL-12",
+          "number": 32,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/32"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-19",
+          "number": 39,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/39"
+        },
+        {
+          "id": "RETAIL-20A",
+          "number": 40,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/40"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-14",
+      "title": "多 SKU 经营异常诊断",
+      "stage": "V1",
+      "role": "诊断",
+      "depends_on": [
+        "RETAIL-06",
+        "RETAIL-12",
+        "RETAIL-02",
+        "RETAIL-03M"
+      ],
+      "topological_level": 15,
+      "github_issue_number": 37,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/37",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-06",
+          "number": 27,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/27"
+        },
+        {
+          "id": "RETAIL-12",
+          "number": 32,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/32"
+        },
+        {
+          "id": "RETAIL-02",
+          "number": 21,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/21"
+        },
+        {
+          "id": "RETAIL-03M",
+          "number": 33,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/33"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-15",
+          "number": 38,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/38"
+        },
+        {
+          "id": "RETAIL-19",
+          "number": 39,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/39"
+        },
+        {
+          "id": "RETAIL-20A",
+          "number": 40,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/40"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-15",
+      "title": "Goal 周期经营监测",
+      "stage": "V1",
+      "role": "调度",
+      "depends_on": [
+        "RETAIL-11",
+        "RETAIL-14"
+      ],
+      "topological_level": 16,
+      "github_issue_number": 38,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/38",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-11",
+          "number": 31,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/31"
+        },
+        {
+          "id": "RETAIL-14",
+          "number": 37,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/37"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-21",
+          "number": 42,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/42"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-19",
+      "title": "Agent Eval 对照实验",
+      "stage": "V1",
+      "role": "评估",
+      "depends_on": [
+        "RETAIL-11",
+        "RETAIL-12",
+        "RETAIL-13B",
+        "RETAIL-14"
+      ],
+      "topological_level": 17,
+      "github_issue_number": 39,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/39",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-11",
+          "number": 31,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/31"
+        },
+        {
+          "id": "RETAIL-12",
+          "number": 32,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/32"
+        },
+        {
+          "id": "RETAIL-13B",
+          "number": 36,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/36"
+        },
+        {
+          "id": "RETAIL-14",
+          "number": 37,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/37"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-21",
+          "number": 42,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/42"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-20A",
+      "title": "零售产品 HTTP 接口",
+      "stage": "V1",
+      "role": "API",
+      "depends_on": [
+        "RETAIL-10",
+        "RETAIL-12",
+        "RETAIL-13B",
+        "RETAIL-14"
+      ],
+      "topological_level": 17,
+      "github_issue_number": 40,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/40",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-10",
+          "number": 30,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/30"
+        },
+        {
+          "id": "RETAIL-12",
+          "number": 32,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/32"
+        },
+        {
+          "id": "RETAIL-13B",
+          "number": 36,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/36"
+        },
+        {
+          "id": "RETAIL-14",
+          "number": 37,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/37"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-20",
+          "number": 41,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/41"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-20",
+      "title": "经营工作台最小 UI",
+      "stage": "V1",
+      "role": "前端",
+      "depends_on": [
+        "RETAIL-20A"
+      ],
+      "topological_level": 18,
+      "github_issue_number": 41,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/41",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-20A",
+          "number": 40,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/40"
+        }
+      ],
+      "blocks_issue_links": [
+        {
+          "id": "RETAIL-21",
+          "number": 42,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/42"
+        }
+      ]
+    },
+    {
+      "id": "RETAIL-21",
+      "title": "集成验收与发布证据",
+      "stage": "V1",
+      "role": "集成",
+      "depends_on": [
+        "RETAIL-19",
+        "RETAIL-20",
+        "RETAIL-15"
+      ],
+      "topological_level": 19,
+      "github_issue_number": 42,
+      "github_issue_url": "https://github.com/2Zest/OpenDot-RetailOps/issues/42",
+      "depends_on_issue_links": [
+        {
+          "id": "RETAIL-19",
+          "number": 39,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/39"
+        },
+        {
+          "id": "RETAIL-20",
+          "number": 41,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/41"
+        },
+        {
+          "id": "RETAIL-15",
+          "number": 38,
+          "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/38"
+        }
+      ],
+      "blocks_issue_links": []
+    }
+  ],
+  "repository": "2Zest/OpenDot-RetailOps",
+  "github_issue_mapping": {
+    "RETAIL-00A-01": {
+      "issue_number": 6,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/6"
+    },
+    "RETAIL-00F": {
+      "issue_number": 7,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/7"
+    },
+    "RETAIL-00B-01-R2": {
+      "issue_number": 8,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/8"
+    },
+    "RETAIL-00B-02": {
+      "issue_number": 9,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/9"
+    },
+    "RETAIL-00B-03": {
+      "issue_number": 10,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/10"
+    },
+    "RETAIL-00B-04H": {
+      "issue_number": 11,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/11"
+    },
+    "RETAIL-00E-01": {
+      "issue_number": 12,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/12"
+    },
+    "RETAIL-00E-02": {
+      "issue_number": 13,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/13"
+    },
+    "RETAIL-00C": {
+      "issue_number": 14,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/14"
+    },
+    "RETAIL-00D": {
+      "issue_number": 15,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/15"
+    },
+    "RETAIL-00B-02V": {
+      "issue_number": 16,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/16"
+    },
+    "RETAIL-00B-03V": {
+      "issue_number": 17,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/17"
+    },
+    "RETAIL-00B-04V": {
+      "issue_number": 18,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/18"
+    },
+    "RETAIL-01": {
+      "issue_number": 19,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/19"
+    },
+    "RETAIL-01P": {
+      "issue_number": 20,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/20"
+    },
+    "RETAIL-02": {
+      "issue_number": 21,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/21"
+    },
+    "RETAIL-03": {
+      "issue_number": 22,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/22"
+    },
+    "RETAIL-05F": {
+      "issue_number": 23,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/23"
+    },
+    "RETAIL-05P": {
+      "issue_number": 24,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/24"
+    },
+    "RETAIL-04": {
+      "issue_number": 25,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/25"
+    },
+    "RETAIL-07": {
+      "issue_number": 26,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/26"
+    },
+    "RETAIL-06": {
+      "issue_number": 27,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/27"
+    },
+    "RETAIL-08": {
+      "issue_number": 28,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/28"
+    },
+    "RETAIL-09": {
+      "issue_number": 29,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/29"
+    },
+    "RETAIL-10": {
+      "issue_number": 30,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/30"
+    },
+    "RETAIL-11": {
+      "issue_number": 31,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/31"
+    },
+    "RETAIL-12": {
+      "issue_number": 32,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/32"
+    },
+    "RETAIL-03M": {
+      "issue_number": 33,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/33"
+    },
+    "RETAIL-18C": {
+      "issue_number": 34,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/34"
+    },
+    "RETAIL-13A": {
+      "issue_number": 35,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/35"
+    },
+    "RETAIL-13B": {
+      "issue_number": 36,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/36"
+    },
+    "RETAIL-14": {
+      "issue_number": 37,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/37"
+    },
+    "RETAIL-15": {
+      "issue_number": 38,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/38"
+    },
+    "RETAIL-19": {
+      "issue_number": 39,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/39"
+    },
+    "RETAIL-20A": {
+      "issue_number": 40,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/40"
+    },
+    "RETAIL-20": {
+      "issue_number": 41,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/41"
+    },
+    "RETAIL-21": {
+      "issue_number": 42,
+      "url": "https://github.com/2Zest/OpenDot-RetailOps/issues/42"
+    }
+  }
+}
