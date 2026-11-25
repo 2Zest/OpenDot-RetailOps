@@ -24,7 +24,7 @@ ZIP 内容原样归档至 `docs/retailops/planning/v0.2/`，保留其内部 `iss
 - 原 Windows 工作区处于 `feat/retail-00a-baseline`，有未提交图标/manifest 修改及三份未跟踪规划文档；全部保留，未在该工作区操作文件。
 - 在独立 WSL2 worktree 工作：`/home/szz_user/projects/OpenDot-RetailOps-V02-Plan`。
 - 最新基线：`origin/develop/retailops` = `6bb46a49352bd3ae452ada7e1ceeb0953e574c4c`。PR #4 已合并为此基线；PR #1 仍开放且报告的 RETAIL-00A 完整基线为 PARTIAL。
-- 已查远程 Issue：#2 仍开放，主题是原始 RETAIL-00B-01 Runtime 调查/安全验收。新草案 `RETAIL-00B-01-R2` 明确作为 R01 补测延续，保留原契约且依赖 00F；没有复制或关闭 #2，也没有批量创建 Issue。
+- 已查远程 Issue：#2 仍开放，主题是原始 RETAIL-00B-01 Runtime 调查/安全验收。新草案 `RETAIL-00B-01-R2` 明确作为 R01 补测延续，保留原契约且依赖 00F；没有复制或关闭 #2，也没有批量创建 Issue。\n- 已查远程 PR：PR #4 已合并为当前基线；PR #1 仍开放，标明 RETAIL-00A 完整基线 PARTIAL。另有开放 PR #5（head `codex/retailops-v0.2-plan-archive`，base `develop/retailops`），将同一输入包归档在 `docs/retailops/initial-plan-v0.2/`。为遵守本任务指定的分支名、路径和补充回执，本分支继续独立提交；PR #5 保持不变。两份 PR 的重叠已登记，审查时需决定是否收敛，避免重复归档。
 - 起始时本地及远程均无 `docs/retailops-master-plan-v02` 分支；本地新分支从最新 `develop/retailops` 创建。
 
 ## N1：Issue、Plan 与 DAG 结构校验
