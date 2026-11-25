@@ -1,5 +1,7 @@
 # RETAIL-00B-04H 节点验收回执
 
+**状态：REVIEW。** PR #78 Open、未合并、等待独立 Review；Issue #11 Open/REVIEW，不标 DONE。
+
 总体计划：docs/retailops/initial-plan-v0.2/RETAILOPS-MASTER-PLAN-V0.2.md（G0 已于 2026-11-25 获批准）。场景：RETAILOPS-SCENARIO-V0.2.md。DAG：dependency-graph.json。模板：NODE-RECEIPT-TEMPLATE.md。
 Issue 契约 Blob：fc7fa13d5d6cc4fe6dc9df3f66e54cc586643df2。Plan Blob：e22d1b64587118dfe1b82035a683aa4db88e63a。模板 Blob：e276079adc8678ee4366d43e90f3f765156a5bb3。
 源码固定基线：e8db2b6b983e9cd2eeca79e596f81b2e5b93663a。源码函数/路径/行号及链接见调查报告。
@@ -81,7 +83,7 @@ Issue 契约 Blob：fc7fa13d5d6cc4fe6dc9df3f66e54cc586643df2。Plan Blob：e22d1
       PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm test -- --run tests/goal-team.test.ts tests/bot-handoff-security.test.ts tests/bot-handoff-controls.test.ts tests/bot-handoff-recovery.test.ts
 
 - 结果：退出码 0，4 files、16 tests passed，73.35 秒。覆盖 Goal Team、owner/member、撤销 grant、lease/control、失败与 SIGKILL 恢复。均为临时 DB/子进程/loopback fake model fixture；不是实时模型、生产环境、零售写接口或 #18 验收。
-- 回归：npm run docs:check 退出码 1；基线 docs/retailops/RETAILOPS-ROADMAP.md:1 引用了缺失的 planning/v0.2/RETAILOPS-MASTER-PLAN-V0.2.md。未混入本 Issue 修复。
+- 回归：上一轮 npm run docs:check 退出码 1，基线 docs/retailops/RETAILOPS-ROADMAP.md:1 引用了缺失的 planning/v0.2/RETAILOPS-MASTER-PLAN-V0.2.md。公共修复尚未合并，本轮按要求未复跑；待合并后复验，未混入本 Issue 修复。
 - 差异：测试期间无 tracked 源码/配置/lockfile 改动。最终 git diff --check 退出码 0。
 
 | 对齐层 | 实际事实 | 判定 |
@@ -113,3 +115,41 @@ Issue 契约 Blob：fc7fa13d5d6cc4fe6dc9df3f66e54cc586643df2。Plan Blob：e22d1
 - 真实 RetailOps Runtime、真实模型/数据/副作用、#18 Handoff：NOT_RUN。
 - npm run docs:check：已知基线失败，未修。
 - Issue #11 保持 Open/REVIEW；未认领、未关闭、未 DONE；下游未解锁。
+
+
+## Review 补充 — Node/Cloud 能力与 #18 验证方案（未执行）
+
+**状态：REVIEW。** PR #78 Open、未合并、等待独立 Review；Issue #11 Open/REVIEW，不标 DONE、不解锁 #18。
+
+### 能力与开关矩阵
+
+| 项目 | Node Durable | Cloud Durable |
+|---|---|---|
+| Handoff flags | MINICLAW_BOT_GROUPS=true、MINICLAW_BOT_HANDOFFS=true、MINICLAW_DURABLE_RUNTIME=true | MINICLAW_BOT_GROUPS=true、MINICLAW_BOT_HANDOFFS=true、MINICLAW_CLOUD_RUNTIME=true、MINICLAW_CLOUD_BOT_HANDOFFS=true；默认 off，无自动 Node fallback |
+| Goal Team flags | 再加 MINICLAW_PERSONAL_GOALS=true、MINICLAW_GOAL_TEAMS=true | 再加 MINICLAW_PERSONAL_GOALS=true、MINICLAW_GOAL_TEAMS=true、MINICLAW_CLOUD_GOALS=true、MINICLAW_CLOUD_APPROVALS=true（Cloud Goal admission 检查 artifact capability） |
+| Provider | Enabled Provider、model ID、API key/token；OpenAI Completions 或 Anthropic Messages | HTTPS gateway origin 精确匹配、shared secret 至少 32 字符、enabled OpenAI Completions Provider |
+| Workspace / Session | active owner；Node Handoff scope 可用 owner Host 或 Container Workspace（Host 需 Host 执行权）；Goal Team 的 Goal/Group 与 Bot scope 都要求 owner Host Workspace；每个 Handoff 新建独立 Product/Node Durable Session 与 origin | active owner Host Workspace/Host 执行权；独立 Product Session/Cloud placement；Node Gateway 仍参与授权、provider proxy 和结果投影 |
+| Grant / tools | Owner reviewed、revision scoped、1–12 attempts、1–1440 分钟、最多 2 能力；Node 不支持 inspect_text/device read | Owner reviewed、默认空；支持 inspect_text，不支持 read_workspace_file；artifact 需 MINICLAW_CLOUD_APPROVALS=true |
+| 可选能力 | 最小授权只读工具，不启用 private artifact 写效果 | Product Runtime memory flags 不会自动赋予 Handoff memory（Handoff grant 不含 read_personal_memory）；device 需 MINICLAW_CLOUD_DEVICES + MINICLAW_DEVICE_NODES、paired device 和 manifest path。本次不启用 |
+
+源码证据固定于 e8db2b6：product-model.ts:42–215、automatic-goal.ts:26–110、handoff-store.ts:47–76/259–342/845–912、handoff-service.ts:78–110、goal-team-store.ts:198–267；详细链接见调查报告。Enabled Provider 配置和指纹、Host owner 权限、Bot scope/revision、grant digest、deadline 与工具调用限制均已写入报告。Node Durable 的本机执行不等于本机推理：若 #18 要求本机模型，应选择获批、API-compatible 且隔离实例可访问的本机 Provider；配置在 Node 的远程 API 仍是外部调用，须另行授权。
+
+### #18 RETAIL-00B-04V 未来真实验证（NOT_RUN）
+
+#18 需等待 00F、00B-04H、00B-02V 依赖证据；当前 #78 未合并，不启动。未来专用实例使用固定集成 SHA、temp HOME/DB/端口/Workspace、active Owner、显式最小 Grant。优先 Node Durable；无可用且批准的本地 Provider 时 BLOCKED，不自动改 Cloud。本轮没有创建角色、改 flags、调用 Provider 或运行 #18。
+
+| 用例 | 预期 |
+|---|---|
+| T01 正常委派 | 唯一 Goal/run/Handoff/new Session/request/input/submission/Task/digest；coordinator 无 native input；recipient 只执行 reviewed grant 内的只读工具；同一 request 不产生第二份 native input/submission，模型重试仍受原预算限制（不宣称 exactly-once inference/billing）；结果需服务端 receipt/evidence。 |
+| T02 角色隔离 | coordinator 与 recipient session 不同，Owner control 与 Bot execution authority 分开。只能核验现有协调者/执行者隔离；没有 RetailOps 独立 reviewer 和草案摘要绑定，禁止新建风险 Agent或声称已实现。 |
+| T03 越权拒绝 | member/other admin、revoked/expired grant、stale revision、错误 runtime/provider fingerprint、越权工具均拒绝；actor admission/control 被拒时不触发 Provider；若模型已请求未授权工具，该推理调用可能已发生，但工具边界应拒绝且无对应 Tool Task/效果。 |
+| T04 Lease 恢复 | 停止隔离 Node 进程、等待 lease 到期后接管；lease 可以更换，但原 occurrence/Handoff/session/input/submission/Generation Task/digest 保持，不能重复 prompt/效果。 |
+| T05 失败/uncertain | 隔离 Provider interruption/cancel/receipt fault 后，failed/uncertain/cancelled 不完成 Goal、不产生 Goal completed 证据、不推进下一 occurrence；保留已提交效果的原 receipt，uncertain 不作 Goal 完成依据并保持待 reconciliation。 |
+
+既有测试参考：Goal Team 唯一委派且 coordinator 无 input（goal-team.test.ts:252–280）；stale lease fence（313–357）；越权和 grant 缺失（359–385）；恢复复用 ID（bot-handoff-recovery.test.ts:21–118）；uncertain 不重生成（260–302）。参考命令（本轮未运行，fixture 不能替代真实运行）：
+
+    npm test -- --run tests/goal-team.test.ts tests/goal-team.integration.ts tests/bot-handoff-security.test.ts tests/bot-handoff-controls.test.ts tests/bot-handoff-recovery.test.ts
+
+### 公共 docs 检查
+
+上一轮 docs:check 退出码 1，旧路线图断链。公共修复 PR 未合并，本轮按要求未复跑；修复合并后再复验。当前只运行 git diff --check。
