@@ -36,7 +36,38 @@
 
 固定 README 与 `submission/design.md` 描述单 SKU/仓库补货提案流程：Agent 只负责受限判断与解释，确定性代码计算数量/成本/日期、执行硬性预算/新鲜度/期限约束；提案由具名人员审批，审批后再次读取关键事实，校验提案摘要并幂等写入。它提供“LLM 不作权威算术”“审批绑定提案版本”“审批后重新核验事实”的设计参考。该系统目标是仓库补货，不是单店生鲜定价；它的业务阈值、采购字段、工作流和运行时不能直接沿用。许可未知，不能复制实现。
 
-## 4. 面向 RetailOps 的候选模型与边界
+## 4. 固定源码证据定位
+
+下列源码链接全部固定到本报告列出的仓库 revision，行号来自该 revision 的文件，不指向浮动分支。
+
+| 项目与证据主题 | 固定源码 / 符号 / 行号 | 审阅结论 |
+|---|---|---|
+| RetailBench 逐日业务模型 | [`retail_environment.py::RetailEnvironment.step` L346–400](https://github.com/linghuazhang01/RetailBench/blob/f1d37b35abfa60ef5599e56d2cdbdaa4fd9b8bf3/retail_environment.py#L346-L400)；[`module/inventory.py::Inventory.step` L65–259](https://github.com/linghuazhang01/RetailBench/blob/f1d37b35abfa60ef5599e56d2cdbdaa4fd9b8bf3/module/inventory.py#L65-L259)；[`module/order_manager.py::OrderManager.step` L77–112](https://github.com/linghuazhang01/RetailBench/blob/f1d37b35abfa60ef5599e56d2cdbdaa4fd9b8bf3/module/order_manager.py#L77-L112) | Environment 每步推进库存销售、资金、订单到货和时间；库存按 SKU 的逐件商品列表计算销量/缺货，适合观察多周期反馈。 |
+| RetailBench 损耗与库存价值 | [`Inventory.step` 过期处理 L231–245](https://github.com/linghuazhang01/RetailBench/blob/f1d37b35abfa60ef5599e56d2cdbdaa4fd9b8bf3/module/inventory.py#L231-L245)；[`Inventory.compute_net_worth` L333–355](https://github.com/linghuazhang01/RetailBench/blob/f1d37b35abfa60ef5599e56d2cdbdaa4fd9b8bf3/module/inventory.py#L333-L355) | 过期商品会从库存移除；代码注释说按进价 0.6 倍出售，但对应收入表达式乘以 0，故不能将该路径当作可信的折价回收或损耗金额实现。库存净值采用剩余保质期线性折旧，是模拟估值，不是会计口径。 |
+| Grocery 仿真与需求 | [`gp/world.py::demand_mean` L83–88](https://github.com/mrrishit909/grocery-perishables-optimizer/blob/0355b850d8b16213400c2a8eba0adb19a40b593b/gp/world.py#L83-L88)；[`gp/world.py::simulate` L102–146](https://github.com/mrrishit909/grocery-perishables-optimizer/blob/0355b850d8b16213400c2a8eba0adb19a40b593b/gp/world.py#L102-L146) | 仿真产生需求与价格响应、按批次年龄售出、区分销售/缺货，并把腐损和到期余量清除；世界中的真值仅供模拟评估。 |
+| Grocery 批次与策略 | [`gp/engine.py::demand_models` L98 起、`lot_table` L147 起](https://github.com/mrrishit909/grocery-perishables-optimizer/blob/0355b850d8b16213400c2a8eba0adb19a40b593b/gp/engine.py#L98-L185)；[`markdown_dp` L247–273](https://github.com/mrrishit909/grocery-perishables-optimizer/blob/0355b850d8b16213400c2a8eba0adb19a40b593b/gp/engine.py#L247-L273)；[`score` L278–284](https://github.com/mrrishit909/grocery-perishables-optimizer/blob/0355b850d8b16213400c2a8eba0adb19a40b593b/gp/engine.py#L278-L284) | 按缺货截断销售拟合需求、用腐损/到期标签估寿命；动态规划按折扣与腐损风险选价。评估将腐损、到期、损耗成本、毛利、未满足需求分开计算。 |
+| Grocery 审批边界 | [`gp/api.py` 角色权限与深折扣阈值 L22–27](https://github.com/mrrishit909/grocery-perishables-optimizer/blob/0355b850d8b16213400c2a8eba0adb19a40b593b/gp/api.py#L22-L27)；[`markdown` 规划及 `approve_markdown` L365–417](https://github.com/mrrishit909/grocery-perishables-optimizer/blob/0355b850d8b16213400c2a8eba0adb19a40b593b/gp/api.py#L365-L417) | 规划者可提出折扣，40% 及以上折扣需要 store_manager 权限且不得由同一 planner 自批；此为该模拟项目的设计，不自动适用于 RetailOps。 |
+| Inventra 业务风险与人审 | [`tools/inventory.py::calculate_stock_risk` L156–218](https://github.com/Balaastratech/Inventra/blob/3645db24433a0fb6117481a18c9fefced2ad6617/tools/inventory.py#L156-L218)；[`graph/economics.py::required_quantity` L168–191、`evaluate_options` L409–702](https://github.com/Balaastratech/Inventra/blob/3645db24433a0fb6117481a18c9fefced2ad6617/submission/graph/economics.py#L168-L702)；[`nodes.py::review_policy` L791–852、`request_approval` L859–871](https://github.com/Balaastratech/Inventra/blob/3645db24433a0fb6117481a18c9fefced2ad6617/submission/graph/nodes.py#L791-L871)；[`workflow.py::_await_approval` L99–114](https://github.com/Balaastratech/Inventra/blob/3645db24433a0fb6117481a18c9fefced2ad6617/submission/graph/workflow.py#L99-L114) | 单 SKU/仓库现货风险和订货量/供应商方案由确定性代码计算；策略审查中代码强制硬性拦截，图节点以 interrupt 暂停并要求审批决定。审批载荷包括提案 hash 和数量/成本。 |
+| Inventra 再校验与幂等 | [`revalidation.py::revalidate_proposal` L29–66](https://github.com/Balaastratech/Inventra/blob/3645db24433a0fb6117481a18c9fefced2ad6617/submission/graph/revalidation.py#L29-L66)；[`nodes.py::revalidate` L1109–1117、`execute_purchase` L1120–1145](https://github.com/Balaastratech/Inventra/blob/3645db24433a0fb6117481a18c9fefced2ad6617/submission/graph/nodes.py#L1109-L1145)；[`hashing.py::compute_proposal_hash` L12–24](https://github.com/Balaastratech/Inventra/blob/3645db24433a0fb6117481a18c9fefced2ad6617/submission/graph/hashing.py#L12-L24) | 执行前重查库存时效、当前报价、预算及 proposal hash，写入以 hash 为幂等键。该仓库没有生鲜批次寿命仿真证据。 |
+
+## 5. 可用 / 不可用与复用边界矩阵
+
+| 候选 | 可提供的参考 | 不适用或不可据此推断 | 许可与复用边界 |
+|---|---|---|---|
+| RetailBench | 单店多周期决策反馈；SKU 库存/订单/销售/缺货演进（见 `RetailEnvironment.step`、`Inventory.step`、`OrderManager.step`）；MIT 许可文本可核对。 | 不直接提供 RetailOps 所需的批次级温度暴露/生鲜寿命统计或可直接照搬的人工审批契约。其过期处理注释与收入表达式不一致，库存净值也不是损耗会计；不得将其数字作为本项目验收口径。 | MIT 允许的潜在代码复用仍需后续单独审查文件、NOTICE/署名、依赖及接口；本 PR 只引用，不复制代码或数据。 |
+| Grocery Perishables Optimizer | 批次年龄/暴露、需求受缺货截断、腐损与到期拆分、折扣规划及 store-manager 深折扣审批；适合为仿真契约提供候选事件和指标。 | README 明示链、数据与真值均为模拟；模型性能、弹性、收益不是真实因果结论。不能直接给出本项目的价格弹性、寿命阈值或生产 SLA。 | 固定版本未发现许可证授权；仅可作事实性概念参考，不复制其实现、数据、测试、文档表达或资产。 |
+| Inventra | 确定性算术/硬规则、具名审批、批准后读新鲜事实、hash 绑定提案和幂等写入；适合参考审核流程边界。 | 目标是仓库补货而非零售生鲜；不含按批次过期/损耗的模拟闭环。其模型/代理/数据库栈不能替代 OpenDot/RetailOps 架构，仓库内的“live-tested”表述不是本项目证据。 | 固定版本未发现许可证授权；仅作设计层面的概念引用，不复制其代码、提示词、数据或资产。 |
+
+## 6. 可供 #14 与 #22 评审的候选输入
+
+以下内容是研究建议，不是合同冻结或实现指令；#14 和 #22 仍应按各自 Issue、DAG 与批准的领域 Schema 决定是否采纳。
+
+| 接收任务 | 可讨论的输入 | 验收边界 |
+|---|---|---|
+| #14 `RETAIL-00C` PRD / 领域架构 | 定义单店共享物理库存、SKU 批次、在线预占与可售量的不同口径；把收货、POS 销售、线上完成/取消、报损、过期作为不同事件；公开历史/派生/仿真数据分层；明确价格响应是假设并记录策略版本/审批人。 | 仅作业务词汇与不变量候选；不由本报告定字段、阈值、API、权限接口或最终架构。 |
+| #22 `RETAIL-03` 单 SKU 经营仿真器 | 固定 seed/clock；区分 `on_hand`、`reserved`、`available`；逐事件更新账本；同 seed 可重放；拆分售出、报损、到期及未满足需求；比较原价/折扣方案时记录价格生效窗口。Grocery 的 `world.simulate`/`engine.score` 可提供候选指标名称；Issue #22 的重复事件、负库存、到期停售测试应留作硬验收项。 | 只服务临时数据库内的确定性仿真，不开放 Agent 直接写入口、不连接真实零售系统；库存守恒与数据分类由 #22 自己落实和测试。 |
+
+## 7. 面向 RetailOps 的候选模型与边界
 
 以下是供后续 #14 `RETAIL-00C` 领域契约讨论的候选，不是已冻结 Schema 或实现要求：
 
@@ -57,7 +88,7 @@
 
 该例为手算数据，用于校验事件口径，不来自候选仓库或真实商店。
 
-## 5. 可复用性结论
+## 8. 可复用性结论
 
 - 当前提交没有复用第三方代码、数据、测试样本或图像。
 - RetailBench MIT 许可证已在固定树确认；如后续确有必要复用代码，应单独确定具体文件、保留版权与许可证声明并由维护者审查依赖/安全影响。
