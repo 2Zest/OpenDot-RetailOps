@@ -96,20 +96,20 @@ Issue 契约 Blob：fc7fa13d5d6cc4fe6dc9df3f66e54cc586643df2。Plan Blob：e22d1
 
 - 实际修改：仅 investigation/RETAIL-00B-04H.md 与 acceptance/RETAIL-00B-04H.md。
 - 交付：报告记录固定 SHA、路径/函数/行号、接口/角色边界、本地候选、fixture 测试、未验证事项与回滚方案。Issue 状态不改、不认领、不关闭、不标 DONE、不解锁 #18。
-- git diff --check / 0。提交与 push SHA 由主控收到后确认。
-- 待主控创建中文 PR，关联 #11，base develop/retailops；此回执不虚构 PR URL。PR 创建及独立 Review 尚未发生。
+- 本次回执更新仅补充 PR 状态；git diff --check 退出码 0。
+- PR #78：https://github.com/2Zest/OpenDot-RetailOps/pull/78，关联 #11，base develop/retailops。PR 当前 Open、未合并，等待独立 Review；Issue 不标 DONE。
 - 回滚：独立 revert 文档提交。审核者/时间：执行 Agent 自检，2026-11-25。
 
 | 对齐层 | 实际事实 | 判定 |
 |---|---|---|
 | 总体计划/场景 | 文档调查交付，未合并/未实现业务能力 | PASS |
 | Issue/Plan | Handoff 接口和本地可行性说明已交付，无范围漂移 | PASS |
-| 节点标准 | 文档已交接；PR 与 Review 待主控流程 | PASS（交接）|
+| 节点标准 | PR #78 已建立并保持 Open，尚未合并；等待独立 Review，不标 DONE | PASS（交接）|
 
 ## 最终结论
 
-- N0–N5 在调查/文档范围内 PASS；N5 不表示 PR 已创建或合并。
+- N0–N5 在调查/文档范围内 PASS；N5 表示交付及 PR 建立完成，不表示已 Review 或合并。
 - 源码调查完成；隔离 fixture 定向测试 16/16 通过。
 - 真实 RetailOps Runtime、真实模型/数据/副作用、#18 Handoff：NOT_RUN。
 - npm run docs:check：已知基线失败，未修。
-- Issue #11 保持 Open/IN_PROGRESS；未认领、未关闭、未 DONE；下游未解锁。
+- Issue #11 保持 Open/REVIEW；未认领、未关闭、未 DONE；下游未解锁。
