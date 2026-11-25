@@ -1,6 +1,6 @@
 # RETAIL-00B-02：Durable 源码契约调查
 
-状态：静态预读完成；N0 环境门槛阻塞，后续节点未验收。
+历史初始状态：N0 环境门槛阻塞（已在执行窗口补充中解除）。当前状态：调查及隔离 fixture 验收 PASS；真实 Runtime/模型/生产恢复/#16 NOT_RUN；docs:check 待公共文档 PR 合并后复验。
 基线：develop/retailops `e8db2b6b983e9cd2eeca79e596f81b2e5b93663a`；批准计划 `08679239c1e9959f465e74f1b191085ce86c2c4b`。
 Worktree/分支：`/home/szz_user/projects/OpenDot-RetailOps-RETAIL-00B-02` / `codex/retail-00b-02-durable-contract`。
 
@@ -8,7 +8,7 @@ Worktree/分支：`/home/szz_user/projects/OpenDot-RetailOps-RETAIL-00B-02` / `c
 
 Node Durable 是显式选择、受 `MINICLAW_DURABLE_RUNTIME` 门控的 Product Runtime 路径，不是普通 Pi Coding Agent 对话。Pi Durable Harness 持久化 conversation、submission、task/checkpoint、memo；MiniClaw 另绑定 Session/owner、request ID 与 payload digest，并在恢复任务前复核权限和产品回执。
 
-没有启用应用 Runtime。真实模型/工具效果、主机断电语义及生产恢复均 NOT_RUN。Node 依赖未安装，所以 N1–N3 仅只读预读、未正式验收；N0 满足后须重新冻结并逐节点复核。自动测试只代表临时 SQLite 和模拟 provider/服务，不代表生产 Runtime 通过。
+【历史快照：执行窗口开放前】没有启用应用 Runtime。真实模型/工具效果、主机断电语义及生产恢复均 NOT_RUN。Node 依赖未安装，因此当时 N1–N3 仅只读预读、未正式验收；N0 满足后须重新冻结并逐节点复核。自动测试只代表临时 SQLite 和模拟 provider/服务，不代表生产 Runtime 通过。 【当前状态（引用下方“执行窗口更新”）：N0–N4 静态调查/隔离 fixture 范围 PASS；docs:check 等待 PR #81 合并后复验；真实 Runtime、模型、外部效果和 #16 未运行。
 
 ## N0 基线与检查证据
 
@@ -77,3 +77,58 @@ Node Durable 是显式选择、受 `MINICLAW_DURABLE_RUNTIME` 门控的 Product 
 依赖安装时 npm audit 报现有 48 项 advisory（2 low、20 moderate、23 high、3 critical）；未运行 audit fix，也未改依赖。没有启用应用 Durable 配置、启动正式服务、调用真实模型、执行真实外部效果或进入 #16。
 
 当前判定：N0–N4 PASS；N5 为独立文档 PR 准备与审查，不合并。真实 Runtime/真实模型/外部效果仍 NOT_RUN，不能据此将 Issue DONE 或解锁下游。
+
+## Review 修订补充及完整源码链
+
+本节补足调用链、职责、状态映射、DeepSeek 矩阵与 #16 方案；上文 N0 首次失败及解除、N4 原始测试记录均保留。路径和行号固定于 SHA e8db2b6b983e9cd2eeca79e596f81b2e5b93663a。
+
+1. Session 创建：POST /api/groups/:jid/sessions 检查 group 权限，经 sessionCreation/runtime selector 后调用 createAgent。[agents.ts:661-748](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/routes/agents.ts#L661-L748)，选择器 [688-715](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/routes/agents.ts#L688-L715)。
+2. 产品 DB：createAgent 事务写 agents 并调用 registerProductRuntime。[db.ts:13032-13058](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/db.ts#L13032-L13058)。
+3. Runtime 选择：MINICLAW_DURABLE_RUNTIME=true 及授权 Host/容器条件允许 Node Product Durable；model config 校验 workspace owner、Host grant、enabled provider、API 类型、base URL、model、key/token、fingerprint。[product-model.ts:42-113](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-model.ts#L42-L113)、[147-216](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-model.ts#L147-L216)。
+4. 消息提交：POST /api/messages 校验 body，要求 Durable requestId、拒绝 reset/附件并调用 ProductRuntimeService.submit。[schemas.ts:241-261](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/schemas.ts#L241-L261)、[web.ts:319-416](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/web.ts#L319-L416)。Service 授权、admit 产品 input 并保存 canonical payload digest：[product-runtime.ts:2122-2204](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-runtime.ts#L2122-L2204)、[store.ts:516-571](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-runtime-store.ts#L516-L571)。
+5. Adapter 生命周期：owner 延迟 open；每个 Session 独立 durable-sessions/<sessionId>.sqlite。Adapter.open 获得 DB ownership、Node SQLite storage、文件 mode 0600 和 Harness.open。核验 Conversation root、input receipts、原生 submissions、Task/answer/control/queue 后才 activate/harness.resume。[runtime.ts:1668-1715,1855-1965](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-runtime.ts#L1668-L1715)、[adapter.ts:180-239](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/durable-runtime.ts#L180-L239)。
+6. SDK 调用：submitExisting → adapter.submitInput；验证 active、Conversation ACL、request/payload binding 后调用 Conversation.submit 并记录 native submission ID。[runtime.ts:2246-2335](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-runtime.ts#L2246-L2335)、[adapter.ts:254-275](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/durable-runtime.ts#L254-L275)。
+7. 完成和恢复：monitor 投影答案；recover/reconcile 核对 SDK submissions 与产品 receipts，再恢复 admitted/submitted 原 request，缺绑定/状态矛盾会 block。[runtime.ts:2333-2398,2601-2645](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-runtime.ts#L2601-L2645)、[adapter.ts:299-330](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/durable-runtime.ts#L299-L330)。
+
+## OpenDot / Pi Durable 职责及状态映射
+
+OpenDot 负责 Session/owner/workspace/Host 授权、provider/model fingerprint、requestId+payload digest、产品消息投影及 recovery receipts、权限和外部效果边界。pi-durable 负责 Harness/Conversation/Submission/Task/checkpoint/memo 调度持久化；pi-ai 负责 provider/model API adapter。产品业务事实、授权和 agent status 不等同 SDK 内部状态。
+
+lockfile 固定 pi-durable/pi-ai/chord 1.3.0；普通 pi-coding-agent 0.84.2。已安装 pi-durable 声明：Conversation.submit 在 node_modules/@earendil-works/pi-durable/dist/harness/types.d.ts:588-600；Submission.status/abort 在 44-49；TaskState 在 dist/types.d.ts:443-518；Submission queued/placed/done/unanswered 在 328-389。Task pending/running/waiting 有 checkpoint；completing/terminal 只保存 outcome；memo 仅在仍可运行 Task 保存。
+
+| SDK 对象 | 产品 DB 映射 | 限制 |
+|---|---|---|
+| Conversation | product_session_runtimes.conversation_id；同表绑定 owner/workspace/runtime/provider/fingerprint。[store.ts:108-118](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-runtime-store.ts#L108-L118) | 每个 Session 绑定产品 root。 |
+| Submission | product_session_inputs 保存 request_id、payload/digest、native submission_id 和 admitted/submitted/completed/failed。[153-157](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-runtime-store.ts#L153-L157)、[703-759](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-runtime-store.ts#L703-L759) | 同 request ID + 不同 digest 冲突；产品状态不是 SDK status 副本。 |
+| Task | product_input_task_sources 在实际 checkpoint reader 得到 native task ID/answer 后绑定 input、answer、payload/result digest/trace。[172-180](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-runtime-store.ts#L172-L180)、[1304-1345](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-runtime-store.ts#L1304-L1345) | 不复制 Task state/checkpoint；不可从 agent status 推断。 |
+| Checkpoint / Memo | SDK storage 保存 Conversation/Submission/Task/checkpoint/entry；OpenDot 保留 IDs/digest/完成 receipts。memo 只属于 SDK 活跃 Task。 | memo 无产品 DB 业务映射，不是零售业务事实。 |
+
+checkpoint 粒度为已提交 Task checkpoint 和 Conversation/Submission 持久记录，不是逐指令快照；精确事务时序待 #16。外部效果可能先发生而本地新 checkpoint/receipt 尚未提交，恢复重放会重复模型计费或工具副作用。无业务幂等键和持久外部回执必须标 uncertain、对账，不能盲重试。WAL synchronous=NORMAL/fixture SIGKILL 不能证明掉电/磁盘故障语义。真实 checkpoint migration、provider 中断行为及副作用幂等未验证。
+
+## DeepSeek 兼容矩阵及静态不可证项
+
+| 配置 | 静态源码能证明 | 静态不能证明 |
+|---|---|---|
+| anthropic-messages | 默认 API；读取 anthropicBaseUrl（默认 Anthropic URL）、anthropicModel、API key/token，调用 anthropicMessagesApi。[product-model.ts:77-111](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-model.ts#L77-L111)、[275-309](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-model.ts#L275-L309) | DeepSeek URL/auth/model/tools/streaming/errors/usage；写入 https://api.deepseek.com/anthropic 不是实测证明。 |
+| openai-completions | 源码接受并调用 openAICompletionsApi：[81-83](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-model.ts#L81-L83)、[276-292](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-model.ts#L276-L292) | DeepSeek 方言、tools/streaming/usage/model alias 实际兼容。 |
+| 历史普通 Pi/OAuth | 00B-01 记录过普通 Agent DeepSeek deepseek-flash；当前需要 API key/token，OAuth bridge 未接通。 | 普通 Pi 不是 Product Durable 证据；不记录或推断 secret/token 有效。 |
+
+## #16 候选真实恢复验证方案（未执行）
+
+前置：上游 #7/#00F/#9 证据固定；专用 Host workspace、账户、checkout、数据库、端口、provider secret；不得接真实商超写接口；真实模型/中断窗口另行授权。config.ts:22-33 的 DATA_DIR 按 process.cwd() 推导，独立 checkout 隔离 data/db；WEB_PORT 见 [config.ts:57-58](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/config.ts#L57-L58)。候选命令：专用目录确认 git status 干净、npm ci、锁文件/资源核验、端口空闲检查；用 secret manager 注入只读模型；只在专用目录启动 WEB_PORT=43127 MINICLAW_DURABLE_RUNTIME=true npm run dev（端口为示例，执行前检查；dev 为 tsx src/index.ts）。创建 runtime=node-durable Session 后，以认证隔离 UI/API 向 POST /api/messages 提交 {chatJid,agentId,requestId,content}。认证/CSRF 细节由 #16 执行者复核，禁止把凭据放 shell history。本轮未执行。
+
+| 场景 | 操作和预期 | 停止条件 |
+|---|---|---|
+| 正常 | 纯文本只读问题、无写工具；记录 runtime_kind、session/conversation/request/submission/task IDs、产品和 SDK 终态、answer/task-source digest、trace。 | 数据目录不隔离、无稳定 receipt、出现未授权工具效果。 |
+| 重复 | 同 requestId+payload 重放复用原 input/submission/answer；同 ID 改 payload 应 409，不得出现第二次 submission/model call。 | 出现新提交/模型调用就停止。 |
+| 中断恢复 | 只读长任务，确认已提交可观测 checkpoint；获批后只停止专用进程，保留同 DB，重启后用原 request ID reconcile。预期同 conversation/submission/task/digest、checkpoint 合法推进、一份 answer；provider 可重试/重复计费，非 exactly-once。 | 源码没有公开安全 checkpoint pause 命令；无法确认无 effect 在途则 BLOCKED，不猜测性 kill。 |
+| 取消 | 专用 owner 调 POST /api/groups/:jid/sessions/:id/abort；control queue 另以 requestId 测。预期 SDK/产品 receipt 一致，无伪造 answer/新模型调用/外部写。[agents.ts:916-959](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/routes/agents.ts#L916-L959)、[runtime.ts:3141-3157](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-runtime.ts#L3141-L3157) | Goal-managed Session 遵守 pause/cancel fence；身份不明则停止。 |
+| 授权失败 | 非 owner 尝试访问；隔离实例撤销 Host grant 或更改 model fingerprint 后恢复。应拒绝/blocked、检查前不 resume、无新输入/提交/模型调用/效果，checkpoint 不变。[runtime.ts:789-818](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-runtime.ts#L789-L818)、[adapter.ts:225-232](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/durable-runtime.ts#L225-L232) | 不改 Home 权限制造负例。 |
+
+安全 checkpoint 的具体运维暂停触发点在静态源码中不可证。不能确认安全点和无外部 effect 在途时，#16 必须 BLOCKED。
+
+## 当前状态勘误、节点三层检查、复验
+
+开头旧句“N0 阻塞/后续未验收”是执行窗口前历史快照，现标为历史；执行窗口补充记录已解除。当前：N0–N4 在静态调查/隔离测试范围 PASS，N5 为开放 PR Review；真实 Runtime/模型/副作用/#16 NOT_RUN。N0 首次 PATH 失败及解除保留。N1 三层 PASS（固定 SHA 调用链）；N2 三层 PASS（职责、映射、恢复边界静态证据）；N3 三层 PASS（调查交付、实测 NOT_RUN）；N4 fixture 5 files/26 tests exit 0，全是 isolated fixture/temp SQLite/faux provider/mock effects/SIGKILL 子进程；docs:check exit 1，基线旧链接待公共修复合并后复验，不能表述为通过。PR #81 合并后复验：npm run demo:durable-runtime、npm run docs:check、git diff --check。依赖 audit 48 advisories 维持原记录，无 audit fix。
+
+**最终状态：N0–N4 调查/隔离 fixture PASS；docs:check 待公共 PR 合并后复验；真实 Node Durable/DeepSeek/效果/生产恢复/#16 NOT_RUN。Issue 不关闭、不标 DONE、不解锁下游。**

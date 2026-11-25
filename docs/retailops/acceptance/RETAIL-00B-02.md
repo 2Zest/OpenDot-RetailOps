@@ -7,6 +7,8 @@
 - Worktree/分支：`/home/szz_user/projects/OpenDot-RetailOps-RETAIL-00B-02` / `codex/retail-00b-02-durable-contract`
 - Runtime Agent；变更仅调查报告与回执，无源码、配置、依赖、锁文件或断言变更。
 
+【历史快照：执行窗口开放前】本回执下文的 N0 BLOCKED、N1–N3 未验收、N4–N5 未开始及默认 PATH 缺 Node，均记录当时状态，不代表当前状态。当前状态见后续执行窗口更新和 Review 修订补充：N0–N4 调查/隔离 fixture 范围 PASS；docs:check 待 PR #81 合并后复验；真实 Runtime/模型/恢复/#16 NOT_RUN。
+
 ## N0：环境、基线、范围
 - 动作：核对 Git 状态/HEAD、Issue 正文、DAG、Plan、审批、00B-01 调查/R1 review、Node/依赖可用性。
 - 证据：HEAD e8db2b6…；初始 Worktree clean；Issue OPEN/READY/unassigned；无硬上游、下游 #14/#16；G0 APPROVED。Node 24.22.3 存在但默认 PATH 不含，Worktree 无 node_modules。
@@ -37,3 +39,14 @@ N4：
 - npm ci 期间 npm audit 报 48 项 advisories（2 low/20 moderate/23 high/3 critical）；未执行自动修复、未改依赖。
 
 三层语义：总体计划、Issue/Plan 与节点范围一致；定向测试证明本地隔离测试行为，不能证明真实运行。N0–N4 当前 PASS；N5 准备独立开放 PR。真实 Runtime、模型、业务副作用、主机断电恢复及 #16 均未运行；不标 DONE、不解锁下游。
+
+
+## Review 修订补充与当前节点状态
+
+源码基线 e8db2b6b983e9cd2eeca79e596f81b2e5b93663a，报告中的行号固定于此。完整调用链：agents.ts:661-748 → db.ts:13032-13058 → product-model.ts:42-113,147-216 → web.ts:319-416 → product-runtime.ts:2122-2204 → durable-runtime.ts:254-275 → SDK Conversation.submit；恢复前检查/activate 在 product-runtime.ts:1668-1715,1855-1965 和 durable-runtime.ts:180-239。
+
+OpenDot 管产品 Session/owner/ACL/provider fingerprint/request digest/产品 receipts 与恢复校验；pi-durable 管 Conversation/Submission/Task/checkpoint/memo；pi-ai 管 provider API。Conversation 映射 product_session_runtimes.conversation_id；Submission 映射 product_session_inputs 的 request_id/payload digest/submission_id/产品状态；Task 由真实 checkpoint reader 绑定 native task ID/answer entry，不复制 Task state；checkpoint 保存在 SDK storage；memo 只在 SDK 活跃 Task 存在。外部 effect 可能先于 checkpoint/receipt，缺业务幂等键需 uncertain 对账，不宣称 exactly-once。
+
+DeepSeek 静态矩阵只证明 anthropic-messages 与 openai-completions 两种 API adapter 可配置；endpoint、auth、tools、streaming、usage、model alias 需要 #16 实际验证。#16 候选方案已列隔离 checkout/data/port/provider、启动命令、正常/重复及冲突/中断恢复/取消/授权失败用例和预期。源码未提供安全 checkpoint pause 命令；无法确认安全边界要 BLOCKED。详见调查报告固定 SHA 引用。
+
+保留原执行记录：N0 首次默认 PATH 缺 Node BLOCKED，错峰后 Node 24.22.3/npm 11.19.1、12 GiB 内存、945 GiB 可用磁盘、npm ci exit 0 后解除。定向 npm run demo:durable-runtime exit 0（5 files/26 tests）只属 isolated fixture/temp SQLite/faux provider/模拟效果/SIGKILL 子进程；非真实模型或 #16。npm run docs:check exit 1，基线 RETAILOPS-ROADMAP.md:1 旧链接，公共修复尚未合并。本轮不执行 Durable suite/docs check；公共 PR #81 合并后重跑 npm run demo:durable-runtime、npm run docs:check、git diff --check。状态首尾一致：静态调查/隔离 fixture PASS；docs:check 待复验；真实 Runtime/DeepSeek/外部效果/#16 NOT_RUN；不关 Issue、不标 DONE、不解锁下游。
