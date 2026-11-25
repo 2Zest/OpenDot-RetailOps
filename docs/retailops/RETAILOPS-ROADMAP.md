@@ -1,3 +1,4 @@
+> **归档状态说明：** 本文为历史 V0.1 候选路线图，已由 [RetailOps V0.2 总体初始计划（待审查）](planning/v0.2/RETAILOPS-MASTER-PLAN-V0.2.md) 作为当前计划候选版本接替。本文中的竞品比价、叠券及跨店调拨内容仅保留历史方案记录，不构成 V0.2 的任务范围或验收承诺。V0.2 获批前也不视为生效开发计划。
 # RetailOps Issue 路线图（候选，尚未创建 GitHub Issue）
 
 固定基线 `0db0ba1bbf658d217f248bf29b5715bcbf09ccac`。开始实现前重新核对 HEAD。采用 Issue（范围与验收）+ Plan（文件、步骤、命令）+ 独立 PR。每一片增量测试、Trace、Eval 证据随实现交付。
