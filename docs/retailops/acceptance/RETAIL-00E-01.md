@@ -69,12 +69,12 @@ Issue：[#12 RETAIL-00E-01](https://github.com/2Zest/OpenDot-RetailOps/issues/12
 - 交付：`docs/retailops/investigation/RETAIL-00E-01.md` 与本回执。
 - 三方语义：总体计划/场景 PASS；Issue/Plan PASS；N0–N3节点标准通过；N4文档回归因基线链接错误BLOCKED，不将整体任务标记完成。
 - 未验证：第三方项目未运行；未做代码复用；Grocery/Inventra 许可需权利方补充后才能考虑复用代码；正式领域 Schema 仍需 #14 定稿。
-- Issue 保持 Open/IN_PROGRESS，不标 DONE；不解锁 #14/#22，不合并 PR。
+- Issue 保持 Open，当前标签为 REVIEW；不标 DONE，不解锁 #14/#22，不合并 PR。
 ## PR #75 审阅补充（2026-11-26）
 
 - 仅修订本报告与本回执；原三候选仓库、固定 revision、许可证结论和库存守恒手算场景保留。
 - 报告新增固定 revision 的源码锚点，明确列出文件、符号及行号：RetailBench `RetailEnvironment.step`、`Inventory.step`、`OrderManager.step` 与 `compute_net_worth`；Grocery `demand_mean`、`simulate`、`demand_models`、`lot_table`、`markdown_dp`、`score`、`approve_markdown`；Inventra `calculate_stock_risk`、`required_quantity`、`evaluate_options`、`review_policy`、`_await_approval`、`revalidate_proposal`、`execute_purchase` 与 `compute_proposal_hash`。详细固定链接在研究报告「固定源码证据定位」表。
 - 报告增加可用/不可用与许可复用边界矩阵，以及供 #14 RETAIL-00C 与 #22 RETAIL-03 评审的候选输入；候选输入未冻结 Schema、API 或实现要求。
 - RetailBench 过期处理的源码注释与收入表达式不一致（注释写 0.6 倍、表达式为乘 0）；本次将此限制明确列为不可照搬项。
-- 未运行第三方项目，未复制许可不明确的代码/数据/资产，未改应用源码或配置。Issue #12 与 PR #75 保持开放；不标 DONE、不解锁下游。
+- 未运行第三方项目，未复制许可不明确的代码/数据/资产，未改应用源码或配置。Issue #12 保持 Open/REVIEW，PR #75 保持开放；不标 DONE、不解锁下游。
 - `git diff --check`：退出码 0；本次差异仅限上述研究报告与节点回执。未重跑 `npm run docs:check`：历史路线图目标尚未合并修复，按 Review 要求待公共文档修复合并后复验。
