@@ -11,7 +11,7 @@
 - [归档验收回执](../acceptance/RETAILOPS-V0.2-ARCHIVE-RECEIPT.md)
 - [节点回执模板](NODE-RECEIPT-TEMPLATE.md)；[计划结构验证说明](PLAN-VALIDATION.md)
 
-37个正式 GitHub Issue 已发布并映射在依赖图中；在总体计划获批前仍全部保持 `BACKLOG`，不可据此认领或实施。所有旧状态文字按归档时快照保留，当前远端状态以验收回执和 GitHub 为准。
+[总体计划批准记录](../acceptance/RETAILOPS-V0.2-APPROVAL.md)。G0 已解除；37个正式 GitHub Issue 已发布并映射在依赖图中；已批准总体计划；首批7项为 `READY`，其余30项保持 `BACKLOG`。状态不代表自动认领或实施。所有旧状态文字按归档时快照保留，当前远端状态以验收回执和 GitHub 为准。
 
 ## 历史候选方案
 
