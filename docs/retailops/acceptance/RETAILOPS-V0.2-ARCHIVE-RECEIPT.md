@@ -5,8 +5,8 @@
 ## 项目管理收敛更新（2026-11-25）
 
 - 主 PR #5 保持 Open、未合并，base 为 `develop/retailops`；最终 SHA 以 PR 页面的 HEAD 为准。
-- PR #43 与 PR #5 的计划包逐文件比对：37份 Issue、37份 Plan、总体计划、场景、Mermaid DAG、模板及验证说明内容相同，仅路径不同；机器 DAG 的37个节点 ID 与73条硬依赖完全一致。PR #5 DAG 另补齐37项实际 GitHub Issue 编号与链接。PR #43 中的本回执、索引及旧路线图历史标记已并入；内容验收后关闭 PR #43，不合并。
-- 正式 Issue #6–#42 共37项，均 Open、BACKLOG、无人认领；历史 Issue #2 保持 Open。原重复 Issue #44–#71 已按编号核对 duplicate 标签、canonical 链接及任务编号对应关系后，以 not_planned（duplicate）原因关闭并保留历史记录。没有关闭正式 Issue。
+- PR #43 已关闭、未合并。其与 PR #5 的计划包逐文件比对：37份 Issue、37份 Plan、总体计划、场景、Mermaid DAG、模板及验证说明内容相同，仅路径不同；机器 DAG 的37个节点 ID 与73条硬依赖完全一致。PR #5 DAG 另补齐37项实际 GitHub Issue 编号与链接。PR #43 中的本回执、索引及旧路线图历史标记已并入 PR #5。
+- 当前 Open Issue 共38项（不含 PR）：正式 Issue #6–#42 共37项，均 BACKLOG、无人认领；历史 Issue #2 保持 Open。原重复 Issue #44–#71 已按编号核对 duplicate 标签、canonical 链接及任务编号对应关系后，以 not_planned（duplicate）原因关闭并保留历史记录。没有关闭正式 Issue。
 - DAG 中73条硬依赖均有 GitHub 原生 Issue Dependency 配置；依赖图、Issue 正文与 Plan 依赖声明一致。
 - RetailOps V0.2 Project 已关联仓库；37个正式任务均在 Backlog，其他任务列为空；总体计划待批准，当前无可认领任务。项目权限设置为 Private。
 - 全部新建任务保持未认领、未实施；PR #5 未合并。
