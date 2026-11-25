@@ -27,8 +27,8 @@ Issue / Plan / 节点：#80 文档维护 / RETAILOPS-ROADMAP-LINK-FIX-PLAN.md / 
 
 - npm run docs:check：退出码 0；217 个仓库 Markdown 文件一致性检查通过。
 - git diff --check：退出码 0。
-- git diff --cached --check：退出码待提交前复核。
-- PR：待创建，目标 develop/retailops；保持开放，不合并。
+- git diff --cached --check：退出码 0。
+- PR #81：https://github.com/2Zest/OpenDot-RetailOps/pull/81；目标 develop/retailops；状态 Open，等待用户确认合并。
 - 未验证项/阻塞：无。未触碰业务代码或历史路线图正文。
 - 三层判定：总体计划 PASS；Issue/Plan PASS；节点验收 PASS。
-- 节点结论：待 PR 创建及最终检查后确认。
+- 节点结论：PASS。
