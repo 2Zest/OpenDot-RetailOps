@@ -126,17 +126,17 @@ Issue / Plan 版本 / 节点 ID：Issue #10 `RETAIL-00B-03`；`docs/retailops/in
 | 对齐层 | 预期语义 | 实际事实及证据 | 判定 |
 |---|---|---|---|
 | PRD / 总体计划 | 调查输出支持后续任务，不代表功能实施或解锁。 | 文档标明运行证据边界和 #17 未执行/未解锁。 | PASS |
-| Issue / Plan | 两项文档交付物完整，独立 PR 指向 develop/retailops 并关联 #10。 | 文档已写；PR 由主控 Agent 创建，创建前其 URL/编号待补录。 | BLOCKED：等待主控创建 PR |
-| 节点验收 | diff 范围、质量检查和实际 HEAD 可复核；PR 保持开放未合并。 | `git diff --cached --check` 已退出 0；提交/push 和主控创建 PR 后按实际分支/PR 状态核验。 | BLOCKED：等待提交/push及主控 PR |
+| Issue / Plan | 两项文档交付物完整，独立 PR 指向 develop/retailops 并关联 #10。 | PR #77 [RETAIL-00B-03：MCP 工具授权与审批源码调查](https://github.com/2Zest/OpenDot-RetailOps/pull/77) 已创建；目标 `develop/retailops`，关联 Issue #10，状态 OPEN、未合并。核验时 PR review 列表为空；等待独立 Review。Issue #10 为 Open / REVIEW。 | PASS |
+| 节点验收 | diff 范围、质量检查和实际 HEAD 可复核；PR 保持开放未合并。 | PR #77 已核验 OPEN、closed_at 为空、未合并；PR head 核验时为 `37e608706435b5e35a209509bcf087d8fb0b3396`。本次回执更新将产生普通后续提交并推进该 PR head；提交后再次核对最终本地/远端 HEAD。`git diff --check` 退出码 0。 | PASS |
 
-实际 PR：待主控创建，目标 `develop/retailops`，标题与正文使用中文，关联 Issue #10。不得自动合并、关闭 Issue 或标 DONE。
+实际 PR：[PR #77](https://github.com/2Zest/OpenDot-RetailOps/pull/77)，标题与正文中文，目标 `develop/retailops`，关联 Issue #10。PR 当前 OPEN、未合并；Review 列表为空，独立 Review 和合并仍待办。不得关闭 Issue 或标 DONE。
 尚未验证项：独立 Review、PR 合并与任何真实 Runtime；均不属于本轮已完成工作。
-当前决定：等待交付收尾及主控创建开放 PR；PR 未创建时 N5 不标 PASS。
+当前决定：N5 三层检查均 PASS；PR 已创建并保持开放。等待独立 Review 与人工合并；未 Review/未合并不代表 Issue 完成，Issue #10 继续保持 Open / REVIEW。
 
 ## 最终范围与状态
 
 - 源码固定基线：`e8db2b6b983e9cd2eeca79e596f81b2e5b93663a`。
 - 任务工作树不包含业务代码实现、真实 MCP 调用、N2/N3 Runtime 执行或 #17 验证。
 - `docs:check` 退出码 1 的公共旧链接问题未修复。
-- Issue #10 保持由主控维护的 IN_PROGRESS/Review 流程；不自动认领、不关闭、不标 DONE。
+- PR #77 保持 OPEN、未合并；独立 Review 待办。Issue #10 保持 Open / REVIEW；不自动认领、不关闭、不标 DONE。
 - 下游任务未解锁。
