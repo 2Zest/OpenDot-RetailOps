@@ -49,5 +49,18 @@
 
 ## 8. 完成说明（执行后填写）
 
-实际起始 SHA / 最终 SHA、工作区状态、命令及结果、文档路径、证据分级、未验证项、后续 Issue、PR 链接与审查结论。合并前保持 READY/IN_PROGRESS/REVIEW，只有通过审查并实际合并才标 DONE。当前未执行本地调查和测试。
+以下为原始执行阶段的完成说明模板，R1 状态与结果见本节后续“审查修订状态”；原始 Issue 验收条件保持不变。合并前保持 READY/IN_PROGRESS/REVIEW，只有通过审查并实际合并才标 DONE。
 
+### 审查修订状态（RETAIL-00B-01-R1）
+
+状态：REVIEW（原始调查已提交并合并；审查修订 PR 待 Review）。
+
+- 原始调查提交：`f76970e83c0c9816604587ebab4c9ddbccd874da`，经 PR #3 合并为 `2a3465b3bdd2e2b776cd41ad3c052748e90fb3ea`。
+- 原始定向测试历史结果：8 个测试文件、58 passed、0 failed、0 skipped、exit 0。该结果来自 PR #3 调查，不是本轮重新执行。
+- 原始 Host Runner 真实运行：两轮用户任务共 user=2、assistant transcript=11、toolResult=9、工具调用=9；包含 bash=2、write=2、read=5。两次 write 发生在管理员 Home workspace 下的专用子目录。该记录不是独立 workspace 隔离测试，也不是 Agent 只读测试。
+- 本轮补充验证：R01 因缺少可证明 read-only 工具权限的独立测试 workspace，且 Container Runner 镜像不可用，标为 BLOCKED；未运行 Agent，不生成新的 fixture、工具事件或 SHA-256 证据。
+- 本轮对照源码修订了 Product Approval operation 限制、Pi 工具适配边界、Goal 开关条件、assistant 记录与模型 API 请求计数口径，以及持久化/重启恢复结论。
+- 仍未验证：独立隔离 workspace 只读及拒绝 write、多步读取与缺失文件错误的隔离复测、服务重启后 Pi Session 恢复、Product Durable checkpoint 恢复、Goal/MCP/审批和 Container Runner。
+- RETAIL-00A 完整运行基线继续为 PARTIAL。
+- 审查记录：`docs/retailops/reviews/RETAIL-00B-01-REVIEW.md`。
+- 修订 PR：[PR #4](https://github.com/2Zest/OpenDot-RetailOps/pull/4)；合并前状态保持 REVIEW，不将原 Issue 验收条件改写为通过。
