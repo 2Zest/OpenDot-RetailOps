@@ -1,6 +1,8 @@
 # RETAIL-00B-03：MCP 工具授权与审批源码契约调查
 
-> 调查日期：2026-11-25
+> 初始调查日期：2026-11-25
+> Review 补充日期：2026-11-26
+> 当前交付状态：REVIEW（PR #77 开放，等待独立 Review；未合并）
 > 任务：Issue #10 / RETAIL-00B-03
 > 固定源码基线：`e8db2b6b983e9cd2eeca79e596f81b2e5b93663a`（`origin/develop/retailops`）
 > 总体计划审批：已归档，审批记录见 `docs/retailops/acceptance/RETAILOPS-V0.2-APPROVAL.md`
@@ -13,7 +15,7 @@
 1. **Host / Pi Coding Agent**：Host 端 `CodingMcpService` 校验 owner、Host 执行权限和独占 lease；只有显式 Session consent 激活的 grant 才进入 catalog。Runner 把 tool call 交回 Host，Host 冻结 exact-call intent 和参数摘要，等待审批，然后由 Host dispatch。入口与适配分别见 [`CodingMcpService.authorize/consent/open/catalog/submit/status/cancel/decide`](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/coding-mcp-service.ts#L100-L125)、[`CodingMcpService.submit/status`](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/coding-mcp-service.ts#L364-L537) 与 [`loadExternalMcpTools`](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/container/agent-runner/src/runtime/pi/external-mcp.ts#L34-L130)。
 2. **Node Durable 原生工具路径**：`ProductRuntime` 打开已授权的 Session MCP，再把冻结的 catalog、连接和 live-grant 检查器传给 `createDurableMcpTools`。Durable 工具在 generation 前冻结授权，在执行时创建精确 intent，经同一持久化审批台账进行 dispatch；原生 replay 重新进入台账，不直接重放外部工具调用。见 [`ProductRuntime` MCP 接入](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-runtime.ts#L1720-L1749) 与 [`createDurableMcpTools`](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/durable-mcp-tools.ts#L60-L304)。
 
-两条路径共享 Session consent、catalog/grant、exact-call intent、审批记录、撤销和不确定结果处理。**Product Approval 不是零售业务审批**；这里的 MCP approval 只能说明某个 owner 同意某一次具体工具调用。零售业务仍需独立的领域授权和业务审批。
+两条路径共享 Session consent、catalog/grant、exact-call intent、审批记录、撤销和不确定结果处理。**Product Approval 不是零售业务审批**；这里的 MCP approval 只能说明某个 owner 同意某一次具体工具调用。Product Approval 的 `operation` 在固定源码中仅有 `create_private_artifact`，有 TypeScript 类型、SQLite CHECK 和请求写入三个直接约束，不能据此批准零售操作（见 §4.4）。零售业务仍需独立的领域授权和业务审批。
 
 ## 2. 证据基线与边界
 
@@ -63,6 +65,16 @@
 - 会话或任务取消会递增 cancel generation；pending/approved 调用取消，dispatching 调用转为 uncertain。撤销 grant 采用相同边界。见 [`cancelMcpApprovals` / task / grant](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/mcp-approval-store.ts#L543-L626)。
 - Coding lease 接管会 retire 旧调用：未 dispatch 的取消，已 dispatch 的 uncertain。Runner 遇到取消、超时或 turn 改变会 best-effort 调 Host cancel，但不能撤销已发生的外部效果：[`coding-mcp-service.ts:201-266`](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/coding-mcp-service.ts#L201-L266)、[`external-mcp.ts:97-130`](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/container/agent-runner/src/runtime/pi/external-mcp.ts#L97-L130)。
 
+
+### 4.4 Product Approval 的操作类型限制
+
+在固定源码 SHA `e8db2b6b983e9cd2eeca79e596f81b2e5b93663a`：
+
+- `src/personal-agent/approval-store.ts` 的 `ProductApproval` 类型将 `operation` 固定为字面值 `create_private_artifact`（第 37–60 行，字段在第 42 行）。
+- `createApprovalSchema` 建立 `product_approvals` 表时写入 SQL 约束 `CHECK(operation='create_private_artifact')`，并用 immutable trigger 固定 intent（第 67–89 行，尤其第 69–88 行）。
+- `requestArtifactApproval` 生成参数 digest 时写入 `operation: 'create_private_artifact'`，并在 INSERT 中同样硬编码该 operation（第 194–233、257–286 行，关键常量在第 225、259–260 行）。
+
+直接源码：[ProductApproval 类型和 createApprovalSchema](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/approval-store.ts#L37-L89)、[`requestArtifactApproval`](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/approval-store.ts#L194-L286)。因此现有 Product Approval 只能审批私有产物创建这一操作类型，不能靠人工点击将其改造成 `submit_decision_draft`、调价、补货提交或其他零售业务审批。
 ## 5. READ_AUTO / APPROVAL_REQUIRED / BLOCKED 候选矩阵
 
 | 候选 | 基线支持/建议 | 限定或拒绝条件 | 证据 |
@@ -71,15 +83,36 @@
 | **APPROVAL_REQUIRED** | 默认用于普通 MCP exact-call；需要有效 Session consent/grant，且每个工具名、参数摘要、来源和过期时间被固定。人批准的对象是这一条确切 intent。Computer 的 mutate 工具只有此前建立且仍有效的匹配 allowance 时才可能跳过逐次人工点击。 | 未识别工具类别、写/变更/提交业务操作、权限或数据访问扩大，建议一律逐次审批；Computer allowance 不是零售业务授权。业务草案/经营策略批准仍须有独立业务审批。 | [`requestMcpApproval`](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/mcp-approval-store.ts#L346-L421)、[`settleComputerCallApproval`](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/computer-approval-flow.ts#L23-L55)。 |
 | **BLOCKED** | 缺 consent/grant、scope 或 config/catalog/schema/arguments digest 不匹配、grant 失效或过期、owner/runtime/device/member/cancel generation 不匹配、未列入 catalog、保留 namespace 冲突、未批准的 cloud/非 Host Durable 位置、被撤销、超时或状态 uncertain 时拒绝或停止。 | dispatch 已开始但完成回执无法确认时，只能呈现 uncertain/需人工核实；不得盲目重试，因为远端副作用可能已发生。未授权外部服务不得尝试连接。 | [`scope/validate/openSessionMcp`](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/mcp-session-store.ts#L90-L153)、[`catalog/grant checks`](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/mcp-contract.ts#L111-L197)、[`executeMcpApproval`](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/mcp-approval-store.ts#L668-L801)。 |
 
-## 6. 零售业务审批候选设计（仅建议，不是实现）
+
+## 6. RetailOps 候选工具接入矩阵
+
+候选名称来自固定版本场景文档 `RETAILOPS-SCENARIO-V0.2.md` 第 64 行；总体计划说明零售工具接入还受 00B-03V、领域数据/仿真与算法等 DAG 门槛约束。以固定源码 SHA `e8db2b6b983e9cd2eeca79e596f81b2e5b93663a` 对 `src/`、`container/` 和 `tests/` 做精确名称搜索，八个名字均未发现工具注册或实现；匹配仅出现在场景候选列表。现有 generic MCP plumbing 不等于 RetailOps 工具已存在、已授权或可调用。
+
+| 候选工具 | 用途 | 副作用 / 数据影响 | 授权分类（候选） | 现有支持 | 新需求与进入实现前验证条件 |
+|---|---|---|---|---|---|
+| `query_sales` | 查询门店/SKU/时间窗销售历史 | 只读；会暴露经营数据，无业务状态写入 | `READ_AUTO` 候选；须先有显式、范围受限的只读 Grant | 当前无该工具注册/实现；只有通用 MCP/catalog 能力 | 校验门店与 SKU scope、日期上限、金额/件数单位与归一化、数据来源/快照/时效及脱敏；用合成样本和获批数据覆盖越权、空数据与过期数据。 |
+| `query_inventory_lots` | 查询批次、库存量、有效期及可售状态 | 只读；读取高时效运营数据，无库存写入 | `READ_AUTO` 候选；须显式 Grant，并受食品安全/质量硬规则约束 | 当前无该工具注册/实现 | 校验门店、SKU、批次和单位边界；保证库存/有效期快照一致及新鲜；质量/过期不可售标记不能被模型或审批覆盖；测试 stale snapshot、批次不存在和越权。 |
+| `query_stockout_history` | 查询历史缺货区间和观测记录 | 只读；可能揭示销售缺失或运营异常，无写入 | `READ_AUTO` 候选；显式 Grant 与最小字段范围 | 当前无该工具注册/实现 | 固定缺货定义、时区、观测粒度和来源；区别销售为零与缺货导致的删失；测试缺失历史、时间边界和不可推断真实需求的提示。 |
+| `query_retail_policy` | 查询有效经营/调价/质量政策 | 只读；政策读取，无写入 | `READ_AUTO` 候选；只读 Grant 仅可读取明确版本 | 当前无该工具注册/实现 | 只返回已批准且在有效期内的版本、来源和适用范围；策略缺失/过期/冲突默认拒绝推荐；验证版本变更使既有草案失效。 |
+| `forecast_demand` | 按授权销售/缺货样本生成需求预测 | 计算输出；不修改业务数据，但结果可能影响经营决策 | `READ_AUTO` 候选，仅对固定数据快照与已登记算法开放；预测作为建议，不是执行授权 | 当前无该工具注册/实现；计划中的需求恢复/预测能力另有依赖 | 遵循时间顺序切分、禁止未来信息泄漏；固定算法/参数/数据快照；报告 MAE/WAPE、误差区间和覆盖限制；覆盖样本不足、需求删失和仿真/真实来源隔离。 |
+| `compare_markdown_options` | 比较临期折扣方案、收入/损耗情景 | 确定性测算；不写价格或库存 | `READ_AUTO` 候选仅限纯计算接口；任何价格写入另属 BLOCKED/独立批准路径 | 当前无该工具注册/实现；总体计划将测算与写执行分开 | 固定批次、库存/成本、剩余窗口、政策版本和需求假设；输出区间、公式及单位；测试过期商品拒绝、库存变化和政策版本变更；不得把仿真假设表述为因果结论。 |
+| `calculate_replenishment` | 计算建议补货量和约束 | 纯计算候选；不得创建采购单或改变库存 | `READ_AUTO` 候选仅限已登记的只读计算；采购/补货执行必须单独审批 | 当前无该工具注册/实现；V1 算法任务 RETAIL-13A 尚有硬依赖 | 等待 13A 前置算法/领域契约满足；验证交期、最小订货量、包装单位、库存共享/预占、上限和幂等计算；确认输入版本过期时拒绝旧结果；禁止隐式供应商提交。 |
+| `submit_decision_draft` | 将已审查建议保存为可追溯业务草案 | 有持久化写入，但不应产生真实调价/采购副作用 | `APPROVAL_REQUIRED`；须有业务角色授权和独立草案审批。未实现/未注册时为 `BLOCKED` | 当前无 RetailOps 草案工具；Product Approval 只支持 `create_private_artifact`，不能代用 | 依赖领域草案状态/证据契约（RETAIL-07）；绑定草案、参数 digest、数据快照、政策版本、权限身份和幂等键；审批拒绝/重复、过期输入、撤销及执行结果不确定均需测试；此操作本身不授权后续业务执行。 |
+
+以上是方案级分类，不代表当前可执行状态。`READ_AUTO` 是新 RetailOps 只读策略候选；**不扩展、不复用现有 Computer 自动审批例外**。现存自动读仅限 `opendot_computer_` 与指定只读 Computer 工具/配置门槛（见 §5）；RetailOps 工具只有在实际注册、显式最小 Grant、领域权限和数据来源策略确定后，才可能评审是否按新策略免逐次点击。场景和总体计划列出的八项名称不是工具注册，也不是当前准入名单。
+
+**默认拒绝与审批不可绕过：** 未登记/未知工具默认 `BLOCKED`。人工批准只能作用于已经进入 catalog、拥有有效 Session consent/Grant、通过来源与 scope 校验、参数和 digest 完全绑定、且安全策略允许的那一次调用。审批不能补造工具注册、授予缺失的 Grant、改变 server/catalog/schema 或绕过 owner/runtime、过期、取消 generation、数据范围及安全策略。`buildMcpCatalog` 要求所选工具存在且拒绝保留命名空间；`selectGrantedMcpTools` 仅取 catalog 与显式 Grant 的交集，未知 `mcp__` Grant 抛错（固定 SHA 下 [`buildMcpCatalog`](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/mcp-contract.ts#L111-L162)、[`selectGrantedMcpTools`](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/mcp-contract.ts#L183-L197)）。`requestMcpApproval`、`decideMcpApproval`、`executeMcpApproval` 又在建请求、批准和 dispatch 前后复核来源与权限（[`mcp-approval-store.ts`](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/mcp-approval-store.ts#L346-L496)、[dispatch checks](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/mcp-approval-store.ts#L668-L801)）。
+
+DAG 门槛参考：总体计划把 `RETAIL-04` 只读工具接入置于 `00B-03V`、数据/仿真及算法验收之后（`RETAILOPS-MASTER-PLAN-V0.2.md:57-60`）；`calculate_replenishment` 对应 V1 任务 13A（同文件第 69 行）；业务草案状态由 RETAIL-07 承担（第 60 行）。本矩阵不解锁这些任务或 #17。
+## 7. 零售业务审批候选设计（仅建议，不是实现）
 
 MCP startup consent 只授权某 Session 连接指定 server 的工具子集；exact-call approval 只批准一条冻结的技术调用。两者都不能证明零售操作符合经营政策，也不能替代独立业务审批。
 
 建议后续业务接口在执行前另行冻结并审批：业务主体/门店与操作者、业务对象和影响范围、数据快照及来源、经营政策版本、拟执行变更、幂等键、审批人/角色、审批时间、撤销/到期状态。审批必须绑定不可变的规范化业务草案及 digest；执行返回可核对回执。任何草案、快照、政策、目标对象或参数变化均应使既有批准失效并要求重新审批。未获批准、策略不适用、证据缺失、调用 digest 不一致或结果不确定时默认拒绝/暂停。具体领域角色、双人审批阈值、回滚能力和审计保留期属于待业务决策项，本调查不替用户定案。
 
-这项建议用于支撑后续 #14/#17 的设计决策，不表示其依赖已满足，也不解锁任何下游任务。
+这项建议用于支撑后续设计决策，不表示其依赖已满足，也不解锁 #17 或任何其他下游任务。
 
-## 7. 定向测试、回归与结果
+## 8. 定向测试、回归与结果
 
 测试使用 Node `v24.22.3`、npm `11.19.1`，基于独立 worktree 原锁文件安装依赖。
 
@@ -88,7 +121,9 @@ MCP startup consent 只授权某 Session 连接指定 server 的工具子集；e
 | 锁定依赖安装 | `PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm ci`；803 packages added；未修改 package/lock 文件。npm 提示 48 vulnerabilities（2 low、20 moderate、23 high、3 critical）；没有执行 audit fix 或脚本审批。 | 0 | 仅环境准备。 |
 | T01/T02 定向测试 | `PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin ./node_modules/.bin/vitest run tests/mcp-contract.test.ts tests/mcp-approval.test.ts tests/mcp-session-consent.test.ts tests/mcp-approval-process-recovery.test.ts tests/durable-mcp-native.test.ts tests/coding-mcp-lease.test.ts`；6 files、41 tests passed。 | 0 | Catalog/digest、consent、审批、撤销、恢复与 lease 的既有 unit/fixture；不是 MCP server、Durable Runtime 或真实业务操作。stderr 曾出现 `serveStatic: root path './web/dist' is not found`，测试仍全部通过。 |
 | 文档基线检查 | `PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm run docs:check`；报告既有失效链接：`docs/retailops/RETAILOPS-ROADMAP.md:1` 引用缺失的 `planning/v0.2/RETAILOPS-MASTER-PLAN-V0.2.md`。 | 1 | 属于已知公共基线失败；本任务未修改路线图或总体计划。 |
-| 白空格检查 | `git diff --check` | 待提交前复核 | 仅检查本 PR 文档 diff。 |
+| 白空格检查 | `git diff --check` | Review 补充后退出码 0。 | 仅检查本 PR 文档 diff。 |
+
+公共文档修复仍未合并，因此本轮不重跑 `npm run docs:check`；上次实际退出码 1 和具体既有失效链接见上表，不能表述为通过。待公共修复合并后再重跑。
 
 ### 定向测试文件
 
@@ -99,11 +134,11 @@ MCP startup consent 只授权某 Session 连接指定 server 的工具子集；e
 - `tests/durable-mcp-native.test.ts`：隔离 Durable 原生工具 fixture 的批准/拒绝/撤销/无 grant/parent stop。
 - `tests/coding-mcp-lease.test.ts`：Coding lease fixture。
 
-## 8. 未知项、风险与下游边界
+## 9. 未知项、风险与下游边界
 
 - 真实 MCP server 的协议兼容、网络断连、凭据轮换、工具声明与真实副作用未知；本轮未连接服务。
 - 真实 Durable Runtime 运行、持久化 checkpoint 重启、Host lease 竞争和真实恢复未验证。
 - 业务级 READ_AUTO 规则、零售经营草案/政策审批模型、审批角色与结果不确定后的人工对账流程尚待业务定义。
 - `npm run docs:check` 存在公共基线失效链接，本任务没有修正；应另建授权范围内的独立文档修复任务。
-- 本轮没有源代码、测试、依赖、数据库、路由、配置、安全策略改动；仅新增本调查报告和 `acceptance/RETAIL-00B-03.md` 节点回执。
-- 结果仅为调查和 fixture 测试证据；#10 PR 未合并前不标 DONE。#17 与其他下游任务未解锁。
+- 本轮 Review 补充只改调查报告、节点回执和 PR 说明；没有源代码、测试、依赖、数据库、路由、配置或安全策略改动。
+- 当前整体状态为 **REVIEW**：PR #77 保持 open，Issue #10 保持 Open / REVIEW，等待独立 Review；未合并不标 DONE。#17 与其他下游任务未解锁。
