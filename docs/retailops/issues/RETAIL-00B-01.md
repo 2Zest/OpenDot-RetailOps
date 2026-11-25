@@ -63,4 +63,4 @@
 - 仍未验证：独立隔离 workspace 只读及拒绝 write、多步读取与缺失文件错误的隔离复测、服务重启后 Pi Session 恢复、Product Durable checkpoint 恢复、Goal/MCP/审批和 Container Runner。
 - RETAIL-00A 完整运行基线继续为 PARTIAL。
 - 审查记录：`docs/retailops/reviews/RETAIL-00B-01-REVIEW.md`。
-- 修订 PR：创建后回填 URL；合并前状态保持 REVIEW，不将原 Issue 验收条件改写为通过。
+- 修订 PR：[PR #4](https://github.com/2Zest/OpenDot-RetailOps/pull/4)；合并前状态保持 REVIEW，不将原 Issue 验收条件改写为通过。
