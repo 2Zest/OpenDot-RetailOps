@@ -89,19 +89,19 @@ Issue / Plan / 节点：同 N0；N4。HEAD/worktree/角色：独立 worktree；D
 
 ## N5 — 交付与 Review
 
-Issue / Plan / 节点：同 N0；N5。总体计划/SHA：同 N0。worktree/角色：docs/retail-00e-02；Data Research Agent。
-依赖/PR：由主控创建目标 develop/retailops、关联 #13 的中文PR；保持开放，不自动合并。
-允许路径/预期：调查报告和回执，不含原始数据。
-实际结果：两份中文文档待提交；PR URL和独立Review尚未发生，等待主控。无业务代码、无数据文件。
-证据/模式：调查报告、节点回执；公开元信息和单序列profile，非训练/runtime。
+Issue / Plan / 节点：Issue #13 RETAIL-00E-02；RETAIL-00E-02-PLAN.md；N5。总体计划/SHA：同 N0。HEAD/worktree/角色：PR创建时的head SHA为d9b7d9bc6a00f9b636289e974220e7d69922178a；docs/retail-00e-02；Data Research Agent。
+依赖/PR：PR #79 — https://github.com/2Zest/OpenDot-RetailOps/pull/79；目标分支 develop/retailops；当前 Open、未合并，等待独立 Review。主控已将 Issue #13 正文/标签同步为 REVIEW。
+允许路径/预期：调查报告和节点回执，不含原始数据；独立中文 PR 关联 #13。
+实际结果：PR #79 创建时的head SHA为d9b7d9bc6a00f9b636289e974220e7d69922178a。本次回执修订以新中文提交推送至同一分支，届时PR head会随之更新；PR 保持开放，尚未 Review 或合并；不关闭 Issue、不标 DONE。两份报告已交付，无业务代码或数据文件。
+证据/模式：PR #79、固定 head SHA、调查报告与本回执；公开元信息和单序列 profile，非训练/runtime。
 
 | 对齐层 | 预期语义 | 实际事实及证据 | 判定 |
 |---|---|---|---|
-| PRD / 总体计划 | 独立Review，人工合并 | 等主控建PR，未合并 | PASS |
-| Issue / Plan | 不实现下游、不擅自认领 | 没有业务实现或#21导入 | PASS |
-| 节点标准 | 文档、PR、Review证据完整 | 文档备齐，PR/Review待主控 | BLOCKED |
+| PRD / 总体计划 | 独立 Review，人工合并 | PR #79 指向 develop/retailops，Open、未合并；Review 尚未发生 | PASS |
+| Issue / Plan | 交付本调查，不提前实施下游 | PR 关联 #13；没有业务实现或 #21 导入 | PASS |
+| 节点标准 | 文档、关联 PR、head SHA 可核验 | 两份文档和 PR #79 均已交付；创建时 head SHA 已记；未 Review/合并 | PASS |
 
-偏差：N4基线docs:check失败；PR及Review URL尚无。复测：已执行git diff --cached --check，exit 0。风险：不得标DONE或关闭Issue。决定：交主控创建中文PR和Review后停止。记录者/时间：执行 Agent，2026-11-26。
+偏差：无新的 N5 交付偏差；Review/合并尚未发生，后续由主控/Reviewer处理。复测：PR创建时head SHA记录为d9b7d9bc6a00f9b636289e974220e7d69922178a；提交前git diff --check及staged diff检查通过。风险：N4 的基线 docs:check 失败仍阻塞整体任务状态。决定：N5 PR交付节点完成；整体保留 BLOCKED，不标 DONE、不关闭 Issue，等待独立 Review。记录者/时间：执行 Agent，2026-11-26。
 
 ## 三层语义总检
 
