@@ -23,6 +23,7 @@
 
 - **状态**：待用户批准。
 - **提案**：模型生成解释或候选方案；数量守恒、质量/保质期、授权、政策阈值、状态转换、摘要校验、幂等和最终状态判定由版本化确定性逻辑负责。独立风控只读检查，店长明确批准，执行服务仅改变仿真状态。
+- **风控分工**：风控 Agent 的 LLM 用于语义风险分析、证据缺口识别和风险理由；确定性代码负责食品安全/授权/digest/库存/数值边界等硬约束。LLM 风险判断通过不能覆盖硬规则失败；硬规则通过也不等于 LLM 语义审查完成。普通确定性算法与业务服务不应为了增加 Agent 数量被包装为 Agent。
 - **依据/边界**：Inventra 仅用于“确定性计算、提案版本校验与审批后再验证”的设计参考；未复制代码或资产。OpenDot MCP Product Approval 静态调查为受限工具授权机制，不能充当零售业务审批。MCP grant/catalog 未登记或未知工具默认拒绝；人工批准不得绕过注册、Grant 或安全政策。
 - **后果**：草案绑定输入快照与政策版本；更改会使先前风险审查/批准失效。业务写入仍受独立授权及仿真环境限制。
 
@@ -47,6 +48,39 @@
 - **状态**：待用户批准。
 - **提案**：旧 `docs/retailops/RETAILOPS-ARCHITECTURE.md` 及路线图中的 V0.1 内容保留为历史；当前 V0.2 索引只描述已批准总体计划、当前架构审批状态及依赖门槛。旧比价、叠券、跨店调拨不可成为当前功能承诺。
 - **后果**：路线图新增内容不可覆盖或删改旧业务原文；旧架构正文不在本 Issue 修改范围。
+
+## ADR-007：分析 Agent 采用有界动态 Tool-use Loop，而非固定工作流
+
+- **状态**：待用户批准；保持 RETAIL-06 已有验收，不改 Issue 或 DAG。
+- **背景/已有要求**：RETAIL-06 要求真实模型生成有来源草案、按场景动态选工具、两个不同情景产生可解释工具路径差异、证据不足时拒绝，且不能以固定顺序冒充动态规划。
+- **提案**：运行时提供可观察的 `Task → Observation → progress/evidence judgment → authorized tool or abstain/stop → Observation` 循环。每一步模型基于当前 Observation 决定已完成、继续、缺证据、失败或停止；控制层只强制授权、预算、硬规则、状态转换及 Schema，不规定固定查询脚本。工具只从当前登记且已授权的只读集合中动态选择。
+- **预算/失败边界**：设置轮次、工具次数、token、总时限与安全重试预算；具体数值由 RETAIL-06 N0 审核配置，不在 N4 填默认值。工具错误/空响应不是证据；授权失败 fail-closed；分析 Agent 无写副作用权限；超时/取消若效果不明则 `UNCERTAIN`。
+- **验收与边界**：#06 两情景真实模型行为是最小 Agent 评测要求；RETAIL-19 仍负责完整多场景经营对照。静态计划、fixture、预先写死的工具轨迹不能冒充真实 Agent 行为。
+
+## ADR-008：Context 分层，Memory 不作为业务事实源
+
+- **状态**：待用户批准的架构补充；不新建检索系统或改变 DAG。
+- **提案**：分离 System Context（可信规则/工具边界）、Task Context（当前任务和冻结快照）、Working Memory（本次 Run 中的 Observation 与证据引用）、历史经验（带来源/版本/时效的检索线索）。工具返回需按 schema 和 token 预算裁剪/摘要并保留原始定位、source/Tool Call ID、时间、单位和截断标记。
+- **约束**：Memory/摘要/检索结果不可替代库存、政策、授权、草案审批等权威服务。已有场景把复杂 RAG/Memory 优化列作以后候选；本 ADR 不引入独立 RAG、向量数据库、额外 Agent 或工具。超出已授权只读能力时另提范围变更。
+
+## ADR-009：行为 Eval 留在 #06 最小验收，完整经营对照由 #19 执行
+
+- **状态**：待用户批准的验收解释；不改任何下游验收标准。
+- **提案**：#06 的两个不同场景真实模型调用必须保留，核对动态工具选择、场景驱动的轨迹差异、来源证据、缺证据拒绝和结构化输出；其目的是 Agent 行为可证伪，不宣称业务 uplift。
+- **候选指标**：任务成功/正确拒绝率、工具选择和参数正确率、场景轨迹区分性、证据覆盖、无依据结论、硬规则违规、审批绕过、重复副作用、结构化输出、token、延迟、成本。指标阈值尚未批准或测量；安全违规候选目标为 0，绝不表示当前结果为 0。
+- **分工**：#19 固定数据/seed/模型/策略并执行完整多场景算法与 Agent 对照，报告原始指标、负例和仿真限制；不能把 #19 的实验套件挪入 #06，也不能削弱 #06 的真实模型双情景验收。
+
+## ADR-010：Trace 从 Retail Task 贯通到副作用回执
+
+- **状态**：待用户批准的可观测合同；字段/存储实现留给现有 Issue。
+- **提案**：关联 `Retail Task → Agent Run → LLM Call → Tool Call → Handoff → Approval → Execution Receipt`，每条记录含 parent/correlation IDs、版本/digest、时间、输入/输出摘要、调用预算和 outcome。保存 evidence/source 引用，不记录 secret。
+- **范围对齐**：草案 revision/evidence digest 属于 #07；approval 身份与撤销属于 #09；Durable 恢复关联属于 #11；反馈指标属于 #12；occurrence/停止恢复属于 #15；完整聚合分析属于 #19。此 ADR 不增加数据库字段/API、业务范围或 DAG 边。
+
+## ADR-011：拆分物理在手、不可售、预占与可售口径
+
+- **状态**：待用户业务审批；为 PRD 领域语义澄清，不指定数据库 Schema。
+- **提案**：`physical_on_hand` 含店内所有实物，且被互斥划分为 `unavailable_qty`（不可售）、`available_to_sell`（合格可售未预占）和 `reserved_qty`（合格但已预占），满足 `physical_on_hand = unavailable_qty + available_to_sell + reserved_qty`。预占只能从 `available_to_sell` 转入 `reserved_qty`；取消反向转移；完成订单时 `physical_on_hand` 与 `reserved_qty` 同量扣减，不能再扣一次 `available_to_sell`。过期/质量隔离是类别转移而非出库，实物移除才扣 `physical_on_hand`。任何实物不得同时计入 unavailable 和 reserved。
+- **边界**：该语义符合当前单店守恒方向；数值单位、盘点差异、事件持久化和订单功能由 RETAIL-01/03/18C 及其既有依赖确定，不在本 Issue 实施。
 
 ## 关键静态证据与运行证据隔离
 

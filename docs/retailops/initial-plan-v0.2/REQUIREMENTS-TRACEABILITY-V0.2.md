@@ -4,9 +4,10 @@
 
 | 需求 | 来源 | PRD / 架构位置 | 依赖证据或候选任务 | 验收边界/状态 |
 |---|---|---|---|---|
+| 项目目标：AI/Agent 工程能力 | 用户已批准总体方向；场景 §1、6–8 | PRD §1；架构 §1 | #06/#07/#08/#11/#15/#19 | 单店零售为受限工程场景，不建设完整传统零售管理系统；能力必须真实证据化 |
 | PRD-R01 单店、V0 一个 SKU | 总体计划 §2、场景 §1–2 | PRD §1–2；架构 §1–3 | #14 本次定稿；后续 RETAIL-01、03 | 业务范围待 N4 批准；不代表已建商品/库存功能 |
 | PRD-R02 SKU、批次、质量与到期硬规则 | 场景 §2；00E-01 单店模型 | PRD §4；架构 §3–4 | `../investigation/RETAIL-00E-01.md`；后续 RETAIL-01、03 | 单位、字段和阈值待决策；过期/质量拦截为目标硬约束 |
-| PRD-R03 库存守恒与共享口径 | 场景 §2；00E-01 业务模型案例 | PRD §4；架构 §4 | 后续 RETAIL-01、03、18C | `on_hand/reserved/available` 目标语义；线上共享库存交付属 V1 |
+| PRD-R03 库存守恒与共享口径 | 场景 §2；00E-01 业务模型案例 | PRD §4；架构 §3–4；ADR-011 | 后续 RETAIL-01、03、18C | 三类互斥分区守恒；预占只从可售转入，完成时物理与预占同量扣减；线上共享库存属 V1 |
 | PRD-R04 收货、POS、订单、损耗、盘点事件 | 场景 §2；00E-01 调查 | PRD §4；架构 §4 | 后续 RETAIL-01、03、18C | 事件合同待 N4；订单预占功能不在本任务/ V0 承诺 |
 | PRD-R05 来源分层与不可混算 | 总体计划 §2–3；场景 §3；00E-02 | PRD §5；架构 §6；ADR-002 | `../investigation/RETAIL-00E-02.md` 固定 FreshRetailNet revision；后续 RETAIL-02 | 历史/派生/模拟分开；无 LIVE_DEVICE 接入证据 |
 | PRD-R06 解释与不确定性 | 总体计划 §2；场景 §3；00E-02 缺货截断限制 | PRD §4–6；架构 §6 | 00E-02；后续 RETAIL-05F、05P | 价格响应是仿真假设/派生估计，不是因果结论 |
@@ -14,6 +15,11 @@
 | PRD-R08 冻结摘要/重新校验 | 场景审批边界；00E-01 设计参考；00B-03 exact-call | PRD §4、7；架构 §5；ADR-003/005 | `../investigation/RETAIL-00E-01.md`、`../investigation/RETAIL-00B-03.md`；后续 RETAIL-07/09 | 摘要绑定参数和审批为目标合同，未实现 |
 | PRD-R09 幂等、恢复与 uncertain | 总体计划 G3；00B-02 Durable；00B-03 MCP；00B-04H | PRD §4、7、9；架构 §3、5；ADR-005 | `../investigation/RETAIL-00B-02.md`、`../investigation/RETAIL-00B-03.md`、`../investigation/RETAIL-00B-04H.md`；#16/#17/#18 | 静态/fixture 不能证明真实恢复；#7 BLOCKED 不解除 |
 | PRD-R10 审计、指标与反馈 | 总体计划 §2、G4–G5；场景 §1 | PRD §6–7；架构 §2、6 | 后续 RETAIL-12、19、21 | 指标公式、数据单位待决策；模拟反馈与真实业务结果分开 |
+| PRD-R11 动态 Agent Loop | 场景 §1、6–7；RETAIL-06 §1、7、9 | PRD §4.1；架构 “Agent Loop”；ADR-007 | RETAIL-04、06；安全运行门槛按批准 DAG | 真实模型、Observation→进展判断→动态工具/停止；双情景轨迹可解释不同；固定流程不等同 Agent |
+| PRD-R12 Context/Memory 分层 | 场景 §6（上下文最小化、Memory 边界）；RETAIL-06 输入/输出限制 | PRD §4.2；架构 “上下文分层”；ADR-008 | RETAIL-04/06；若需要独立检索系统须范围变更 | Context 层次、裁剪/摘要、token 预算、来源/时效与权威边界明确；未新增 RAG |
+| PRD-R13 风控及生命周期 fail-closed | 场景 §2；RETAIL-07/08/09/11 §2、7、9；00B-03/04H 静态限制 | PRD §4、7；架构 §5；ADR-003/005/011 | RETAIL-07、08、09、11；运行验证 #17/#18/#16 及 #7 gate | 风控拒绝/失败/取消/超时、批准撤销/过期、草案 stale、uncertain 对账不绕过；未实现声明 |
+| PRD-R14 最小 Agent 行为评测 | RETAIL-06 T01/T02、双情景验收；RETAIL-19 §1、7、9 | PRD “RETAIL-06 与 RETAIL-19 的评测边界”；架构 “最小 Agent Eval”；ADR-009 | RETAIL-06 最小双场景真实模型评测；RETAIL-19 完整经营对照 | 指标/阈值是候选，不声称有实测；不把 #19 范围迁入 #06 |
+| PRD-R15 端到端 Trace | RETAIL-07 N3；RETAIL-11 run/draft/operation；RETAIL-12 feedback receipt；RETAIL-15 occurrence；RETAIL-19 原始指标 | PRD “Agent 风险、审批与可观测要求”；架构 “端到端 Trace”；ADR-010 | RETAIL-07/09/11/12/15/19 按已有依赖实现 | Retail Task→Agent Run→LLM/Tool Call→Handoff→Approval→Execution Receipt 相关联；具体字段留各 Issue |
 | V0/V1 分阶段 | 总体计划 §2、DAG；场景 §2 | PRD §2；架构 §8；路线图 V0.2 段 | 00E-01/02；DAG 后续 RETAIL-03M、18C、13A/13B、14 | 多 SKU/共享库存/补货需依赖门槛和实际覆盖证据，不由 #14 自动解锁 |
 | 技术栈候选和 Runtime 门槛 | 总体计划 G1–G5；00B-02/03/04H | 架构 §2、7；ADR-004 | 固定源码调查 SHA `e8db2b6...`；#7/#16/#17/#18 | 仅是候选静态结构；Node/Cloud/DeepSeek/真实效果未验收 |
 | 历史规划边界 | V0.1 路线图/架构；批准 V0.2 总体计划 | 路线图当前索引；ADR-006 | 本次改动路线图顶部，保留旧正文 | 旧比价/叠券/跨店内容是历史，不是当前承诺 |
@@ -27,3 +33,34 @@
 - **D：数据事实**：固定数据版本及可复现筛选/覆盖证据；不能将编码样本外推为真实门店运营记录。
 
 本矩阵没有将任何未实现需求标为 DONE。正式版本/业务指标/风险阈值待 N4 决策；每个下游 Issue 仍需在自己的 N0 固定实际基线、输入和节点验收。
+
+## N4 独立架构 Review 逐项语义对齐
+
+### 既有 Issue 契约逐项对照
+
+| Issue | 已有计划/验收语义（E） | 文档澄清（A） | 新增范围（C）及本次处理 |
+|---|---|---|---|
+| RETAIL-06 | 两个不同情景真实调用模型；观察驱动动态工具选择及轨迹差异；来源草案；证据不足时拒绝；不得执行副作用 | PRD-R11/12/14、架构 Agent Loop/Context/Eval、ADR-007/008/009 明确 Observation、进展判断、预算、停止、结构化结果和最小评测 | 独立 Runtime/RAG/额外 Agent 属 C；未增加，不改变 #06 验收或 DAG |
+| RETAIL-07 | 草案 revision、证据摘要/政策版本绑定、同输入幂等、变化生成新版本、模型不能自批 | PRD-R08/13/15、架构状态与 Trace 明确摘要失效、审批前再校验和引用关联 | 新 Schema/API 属 C；留给原 Issue，不修改其范围 |
+| RETAIL-08 | 独立风控审阅同一冻结草案；硬限制可阻断；失败不进入审批；风控不能执行 | PRD-R07/13、架构状态机、ADR-003/005 区分 LLM 语义审查与确定性硬规则 | 新风控架构/Grant/Handoff 实现属 C；仍须原 #18/#17/#7 门槛 |
+| RETAIL-09 | 人类业务批准/拒绝/到期/撤销绑定冻结草案；批准不等于执行 | PRD-R07/08/13、架构状态机及 trace 标明 actor、digest、expiry 和失效状态 | 审批存储/API 扩展属 C；字段实现留给原 Issue，不修改验收 |
+| RETAIL-11 | Durable 恢复需关联同一任务/草案/操作；覆盖停止、取消、幂等回执及 uncertain | PRD-R09/13/15、架构对账转换与产品账本/Runtime checkpoint 权威边界 | 新恢复方案/真实 Runtime 属 C；仍须 #7/#16 运行验证，未启动 |
+| RETAIL-12 | 仿真反馈、指标/手算可核对，模拟结果与现实数据分开 | PRD-R05/10/14、架构数据谱系及 Trace 明确来源、单位、反馈关联 | 新评测平台属 C；不新增实现，不将仿真说成真实效果 |
+| RETAIL-15 | Goal/Scheduler occurrence 标识、停止/恢复；不能自动触发未经批准的业务动作 | PRD-R09/15、架构 uncertain 状态不完成且不推进下一 occurrence | 调度器/工具改造属 C；不改 #15 验收或依赖 |
+| RETAIL-19 | 固定数据切分/种子/条件开展完整多场景经营对照，报告原始指标和负例，不预设 Agent 更优 | PRD-R14、架构最小 Eval、ADR-009 划清 #06 行为验收与 #19 业务比较 | 把对照套件移入 #06 属 C；明确保留给 #19 |
+
+本表的 E 为 Issue/场景已有要求；A 为不改变验收的架构解释；C 为需单独变更提案的扩围。本次未更改其他 Issue、Plan、验收文本、DAG 或其依赖关系。
+
+| Review 要求 | 分类 | 既有范围对齐 | 本次文档落点/处理 |
+|---|---|---|---|
+| 真实模型、多步进展、动态工具选择、两个情景轨迹差异、缺证据拒绝 | E：已有验收要求 | RETAIL-06 的目标、N1–N3、T01/T02 与验收标准 | PRD-R11、Agent Loop；保留 #06 真实模型与双情景，不以 fixture/固定脚本代替 |
+| System/Task/Working/历史经验边界，结果裁剪、摘要、来源、时效、token 预算 | A：架构补充 | 场景要求上下文最小化；不新增业务能力 | PRD-R12、Architecture Context contract、ADR-008；具体预算由 #06 N0 冻结 |
+| 确定性硬规则与 LLM 风险分析分工，拒绝/撤销/超时/stale/uncertain 状态 | E+A：已有安全/状态要求加明确语义 | RETAIL-07/08/09/11 和 00B-03/04H 的现有目标 | PRD-R13、ADR-003/005、Architecture 状态转换；不改其他 Issue 文本/验收 |
+| 单 SKU/多场景评测与 trace 关联，候选指标和阈值 | E+A：最小 #06 验收 + 跨 Issue 可观测解释 | RETAIL-06 双真实情景；RETAIL-19 全面经营对照；07/11/12/15 各自 trace/receipt | PRD-R14/R15、ADR-009/010；阈值未批准、未声称有结果 |
+| 单独 RAG、额外 Agent、额外 Issue/DAG 关系、将 #19 实验塞入 #06 | C：若要实施则属新增范围 | 现有场景把复杂 RAG/Memory/Context 列为后续候选；批准 DAG 未包含本次新依赖 | 明确不纳入，不改 Issue/Plan/DAG；如确需实施另提用户审批变更 |
+
+### 三类语义定义
+
+- **E（Existing）**：RETAIL-06/07/08/09/11/12/15/19 或原场景已有明确目标/验收，本次只是使其在 PRD/Architecture 中可追溯，不改其范围和验收阈值。
+- **A（Architecture clarification）**：为了让既有合同可实现和可审查而补充状态、来源、上下文或可观测语义；不创建新服务/Agent、工具、Issue、DAG 边或实现承诺。
+- **C（Change required）**：任何独立 RAG、额外 Agent/运行时、改动其他 Issue 验收、跨任务接口/依赖变化、把 #19 的对照实验移动至 #06，均需独立变更提案及用户审批；本轮没有实施。

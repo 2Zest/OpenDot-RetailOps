@@ -6,10 +6,10 @@
 - 上游：RETAIL-00B-02、RETAIL-00B-03、RETAIL-00B-04H、RETAIL-00E-01、RETAIL-00E-02。核验实际 PR/证据与当前集成 HEAD，发现不一致则暂停。
 - 输入：本总体计划、场景草案、五项上游调查。
 - 环境：总体计划审批记录已归档，Issue #14 READY 后由用户授权认领；不得把静态调查或 fixture 结果作为 Runtime 验收。
-- 运行环境：Windows 11 + WSL2 Ubuntu 24.04.1；WSL 可用内存约 12 GiB、根盘可用约 941 GiB；Windows Node v26.13.0/npm 11.20.0，WSL 未安装 Node。N0–N4 为文档工作；N5 的 Node 版本兼容性需记录。
+- 运行环境：Windows 11 + WSL2 Ubuntu 24.04.1；WSL 可用内存约 12 GiB、根盘可用约 941 GiB。Windows Node v26.13.0/npm 11.20.0；WSL `node` 当前未安装，`npm` 实际解析到 Windows fnm 路径。N0–N4 仅文档工作。N5 必须在 WSL 中使用已批准基线 Node v24.22.3，并验证 `node`/`npm` 均解析到 WSL/Linux 路径；Windows Node 26 和经 Windows interop 的 npm 不满足门槛。
 - 基线：`develop/retailops` HEAD `591ced31c0557cbb14d7b4dc6197da52923e55b6`；五项上游合并 SHA 已在 N0 回执记录并均为当前基线祖先。
 - 文件范围冻结为 N0 回执所列 13 个文档路径。禁止改动源码、测试、配置、依赖、迁移、API/MCP/Agent 工具、DAG、总体计划、旧架构文档及其他任务文件；历史路线图内容不得删除或重写。
-- 检查命令仅在用户批准 N4 后于 N5 执行：`npm run docs:check`、`git diff --check`，并执行 Plan 中列明的定向语义审阅。N0–N4 不运行产品/Runtime 测试。
+- 检查命令仅在用户批准 N4 且 WSL Node v24.22.3 基线核验通过后，于 N5 执行：`npm run docs:check`、`git diff --check`，并执行 Plan 中列明的定向语义审阅。N0–N4 不运行产品/Runtime 测试。
 - N4 交付审批包后必须停止等待用户确认；N5–N6 仅在收到明确批准后继续。
 
 ## 节点计划与交付标准

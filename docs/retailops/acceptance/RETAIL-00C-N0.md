@@ -35,7 +35,8 @@ GitHub 当前记录中五项上游均已关闭并标记 DONE。#7 仍为 Open/BL
 ## 环境与资源
 
 - WSL2：Ubuntu 24.04.1 LTS；空闲内存约 12 GiB；根文件系统剩余空间约 941 GiB。
-- WSL 内未发现 Node；Windows Node 为 v26.13.0，npm 为 11.20.0；N5 时须记录工具版本与仓库要求的差异。
+- 本轮再次核验：Windows `node --version`=`v26.13.0`、`npm --version`=`11.20.0`。`wsl -d Ubuntu -- bash -lc 'node --version; npm --version'` 中 Node 返回 `command not found`；`command -v npm` 指向 `/mnt/c/Users/Administrator/AppData/Local/fnm_multishells/.../npm`，即 Windows interop 路径，不是 WSL Node 环境。
+- N5 指定执行基线为 WSL2 Ubuntu 24.04.1 + Node v24.22.3（此前隔离验证记录使用的 Node 24 基线）。N5 前需在 WSL 内提供 Node v24.22.3，并验证 `command -v node/npm` 均解析到 Linux 路径；当前环境不满足，未安装/切换运行时。Windows Node 26/npm 11 不可代替该基线。
 - 本阶段只编辑文档，无 Docker 构建、大规模下载或高负载测试。N0–N4 不运行产品或 Agent Runtime。
 - GitHub CLI `gh` 不可用；本轮已通过 GitHub 连接器完成远端状态核验和 Issue/Project 状态同步，不把 CLI 缺失表述为 GitHub 无法操作。
 
@@ -63,7 +64,7 @@ GitHub 当前记录中五项上游均已关闭并标记 DONE。#7 仍为 Open/BL
 
 - N1–N3：文件范围审阅、来源/版本核对、需求追溯及三层语义检查；不启动真实 Runtime，不运行下游任务。
 - N4：对审批材料涉及的文件记录 SHA-256，并列清业务决策问题；该节点后停止等待用户批准。
-- 只有用户批准 N4 后才执行 N5：`npm run docs:check`、`git diff --check`、Plan 中的定向回归审阅。N4 前不得以尚未运行检查宣称验收通过。
+- 只有用户批准 N4 且 WSL Node v24.22.3 执行基线已核验后才执行 N5：`npm run docs:check`、`git diff --check`、Plan 中的定向回归审阅。N4 前不得以尚未运行检查宣称验收通过。
 - N6：审批后进行最终范围/diff 核验并创建独立 PR，目标 `develop/retailops`；不自行合并。
 
 ## 三层语义一致性检查
