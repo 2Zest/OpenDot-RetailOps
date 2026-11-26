@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { contractVersionSchema, opaqueReferenceSchema, passesPrecheck, type PrecheckEvidence } from '../shared/primitives.js';
+import {
+  contractVersionSchema,
+  executionOutcomeSchema,
+  opaqueReferenceSchema,
+  passesPrecheck,
+  precheckEvidenceSchema,
+  reconciliationOutcomeSchema,
+} from '../shared/primitives.js';
 
 export const draftStatusSchema = z.enum([
   'DRAFTED',
@@ -50,20 +57,22 @@ export const draftSchema = z
 
 export type Draft = z.infer<typeof draftSchema>;
 
-export interface DraftTransitionEvidence {
-  readonly riskReview?: 'PASS' | 'REJECTED' | 'FAILED' | 'TIMEOUT';
-  readonly approval?: 'APPROVED' | 'REJECTED' | 'REVOKED' | 'EXPIRED';
-  readonly precheck?: PrecheckEvidence;
-  readonly execution?: 'CONFIRMED' | 'DEFINITIVE_FAILURE' | 'NO_EFFECT' | 'UNKNOWN';
-  readonly reconciliation?: 'COMPLETED' | 'FAILED' | 'BLOCKED';
-}
+const draftTransitionEvidenceSchema = z.object({
+  riskReview: z.enum(['PASS', 'REJECTED', 'FAILED', 'TIMEOUT']).optional(),
+  approval: z.enum(['APPROVED', 'REJECTED', 'REVOKED', 'EXPIRED']).optional(),
+  precheck: precheckEvidenceSchema.optional(),
+  execution: executionOutcomeSchema.optional(),
+  reconciliation: reconciliationOutcomeSchema.optional(),
+}).strict();
+
+export type DraftTransitionEvidence = z.infer<typeof draftTransitionEvidenceSchema>;
 
 const draftTransitions = {
   DRAFTED: ['RISK_REVIEW', 'CANCELLED', 'STALE'],
   RISK_REVIEW: ['AWAITING_MANAGER', 'RISK_REJECTED', 'RISK_FAILED', 'RISK_TIMEOUT', 'CANCELLED', 'STALE'],
   AWAITING_MANAGER: ['APPROVED', 'APPROVAL_REJECTED', 'APPROVAL_EXPIRED', 'CANCELLED', 'STALE'],
   APPROVED: ['PRECHECK', 'APPROVAL_REVOKED', 'APPROVAL_EXPIRED', 'CANCELLED', 'STALE'],
-  PRECHECK: ['EXECUTING', 'FAILED', 'CANCELLED', 'STALE'],
+  PRECHECK: ['EXECUTING', 'FAILED', 'CANCELLED', 'STALE', 'APPROVAL_REVOKED', 'APPROVAL_EXPIRED'],
   EXECUTING: ['COMPLETED', 'FAILED', 'CANCELLED', 'UNCERTAIN'],
   COMPLETED: [],
   RISK_REJECTED: [],
@@ -78,30 +87,59 @@ const draftTransitions = {
   UNCERTAIN: ['COMPLETED', 'FAILED'],
 } satisfies Record<DraftStatus, readonly DraftStatus[]>;
 
-export function canTransitionDraft(
-  current: DraftStatus,
-  next: DraftStatus,
-  evidence: DraftTransitionEvidence = {},
-): boolean {
-  if (!draftTransitions[current].some((allowed) => allowed === next)) return false;
+export function canTransitionDraft(current: unknown, next: unknown, evidence: unknown = {}): boolean {
+  const parsedCurrent = draftStatusSchema.safeParse(current);
+  const parsedNext = draftStatusSchema.safeParse(next);
+  const parsedEvidence = draftTransitionEvidenceSchema.safeParse(evidence);
+  if (!parsedCurrent.success || !parsedNext.success || !parsedEvidence.success) return false;
 
-  if (current === 'RISK_REVIEW' && next === 'AWAITING_MANAGER') return evidence.riskReview === 'PASS';
-  if (current === 'RISK_REVIEW' && next === 'RISK_REJECTED') return evidence.riskReview === 'REJECTED';
-  if (current === 'RISK_REVIEW' && next === 'RISK_FAILED') return evidence.riskReview === 'FAILED';
-  if (current === 'RISK_REVIEW' && next === 'RISK_TIMEOUT') return evidence.riskReview === 'TIMEOUT';
-  if (current === 'AWAITING_MANAGER' && next === 'APPROVED') return evidence.approval === 'APPROVED';
-  if (current === 'AWAITING_MANAGER' && next === 'APPROVAL_REJECTED') return evidence.approval === 'REJECTED';
-  if (next === 'APPROVAL_REVOKED') return evidence.approval === 'REVOKED';
-  if (next === 'APPROVAL_EXPIRED') return evidence.approval === 'EXPIRED';
-  if (current === 'APPROVED' && next === 'PRECHECK') return evidence.approval === 'APPROVED';
-  if (current === 'PRECHECK' && next === 'EXECUTING') return passesPrecheck(evidence.precheck);
-  if (current === 'PRECHECK' && next === 'FAILED') return evidence.precheck?.hardRules === 'FAIL' || evidence.precheck?.authorization === 'DENIED';
-  if (current === 'EXECUTING' && next === 'COMPLETED') return evidence.execution === 'CONFIRMED';
-  if (current === 'EXECUTING' && next === 'FAILED') return evidence.execution === 'DEFINITIVE_FAILURE';
-  if (current === 'EXECUTING' && next === 'CANCELLED') return evidence.execution === 'NO_EFFECT';
-  if (current === 'EXECUTING' && next === 'UNCERTAIN') return evidence.execution === 'UNKNOWN';
-  if (current === 'UNCERTAIN' && next === 'COMPLETED') return evidence.reconciliation === 'COMPLETED';
-  if (current === 'UNCERTAIN' && next === 'FAILED') return evidence.reconciliation === 'FAILED';
+  const currentStatus = parsedCurrent.data;
+  const nextStatus = parsedNext.data;
+  const transitionEvidence = parsedEvidence.data;
+  if (!draftTransitions[currentStatus].some((allowed) => allowed === nextStatus)) return false;
 
-  return true;
+  if (currentStatus === 'DRAFTED' && nextStatus === 'RISK_REVIEW') return true;
+  if (currentStatus === 'RISK_REVIEW' && nextStatus === 'AWAITING_MANAGER') return transitionEvidence.riskReview === 'PASS';
+  if (currentStatus === 'RISK_REVIEW' && nextStatus === 'RISK_REJECTED') return transitionEvidence.riskReview === 'REJECTED';
+  if (currentStatus === 'RISK_REVIEW' && nextStatus === 'RISK_FAILED') return transitionEvidence.riskReview === 'FAILED';
+  if (currentStatus === 'RISK_REVIEW' && nextStatus === 'RISK_TIMEOUT') return transitionEvidence.riskReview === 'TIMEOUT';
+  if (currentStatus === 'AWAITING_MANAGER' && nextStatus === 'APPROVED') return transitionEvidence.approval === 'APPROVED';
+  if (currentStatus === 'AWAITING_MANAGER' && nextStatus === 'APPROVAL_REJECTED') return transitionEvidence.approval === 'REJECTED';
+  if (currentStatus === 'AWAITING_MANAGER' && nextStatus === 'APPROVAL_EXPIRED') return transitionEvidence.approval === 'EXPIRED';
+  if (currentStatus === 'APPROVED' && nextStatus === 'PRECHECK') return transitionEvidence.approval === 'APPROVED';
+  if (currentStatus === 'APPROVED' && nextStatus === 'APPROVAL_REVOKED') return transitionEvidence.approval === 'REVOKED';
+  if (currentStatus === 'APPROVED' && nextStatus === 'APPROVAL_EXPIRED') return transitionEvidence.approval === 'EXPIRED';
+
+  if (currentStatus === 'PRECHECK' && nextStatus === 'EXECUTING') return passesPrecheck(transitionEvidence.precheck);
+  if (currentStatus === 'PRECHECK' && nextStatus === 'FAILED') {
+    return transitionEvidence.precheck?.hardRules === 'FAIL'
+      || transitionEvidence.precheck?.authorization === 'DENIED'
+      || transitionEvidence.precheck?.idempotencyKey === 'MISSING';
+  }
+  if (currentStatus === 'PRECHECK' && nextStatus === 'APPROVAL_REVOKED') return transitionEvidence.precheck?.approval === 'REVOKED';
+  if (currentStatus === 'PRECHECK' && nextStatus === 'APPROVAL_EXPIRED') return transitionEvidence.precheck?.approval === 'EXPIRED';
+  if (currentStatus === 'PRECHECK' && nextStatus === 'STALE') {
+    return transitionEvidence.precheck?.draftSnapshot === 'STALE' || transitionEvidence.precheck?.policy === 'STALE';
+  }
+
+  if (nextStatus === 'CANCELLED' && currentStatus !== 'EXECUTING') return true;
+  if (nextStatus === 'STALE') return true;
+
+  if (currentStatus === 'EXECUTING' && nextStatus === 'COMPLETED') return transitionEvidence.execution === 'CONFIRMED';
+  if (currentStatus === 'EXECUTING' && nextStatus === 'FAILED') {
+    return transitionEvidence.execution === 'DEFINITIVE_FAILURE'
+      || transitionEvidence.execution === 'NO_EFFECT'
+      || transitionEvidence.execution === 'TIMEOUT_NO_EFFECT';
+  }
+  if (currentStatus === 'EXECUTING' && nextStatus === 'CANCELLED') {
+    return transitionEvidence.execution === 'NO_EFFECT' || transitionEvidence.execution === 'TIMEOUT_NO_EFFECT';
+  }
+  if (currentStatus === 'EXECUTING' && nextStatus === 'UNCERTAIN') {
+    return transitionEvidence.execution === 'UNKNOWN' || transitionEvidence.execution === 'TIMEOUT_UNKNOWN';
+  }
+
+  if (currentStatus === 'UNCERTAIN' && nextStatus === 'COMPLETED') return transitionEvidence.reconciliation === 'COMPLETED';
+  if (currentStatus === 'UNCERTAIN' && nextStatus === 'FAILED') return transitionEvidence.reconciliation === 'FAILED';
+
+  return false;
 }

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const CONTRACT_VERSION = '0.1.0' as const;
+export const CONTRACT_VERSION = '0.2.0' as const;
 export const contractVersionSchema = z.literal(CONTRACT_VERSION);
 
 export const opaqueReferenceSchema = z
@@ -10,10 +10,11 @@ export const opaqueReferenceSchema = z
 
 export const unitCodeSchema = opaqueReferenceSchema;
 export const currencyCodeSchema = z.string().regex(/^[A-Z]{3}$/, 'Use an explicit three-letter uppercase code');
+const nonNegativeDecimalPattern = /^\d+(?:\.\d+)?$/;
 
 export const quantitySchema = z
   .object({
-    value: z.string().regex(/^\d+(?:\.\d+)?$/, 'Use a non-negative decimal string without exponent notation'),
+    value: z.string().regex(nonNegativeDecimalPattern, 'Use a non-negative decimal string without exponent notation'),
     unitCode: unitCodeSchema,
   })
   .strict();
@@ -30,23 +31,37 @@ export const moneySchema = z
 
 export type Money = z.infer<typeof moneySchema>;
 
-export interface PrecheckEvidence {
-  readonly hardRules: 'PASS' | 'FAIL';
-  readonly authorization: 'ACTIVE' | 'DENIED';
-  readonly approval: 'VALID' | 'REVOKED' | 'EXPIRED';
-  readonly draftSnapshot: 'CURRENT' | 'STALE';
-  readonly policy: 'CURRENT' | 'STALE';
-  readonly idempotencyKey: 'PRESENT' | 'MISSING';
-}
+export const precheckEvidenceSchema = z.object({
+  hardRules: z.enum(['PASS', 'FAIL']),
+  authorization: z.enum(['ACTIVE', 'DENIED']),
+  approval: z.enum(['VALID', 'REVOKED', 'EXPIRED']),
+  draftSnapshot: z.enum(['CURRENT', 'STALE']),
+  policy: z.enum(['CURRENT', 'STALE']),
+  idempotencyKey: z.enum(['PRESENT', 'MISSING']),
+}).strict();
 
-export function passesPrecheck(evidence: PrecheckEvidence | undefined): boolean {
-  return evidence !== undefined
-    && evidence.hardRules === 'PASS'
-    && evidence.authorization === 'ACTIVE'
-    && evidence.approval === 'VALID'
-    && evidence.draftSnapshot === 'CURRENT'
-    && evidence.policy === 'CURRENT'
-    && evidence.idempotencyKey === 'PRESENT';
+export type PrecheckEvidence = z.infer<typeof precheckEvidenceSchema>;
+
+export const executionOutcomeSchema = z.enum([
+  'CONFIRMED',
+  'DEFINITIVE_FAILURE',
+  'NO_EFFECT',
+  'UNKNOWN',
+  'TIMEOUT_NO_EFFECT',
+  'TIMEOUT_UNKNOWN',
+]);
+
+export const reconciliationOutcomeSchema = z.enum(['COMPLETED', 'FAILED', 'BLOCKED']);
+
+export function passesPrecheck(evidence: unknown): boolean {
+  const parsed = precheckEvidenceSchema.safeParse(evidence);
+  return parsed.success
+    && parsed.data.hardRules === 'PASS'
+    && parsed.data.authorization === 'ACTIVE'
+    && parsed.data.approval === 'VALID'
+    && parsed.data.draftSnapshot === 'CURRENT'
+    && parsed.data.policy === 'CURRENT'
+    && parsed.data.idempotencyKey === 'PRESENT';
 }
 
 export const dateOnlySchema = z
@@ -76,6 +91,13 @@ export function decimalParts(value: string): { readonly whole: string; readonly 
 }
 
 export function decimalToScaledInteger(value: string, scale: number): bigint {
+  if (typeof value !== 'string' || !nonNegativeDecimalPattern.test(value)) {
+    throw new TypeError('Expected a non-negative decimal string without exponent notation');
+  }
+  const fractionDigits = value.split('.')[1] ?? '';
+  if (!Number.isSafeInteger(scale) || scale < fractionDigits.length) {
+    throw new RangeError('Scale must be a non-negative safe integer that covers the decimal fraction');
+  }
   const { whole, fraction } = decimalParts(value);
   const paddedFraction = fraction.padEnd(scale, '0');
   return BigInt(`${whole}${paddedFraction}`);
@@ -86,6 +108,11 @@ export function decimalScale(value: string): number {
 }
 
 export function decimalSumEquals(total: string, parts: readonly string[]): boolean {
+  if (typeof total !== 'string' || !Array.isArray(parts)
+    || !nonNegativeDecimalPattern.test(total)
+    || parts.some((part) => typeof part !== 'string' || !nonNegativeDecimalPattern.test(part))) {
+    return false;
+  }
   const scale = Math.max(decimalScale(total), ...parts.map(decimalScale));
   return decimalToScaledInteger(total, scale) === parts.reduce(
     (sum, part) => sum + decimalToScaledInteger(part, scale),

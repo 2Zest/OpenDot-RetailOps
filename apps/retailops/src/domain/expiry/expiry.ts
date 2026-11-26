@@ -24,30 +24,36 @@ export const asOfSchema = z.discriminatedUnion('basis', [
 
 export type AsOf = z.infer<typeof asOfSchema>;
 
+const sellabilityInputSchema = z.object({
+  expiry: expirySchema.optional(),
+  asOf: asOfSchema.optional(),
+  qualityStatus: qualityStatusSchema.optional(),
+}).strict();
+
 export type SellabilityAssessment =
   | { readonly status: 'ELIGIBLE'; readonly reason: 'BEFORE_EXPIRY_AND_QUALITY_PASS' }
   | { readonly status: 'BLOCKED'; readonly reason: 'AFTER_EXPIRY' | 'QUALITY_FAILED' }
-  | { readonly status: 'UNRESOLVED'; readonly reason: 'MISSING_INPUT' | 'UNKNOWN_QUALITY' | 'BASIS_MISMATCH' | 'EXPIRY_BOUNDARY' };
+  | { readonly status: 'UNRESOLVED'; readonly reason: 'MISSING_INPUT' | 'UNKNOWN_QUALITY' | 'BASIS_MISMATCH' | 'EXPIRY_BOUNDARY' | 'INVALID_INPUT' };
 
-export function assessSellability(input: {
-  readonly expiry?: Expiry;
-  readonly asOf?: AsOf;
-  readonly qualityStatus?: QualityStatus;
-}): SellabilityAssessment {
-  if (input.qualityStatus === 'FAIL') return { status: 'BLOCKED', reason: 'QUALITY_FAILED' };
-  if (input.qualityStatus === 'UNKNOWN') return { status: 'UNRESOLVED', reason: 'UNKNOWN_QUALITY' };
-  if (input.expiry === undefined || input.asOf === undefined || input.qualityStatus === undefined) {
+export function assessSellability(input: unknown): SellabilityAssessment {
+  const parsed = sellabilityInputSchema.safeParse(input);
+  if (!parsed.success) return { status: 'UNRESOLVED', reason: 'INVALID_INPUT' };
+
+  const { expiry, asOf, qualityStatus } = parsed.data;
+  if (qualityStatus === 'FAIL') return { status: 'BLOCKED', reason: 'QUALITY_FAILED' };
+  if (qualityStatus === 'UNKNOWN') return { status: 'UNRESOLVED', reason: 'UNKNOWN_QUALITY' };
+  if (expiry === undefined || asOf === undefined || qualityStatus === undefined) {
     return { status: 'UNRESOLVED', reason: 'MISSING_INPUT' };
   }
-  if (input.expiry.basis !== input.asOf.basis) return { status: 'UNRESOLVED', reason: 'BASIS_MISMATCH' };
+  if (expiry.basis !== asOf.basis) return { status: 'UNRESOLVED', reason: 'BASIS_MISMATCH' };
 
-  if (input.expiry.basis === 'DATE_ONLY' && input.asOf.basis === 'DATE_ONLY') {
-    if (input.expiry.timeZone !== input.asOf.timeZone) return { status: 'UNRESOLVED', reason: 'BASIS_MISMATCH' };
-    return assessComparison(compareDateOnly(input.asOf.value, input.expiry.value));
+  if (expiry.basis === 'DATE_ONLY' && asOf.basis === 'DATE_ONLY') {
+    if (expiry.timeZone !== asOf.timeZone) return { status: 'UNRESOLVED', reason: 'BASIS_MISMATCH' };
+    return assessComparison(compareDateOnly(asOf.value, expiry.value));
   }
 
-  if (input.expiry.basis === 'INSTANT' && input.asOf.basis === 'INSTANT') {
-    return assessComparison(compareInstants(input.asOf.value, input.expiry.value));
+  if (expiry.basis === 'INSTANT' && asOf.basis === 'INSTANT') {
+    return assessComparison(compareInstants(asOf.value, expiry.value));
   }
 
   return { status: 'UNRESOLVED', reason: 'BASIS_MISMATCH' };

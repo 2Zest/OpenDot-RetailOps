@@ -10,23 +10,23 @@ import {
 
 describe('RETAIL-01 versioned domain contracts', () => {
   it('pins a required engineering contract version and rejects unsupported versions', () => {
-    expect(CONTRACT_VERSION).toBe('0.1.0');
-    const product = { contractVersion: '0.1.0', id: 'fixture-product', baseUnitCode: 'fixture-unit', evidenceIds: ['fixture-evidence'] };
+    expect(CONTRACT_VERSION).toBe('0.2.0');
+    const product = { contractVersion: '0.2.0', id: 'fixture-product', baseUnitCode: 'fixture-unit', evidenceIds: ['fixture-evidence'] };
     expect(productSchema.safeParse(product).success).toBe(true);
-    expect(productSchema.safeParse({ ...product, contractVersion: '0.2.0' }).success).toBe(false);
+    expect(productSchema.safeParse({ ...product, contractVersion: '0.1.0' }).success).toBe(false);
     expect(productSchema.safeParse({ id: 'fixture-product', baseUnitCode: 'fixture-unit', evidenceIds: ['fixture-evidence'] }).success).toBe(false);
   });
 
   it('requires an explicit Policy identity, revision, version, and evidence', () => {
-    const policy = { contractVersion: '0.1.0', id: 'fixture-policy', revision: 'fixture-revision', evidenceIds: ['fixture-policy-source'] };
+    const policy = { contractVersion: '0.2.0', id: 'fixture-policy', revision: 'fixture-revision', evidenceIds: ['fixture-policy-source'] };
     expect(policySchema.safeParse(policy).success).toBe(true);
     expect(policySchema.safeParse({ ...policy, evidenceIds: [] }).success).toBe(false);
-    expect(policySchema.safeParse({ contractVersion: '0.1.0', id: 'fixture-policy', evidenceIds: ['fixture-policy-source'] }).success).toBe(false);
+    expect(policySchema.safeParse({ contractVersion: '0.2.0', id: 'fixture-policy', evidenceIds: ['fixture-policy-source'] }).success).toBe(false);
   });
 
   it('rejects missing draft policy/snapshot references and unknown states', () => {
     const draft = {
-      contractVersion: '0.1.0',
+      contractVersion: '0.2.0',
       id: 'fixture-draft',
       draftDigest: 'fixture-digest-reference',
       status: 'DRAFTED',
@@ -48,7 +48,7 @@ describe('RETAIL-01 versioned domain contracts', () => {
 
   it('accepts only the bounded V0 operation proposal kinds with explicit business values', () => {
     const markdownProposal = {
-      contractVersion: '0.1.0',
+      contractVersion: '0.2.0',
       id: 'fixture-operation',
       draftId: 'fixture-draft',
       productId: 'fixture-product',

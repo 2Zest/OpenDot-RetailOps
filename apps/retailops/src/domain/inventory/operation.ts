@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import { contractVersionSchema, moneySchema, opaqueReferenceSchema, passesPrecheck, quantitySchema, type PrecheckEvidence } from '../shared/primitives.js';
+import {
+  contractVersionSchema,
+  executionOutcomeSchema,
+  moneySchema,
+  opaqueReferenceSchema,
+  passesPrecheck,
+  precheckEvidenceSchema,
+  quantitySchema,
+  reconciliationOutcomeSchema,
+} from '../shared/primitives.js';
 
 export const operationStatusSchema = z.enum([
   'PROPOSED',
@@ -11,9 +20,17 @@ export const operationStatusSchema = z.enum([
   'CANCELLED',
   'UNCERTAIN',
   'STALE',
+  'APPROVAL_REVOKED',
+  'APPROVAL_EXPIRED',
 ]);
 
 export type OperationStatus = z.infer<typeof operationStatusSchema>;
+
+const nonNegativePriceSchema = moneySchema.refine(
+  (money) => typeof money.minorUnits === 'string'
+    && (!money.minorUnits.startsWith('-') || /^-0+$/.test(money.minorUnits)),
+  'A proposed markdown price cannot be negative',
+);
 
 const operationBase = {
   contractVersion: contractVersionSchema,
@@ -31,7 +48,7 @@ export const operationSchema = z.discriminatedUnion('kind', [
     .object({
       ...operationBase,
       kind: z.literal('MARKDOWN_PROPOSAL'),
-      proposedPrice: moneySchema,
+      proposedPrice: nonNegativePriceSchema,
     })
     .strict(),
   z
@@ -45,41 +62,74 @@ export const operationSchema = z.discriminatedUnion('kind', [
 
 export type Operation = z.infer<typeof operationSchema>;
 
-export interface OperationTransitionEvidence {
-  readonly approval?: 'APPROVED' | 'REJECTED' | 'REVOKED' | 'EXPIRED';
-  readonly precheck?: PrecheckEvidence;
-  readonly execution?: 'CONFIRMED' | 'DEFINITIVE_FAILURE' | 'NO_EFFECT' | 'UNKNOWN';
-  readonly reconciliation?: 'COMPLETED' | 'FAILED' | 'BLOCKED';
-}
+const operationTransitionEvidenceSchema = z.object({
+  approval: z.enum(['APPROVED', 'REJECTED', 'REVOKED', 'EXPIRED']).optional(),
+  precheck: precheckEvidenceSchema.optional(),
+  execution: executionOutcomeSchema.optional(),
+  reconciliation: reconciliationOutcomeSchema.optional(),
+}).strict();
+
+export type OperationTransitionEvidence = z.infer<typeof operationTransitionEvidenceSchema>;
 
 const operationTransitions = {
   PROPOSED: ['APPROVED', 'CANCELLED', 'STALE'],
-  APPROVED: ['PRECHECK', 'CANCELLED', 'STALE'],
-  PRECHECK: ['EXECUTING', 'FAILED', 'CANCELLED', 'STALE'],
+  APPROVED: ['PRECHECK', 'CANCELLED', 'STALE', 'APPROVAL_REVOKED', 'APPROVAL_EXPIRED'],
+  PRECHECK: ['EXECUTING', 'FAILED', 'CANCELLED', 'STALE', 'APPROVAL_REVOKED', 'APPROVAL_EXPIRED'],
   EXECUTING: ['COMPLETED', 'FAILED', 'CANCELLED', 'UNCERTAIN'],
   COMPLETED: [],
   FAILED: [],
   CANCELLED: [],
   UNCERTAIN: ['COMPLETED', 'FAILED'],
   STALE: [],
+  APPROVAL_REVOKED: [],
+  APPROVAL_EXPIRED: [],
 } satisfies Record<OperationStatus, readonly OperationStatus[]>;
 
-export function canTransitionOperation(
-  current: OperationStatus,
-  next: OperationStatus,
-  evidence: OperationTransitionEvidence = {},
-): boolean {
-  if (!operationTransitions[current].some((allowed) => allowed === next)) return false;
-  if (next === 'APPROVED') return evidence.approval === 'APPROVED';
-  if (next === 'PRECHECK' && current === 'APPROVED') return evidence.approval === 'APPROVED';
-  if (current === 'PRECHECK' && next === 'EXECUTING') return passesPrecheck(evidence.precheck);
-  if (current === 'PRECHECK' && next === 'FAILED') return evidence.precheck?.hardRules === 'FAIL' || evidence.precheck?.authorization === 'DENIED';
-  if (current === 'PRECHECK' && next === 'STALE') return evidence.precheck?.draftSnapshot === 'STALE' || evidence.precheck?.policy === 'STALE';
-  if (current === 'EXECUTING' && next === 'COMPLETED') return evidence.execution === 'CONFIRMED';
-  if (current === 'EXECUTING' && next === 'FAILED') return evidence.execution === 'DEFINITIVE_FAILURE';
-  if (current === 'EXECUTING' && next === 'CANCELLED') return evidence.execution === 'NO_EFFECT';
-  if (current === 'EXECUTING' && next === 'UNCERTAIN') return evidence.execution === 'UNKNOWN';
-  if (current === 'UNCERTAIN' && next === 'COMPLETED') return evidence.reconciliation === 'COMPLETED';
-  if (current === 'UNCERTAIN' && next === 'FAILED') return evidence.reconciliation === 'FAILED';
-  return true;
+export function canTransitionOperation(current: unknown, next: unknown, evidence: unknown = {}): boolean {
+  const parsedCurrent = operationStatusSchema.safeParse(current);
+  const parsedNext = operationStatusSchema.safeParse(next);
+  const parsedEvidence = operationTransitionEvidenceSchema.safeParse(evidence);
+  if (!parsedCurrent.success || !parsedNext.success || !parsedEvidence.success) return false;
+
+  const currentStatus = parsedCurrent.data;
+  const nextStatus = parsedNext.data;
+  const transitionEvidence = parsedEvidence.data;
+  if (!operationTransitions[currentStatus].some((allowed) => allowed === nextStatus)) return false;
+
+  if (currentStatus === 'PROPOSED' && nextStatus === 'APPROVED') return transitionEvidence.approval === 'APPROVED';
+  if (currentStatus === 'APPROVED' && nextStatus === 'PRECHECK') return transitionEvidence.approval === 'APPROVED';
+  if (currentStatus === 'APPROVED' && nextStatus === 'APPROVAL_REVOKED') return transitionEvidence.approval === 'REVOKED';
+  if (currentStatus === 'APPROVED' && nextStatus === 'APPROVAL_EXPIRED') return transitionEvidence.approval === 'EXPIRED';
+
+  if (currentStatus === 'PRECHECK' && nextStatus === 'EXECUTING') return passesPrecheck(transitionEvidence.precheck);
+  if (currentStatus === 'PRECHECK' && nextStatus === 'FAILED') {
+    return transitionEvidence.precheck?.hardRules === 'FAIL'
+      || transitionEvidence.precheck?.authorization === 'DENIED'
+      || transitionEvidence.precheck?.idempotencyKey === 'MISSING';
+  }
+  if (currentStatus === 'PRECHECK' && nextStatus === 'APPROVAL_REVOKED') return transitionEvidence.precheck?.approval === 'REVOKED';
+  if (currentStatus === 'PRECHECK' && nextStatus === 'APPROVAL_EXPIRED') return transitionEvidence.precheck?.approval === 'EXPIRED';
+  if (currentStatus === 'PRECHECK' && nextStatus === 'STALE') {
+    return transitionEvidence.precheck?.draftSnapshot === 'STALE' || transitionEvidence.precheck?.policy === 'STALE';
+  }
+  if (nextStatus === 'CANCELLED' && currentStatus !== 'EXECUTING') return true;
+  if (nextStatus === 'STALE') return true;
+
+  if (currentStatus === 'EXECUTING' && nextStatus === 'COMPLETED') return transitionEvidence.execution === 'CONFIRMED';
+  if (currentStatus === 'EXECUTING' && nextStatus === 'FAILED') {
+    return transitionEvidence.execution === 'DEFINITIVE_FAILURE'
+      || transitionEvidence.execution === 'NO_EFFECT'
+      || transitionEvidence.execution === 'TIMEOUT_NO_EFFECT';
+  }
+  if (currentStatus === 'EXECUTING' && nextStatus === 'CANCELLED') {
+    return transitionEvidence.execution === 'NO_EFFECT' || transitionEvidence.execution === 'TIMEOUT_NO_EFFECT';
+  }
+  if (currentStatus === 'EXECUTING' && nextStatus === 'UNCERTAIN') {
+    return transitionEvidence.execution === 'UNKNOWN' || transitionEvidence.execution === 'TIMEOUT_UNKNOWN';
+  }
+
+  if (currentStatus === 'UNCERTAIN' && nextStatus === 'COMPLETED') return transitionEvidence.reconciliation === 'COMPLETED';
+  if (currentStatus === 'UNCERTAIN' && nextStatus === 'FAILED') return transitionEvidence.reconciliation === 'FAILED';
+
+  return currentStatus === 'PRECHECK' && nextStatus === 'CANCELLED';
 }

@@ -6,6 +6,7 @@ import {
   evidenceSchema,
   instantSchema,
   moneySchema,
+  operationSchema,
   quantitySchema,
   stockBalanceSchema,
 } from '../../src/domain/index.js';
@@ -25,6 +26,23 @@ describe('RETAIL-01 domain value boundaries', () => {
     expect(moneySchema.safeParse({ minorUnits: '1.25', currencyCode: 'USD', minorUnitScale: 2 }).success).toBe(false);
     expect(moneySchema.safeParse({ minorUnits: '125', currencyCode: 'usd', minorUnitScale: 2 }).success).toBe(false);
     expect(moneySchema.safeParse({ minorUnits: '125', currencyCode: 'USD' }).success).toBe(false);
+  });
+
+  it('keeps generic money signed but rejects a negative markdown candidate price', () => {
+    expect(moneySchema.safeParse({ minorUnits: '-1', currencyCode: 'USD', minorUnitScale: 2 }).success).toBe(true);
+    const markdownProposal = {
+      contractVersion: '0.2.0', id: 'fixture-operation', draftId: 'fixture-draft',
+      productId: 'fixture-product', batchId: 'fixture-batch',
+      quantity: { value: '1', unitCode: 'fixture-unit' }, status: 'PROPOSED',
+      evidenceIds: ['fixture-evidence'], kind: 'MARKDOWN_PROPOSAL',
+      proposedPrice: { minorUnits: '-1', currencyCode: 'USD', minorUnitScale: 2 },
+    };
+    expect(operationSchema.safeParse(markdownProposal).success).toBe(false);
+    for (const minorUnits of ['', '1.2', '1e2']) {
+      const input = { ...markdownProposal, proposedPrice: { minorUnits, currencyCode: 'USD', minorUnitScale: 2 } };
+      expect(() => operationSchema.safeParse(input)).not.toThrow();
+      expect(operationSchema.safeParse(input).success).toBe(false);
+    }
   });
 
   it('validates calendar dates and requires an explicit known instant offset', () => {
@@ -80,6 +98,23 @@ describe('RETAIL-01 domain value boundaries', () => {
     }).status).toBe('UNRESOLVED');
   });
 
+  it('fails closed for malformed runtime quality, dates, time zones, and missing fields', () => {
+    const validExpiry = { basis: 'DATE_ONLY', value: '2025-06-01', timeZone: 'UTC' };
+    const validAsOf = { basis: 'DATE_ONLY', value: '2025-05-31', timeZone: 'UTC' };
+    const invalidInputs: readonly { readonly input: unknown; readonly reason: string }[] = [
+      { input: { expiry: validExpiry, asOf: validAsOf, qualityStatus: 'PENDING' }, reason: 'INVALID_INPUT' },
+      { input: { expiry: { ...validExpiry, value: '2025-02-30' }, asOf: validAsOf, qualityStatus: 'PASS' }, reason: 'INVALID_INPUT' },
+      { input: { expiry: { ...validExpiry, timeZone: 'Mars/Phobos' }, asOf: { ...validAsOf, timeZone: 'Mars/Phobos' }, qualityStatus: 'PASS' }, reason: 'INVALID_INPUT' },
+      { input: { expiry: validExpiry, asOf: validAsOf }, reason: 'MISSING_INPUT' },
+      { input: null, reason: 'INVALID_INPUT' },
+    ];
+
+    for (const { input, reason } of invalidInputs) {
+      expect(() => Reflect.apply(assessSellability, undefined, [input])).not.toThrow();
+      expect(Reflect.apply(assessSellability, undefined, [input])).toEqual({ status: 'UNRESOLVED', reason });
+    }
+  });
+
   it('compares explicit instants with offsets without losing fractional precision', () => {
     const expiry = { basis: 'INSTANT' as const, value: '2025-01-01T00:00:00.1000Z' };
     expect(assessSellability({
@@ -96,7 +131,7 @@ describe('RETAIL-01 domain value boundaries', () => {
 
   it('requires source-specific provenance for evidence', () => {
     const common = {
-      contractVersion: '0.1.0',
+      contractVersion: '0.2.0',
       id: 'fixture-evidence',
       snapshotId: 'fixture-snapshot',
       locator: 'fixture-row:1',
@@ -131,7 +166,7 @@ describe('RETAIL-01 domain value boundaries', () => {
 
   it('requires explicit batch quality, expiry, stock partitions, and evidence reference', () => {
     const batch = {
-      contractVersion: '0.1.0',
+      contractVersion: '0.2.0',
       id: 'fixture-batch',
       productId: 'fixture-product',
       expiry: { basis: 'DATE_ONLY', value: '2025-06-01', timeZone: 'UTC' },
@@ -147,5 +182,53 @@ describe('RETAIL-01 domain value boundaries', () => {
     expect(batchSchema.safeParse(batch).success).toBe(true);
     expect(batchSchema.safeParse({ ...batch, evidenceIds: [] }).success).toBe(false);
     expect(batchSchema.safeParse({ ...batch, expiry: { basis: 'DATE_ONLY', value: '2025-06-01' } }).success).toBe(false);
+  });
+
+  it('rejects FAIL and UNKNOWN batches with positive available or reserved stock', () => {
+    const stockBalance = {
+      physicalOnHand: { value: '2', unitCode: 'fixture-unit' },
+      unavailable: { value: '0', unitCode: 'fixture-unit' },
+      availableToSell: { value: '1', unitCode: 'fixture-unit' },
+      reserved: { value: '1', unitCode: 'fixture-unit' },
+    };
+    const batch = {
+      contractVersion: '0.2.0', id: 'fixture-batch', productId: 'fixture-product',
+      expiry: { basis: 'DATE_ONLY', value: '2025-06-01', timeZone: 'UTC' },
+      qualityStatus: 'PASS', stockBalance, evidenceIds: ['fixture-evidence'],
+    };
+
+    for (const qualityStatus of ['FAIL', 'UNKNOWN']) {
+      expect(batchSchema.safeParse({ ...batch, qualityStatus }).success).toBe(false);
+      expect(batchSchema.safeParse({
+        ...batch,
+        qualityStatus,
+        stockBalance: { ...stockBalance, availableToSell: { value: '0', unitCode: 'fixture-unit' } },
+      }).success).toBe(false);
+    }
+    expect(batchSchema.safeParse({
+      ...batch,
+      qualityStatus: 'UNKNOWN',
+      stockBalance: {
+        ...stockBalance,
+        availableToSell: { value: '0', unitCode: 'fixture-unit' },
+        reserved: { value: '0', unitCode: 'fixture-unit' },
+        unavailable: { value: '2', unitCode: 'fixture-unit' },
+      },
+    }).success).toBe(true);
+  });
+
+  it('returns identifiable stock validation errors instead of throwing on malformed decimals', () => {
+    const balanced = {
+      physicalOnHand: { value: '10', unitCode: 'fixture-unit' },
+      unavailable: { value: '0', unitCode: 'fixture-unit' },
+      availableToSell: { value: '9', unitCode: 'fixture-unit' },
+      reserved: { value: '1', unitCode: 'fixture-unit' },
+    };
+    const malformedValues: readonly unknown[] = ['', '1e2', '1.2.3', '1.', '.5', undefined, null, 1];
+    for (const value of malformedValues) {
+      const input = { ...balanced, availableToSell: { value, unitCode: 'fixture-unit' } };
+      expect(() => stockBalanceSchema.safeParse(input)).not.toThrow();
+      expect(stockBalanceSchema.safeParse(input).success).toBe(false);
+    }
   });
 });

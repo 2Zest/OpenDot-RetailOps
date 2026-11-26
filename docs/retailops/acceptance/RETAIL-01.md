@@ -1,6 +1,6 @@
 # RETAIL-01（GitHub Issue #19）节点验收回执
 
-状态：N0–N5 PASS；PR #86 已开放等待独立 Review；未合并，Issue 尚未 DONE。各节点事实按时间追加，不覆盖失败记录。
+状态：N0–N5 PASS（含独立 Review 修订）；PR #86 已开放等待下一轮独立 Review；未合并，Issue 尚未 DONE。各节点事实按时间追加，不覆盖失败记录。
 
 ## N0：预检、依赖和文件范围冻结
 
@@ -121,7 +121,7 @@
 - PR：[https://github.com/2Zest/OpenDot-RetailOps/pull/86](https://github.com/2Zest/OpenDot-RetailOps/pull/86)，目标 `develop/retailops`，创建时 GitHub 回读 `state=open`、`merged=false`、base SHA `8922d6aed84530779d2641d817ca01ec40ec76f0`、head SHA `5c5caa15782f7b327e90626aecfe5f9e5f2937f9`。
 - 回滚：`git revert 5c5caa15782f7b327e90626aecfe5f9e5f2937f9`；无数据库数据迁移。
 - Issue #19 已通过 GitHub API 更新并回读：Open，标签 `REVIEW`，指派仍为 `2Zest`；正文顶部已记录 PR #86 与 REVIEW 状态。
-- GitHub Project #2（[零售运营 V0.2](https://github.com/users/2Zest/projects/2/views/1)）状态未同步：看板最新可读状态仍将 #19 放在 In Progress，Review 列为 0。GitHub connector 未提供 Projects 状态写入能力；本机未安装 `gh`。浏览器操作尝试因窗口截图连续超时、可访问性点击报告 `coordinate input geometry is unavailable` 未完成，故不宣称看板已更新。需后续将 #19 从 In Progress 移至 Review。
+- 首次交付时 Project 状态同步曾失败：当时使用的 GitHub connector 无看板写入能力，Windows PATH 无 `gh`，浏览器自动化亦未完成。独立 Review 修订中已在 WSL 找到 `/home/szz_user/.local/bin/gh` `2.106.0`，`gh auth status` 确认账号 `2Zest` 有 `project` scope；执行 `gh project item-edit 2 --owner 2Zest --url https://github.com/2Zest/OpenDot-RetailOps/issues/19 --field Status --value Review --format json` 后，用 `gh project item-list 2 --owner 2Zest --limit 500 --format json --jq '.items[] | select(.content.number == 19) | {id,title,status}'` 回读 `status=Review`。
 - PR #86 保持 Open、目标 `develop/retailops`，未合并；未关闭 Issue、未标 DONE、未启动下游任务。
 - 未启动下游 RETAIL-01P（GitHub Issue #20）、RETAIL-05P（#24）或 RETAIL-13A（#35）；不处理 #7 的 N1 阻塞任务。
 - 节点结论：PASS，等待独立 Review 与用户后续决定；未合并不代表 DONE。
@@ -161,3 +161,48 @@
 | 总体计划 / PRD / Architecture / ADR | 保留单 SKU V0、库存互斥守恒、来源分层、硬规则 fail-closed、审批和 uncertain 边界；不加 Runtime/RAG/持久化 | PASS |
 | Issue #19 / 原 Plan | 交付六类领域合同、schema、单位/状态合同与单测；未改 Issue、原 Plan、DAG | PASS |
 | N1 节点标准 | 有候选契约快照；D01/D02/D03/D07 具体值均显式必填或延期，没有设隐式默认 | PASS |
+
+## 独立 Review 修订（2026-11-26；修订基线 HEAD `d55910419f1e1524c4c30b8d18c20837f715b908`）
+
+按 Review 要求在原架构和原 PR 内修复，不改总体计划、DAG、原 Plan 或其他 Issue，不引入新依赖，不冻结未批准业务参数。先追加负向回归测试，再执行实现；不删改原 17 项测试与断言。
+
+### N2：缺陷修复对照
+
+| 缺陷 | 修订 |
+|---|---|
+| FAIL/UNKNOWN 批次仍可带可售/预占量 | `batchSchema` 在库存 schema 已校验后加入跨字段约束；非 PASS 质量仅允许可售量与预占量均为零。库存守恒仍使用 BigInt 精确计算；未实现预占释放服务。 |
+| 运行时非法效期/质量可能得到 ELIGIBLE | `assessSellability` 先对运行时输入执行严格 Zod `safeParse`；非法状态、日期、缺失/未知时区、错误结构返回 `UNRESOLVED/INVALID_INPUT`；缺失字段为 `UNRESOLVED/MISSING_INPUT`。只有合法 PASS、效期和检查时刻可以参与比较；相等边界保持 UNRESOLVED。 |
+| 通用 Money 与候选售价约束未分开 | 通用 `moneySchema` 继续接收有符号最小单位金额；MARKDOWN_PROPOSAL 另加非负售价 schema。没有最低售价、折扣上限或毛利阈值。 |
+| 状态 guard 对过期/撤销/失效/异常输入保护不足 | Draft/Operation guard 对状态与证据先做运行时 schema 校验，未知/非法输入返回 `false`；执行要求完整有效 precheck。新增审批撤销/过期、授权拒绝、硬规则失败、快照/策略失效、取消和对账条件。未知副作用只能进入 UNCERTAIN；无对账或 BLOCKED 对账不能清除 UNCERTAIN。 |
+| timeout 与确定性无副作用失败未区分 | 增加 `TIMEOUT_NO_EFFECT` 和 `TIMEOUT_UNKNOWN`：前者允许确定性 FAILED/CANCELLED，后者才允许 UNCERTAIN；通用 UNKNOWN 也保持 UNCERTAIN。风险审查 timeout 仍进入 RISK_TIMEOUT。 |
+| Zod 子字段失败后库存 refine 仍触发 BigInt 错误 | `stockBalanceSchema` 在跨字段计算前分别 `safeParse` 所有数量字段；十进制求和 helper 先核验输入格式，坏值作为 schema 失败返回，不进入 BigInt 转换。候选售价约束也不对非法数值执行 BigInt 转换。 |
+
+### N3：合同版本
+
+- 原 PR 未合并；原 `0.1.0` 尚无正式消费者。Review 收紧 schema 接受范围并增加状态值，按原 N3 “任何接受/拒绝范围或状态语义变化使用新显式版本”规则，将 `CONTRACT_VERSION` 从 `0.1.0` 提升为 `0.2.0`。原版本现被拒绝，测试已覆盖；无版本自动迁移或 adapter。
+- npm 包发布版本仍为 `0.1.0`，与领域合同版本分别表达包版本和数据合同版本；未改依赖或 lockfile。
+- 未更改 D01/D02/D03/D07 业务参数；效期边界、售价阈值等仍不设默认。
+
+### N4：修订前复现及最终复测
+
+- 测试先行复现（修订前）：`npm test` 退出码 1，原 17 项全部通过，新加的 7 个回归用例失败；捕获负售价被接收、非法运行时效期获得 ELIGIBLE、质量/库存矛盾被接收、指数数量使 `safeParse` 抛 `SyntaxError: Cannot convert 1e2 to a BigInt`，以及状态输入/timeout/审批前置缺口。
+- 一次修复后运行出现 1 项版本测试夹具错误：断言误把新当前值 `0.2.0` 当成未知值；已改为验证旧 `0.1.0` 被拒绝，未调整生产行为或降低断言。
+- WSL2 Ubuntu 24.04 / Node `v24.22.3` / npm `11.19.1` / `linux/amd64`。定向检查：`npm run build` 退出码 0；`npm run typecheck` 退出码 0；`npm test` 退出码 0，3 个文件、24 项通过（原 17 项保留，新增 7 项）。
+- 根 `npm run docs:check`：设置 Worktree 对应 `GIT_DIR`、`GIT_WORK_TREE` 与 `core.autocrlf=true` 后退出码 0，检查 254 份 Markdown。
+- `git diff --check d559104...HEAD` 与 `git diff --check`：退出码均为 0；相对 Review 基线的文件范围检查退出码 0，10 个改动文件全部在冻结/Review 授权范围内，未发现额外路径。
+- 预期文件范围：`apps/retailops/src/domain/shared/primitives.ts`、`expiry/expiry.ts`、`inventory/{batch,stock-balance,operation}.ts`、`decision/draft.ts`；`apps/retailops/test/unit/{domain-values,state-guards}.test.ts`、`test/contract/domain-schemas.test.ts`；本文件。未改 package/lock、宿主、Issue 契约、总体计划、Architecture、ADR 或 DAG。
+
+### N5：Issue、Project、PR 状态
+
+- WSL `gh 2.106.0` 从 `/home/szz_user/.local/bin/gh` 执行；`gh auth status` 确认 `2Zest` 已登录且有 `project` scope（不记录任何凭据）。Project #2 状态成功改为 Review，并通过 `gh project item-list` 回读为 `Review`。
+- Issue #19 正文中的 `IN_PROGRESS` 已改为 N0 历史快照，顶部状态维持 Open/REVIEW；Project #2 与 Issue 状态统一为 Review（Issue 与 Project 均已回读）。
+- 复用 PR #86，目标仍为 `develop/retailops`；本次修订推送后记录最终 HEAD 于 GitHub 回读与交付报告。保持 Open、未合并、Issue 不关闭、不标 DONE。
+- 下游 #20、#24、#35 未启动；#7 Docker 阻塞和真实 Runtime 门槛保持不变。
+
+### 修订验收三层语义对齐
+
+| 对齐层 | 实际结果 | 判定 |
+|---|---|---|
+| 总体计划 / 已批准 PRD、Architecture、ADR | 库存质量 fail-closed、授权与硬规则、审批撤销/过期、uncertain 对账、来源分层保留；无运行时和副作用实现 | PASS |
+| Issue #19 / 原 Plan / Review 修订任务 | 修订严格限于 RETAIL-01 领域合同及负向测试；D01/D02/D03/D07 未设新默认，合同版本遵守 N3 | PASS |
+| N2–N5 验收标准 | 修订前有失败复现；最终 build/typecheck/24 tests 通过，文档、差异、文件范围和 GitHub 状态完成回读 | PASS（待本段最终命令结果补录） |
