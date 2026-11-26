@@ -17,4 +17,13 @@
 2. Issue/Plan：满足 N1 路径所有权要求；未来目录是设计，不伪称已实现；未修改被保护的共享路径。结果：PASS。
 3. N1 节点标准：逐路径标明目标、owner、只读/共享锁，模块依赖向内，冲突时串行。结果：PASS。
 
-节点结论：PASS。Projects 状态漂移见 N0；不影响此文档节点，但不释放任何依赖该同步的下游。
+节点结论：PASS。N0 时的 Projects 状态漂移见 N0；后续完成的看板回读见 N5。该文档节点不授权释放依赖尚未满足的下游。
+
+## 独立 Review 修订任务 A（2026-11-26）
+
+- 将目标结构定稿为轻量 DDD + 六边形架构，保留 `apps/retailops/**` 独立物理边界；领域模块按业务能力组织，Entity/Value Object/Aggregate/Repository/纯函数/状态 Guard 按需选择，不强制 CQRS、Event Sourcing 或微服务。
+- 明确 Analysis Agent、独立 Risk Review、Context/Prompts、工具、算法、仿真、Trace/Eval 的候选路径与边界；Domain 与模型、宿主、数据库隔离，LLM 语义审查不替代确定性硬规则。
+- 解决 Domain 仅标准库与 GitHub Issue #19 的 Zod schema 要求冲突：允许已批准的纯领域校验依赖；#19 N0 冻结版本、包可见性和独立锁文件。
+- 明确 `apps/retailops` 的独立 package/lock/build/typecheck/test/test-discovery 设计，根 `tsconfig.json` 不覆盖该目录；宿主通过公共 API 或 Application ports 注入，禁止跨 app 导入宿主私有源码及复制 Runtime。未创建源码、包或配置。
+
+三层复核：总体已批准 PRD/ADR 边界、Issue #15/Plan 与 N1 路径所有权目标、独立 Review A 的逐项验收均一致；结果 PASS。上述目录均为候选设计，不表示实现授权。

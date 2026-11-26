@@ -75,4 +75,4 @@ gh project item-edit --project-id <project-id> --id <item-id> \
 
 ## 本任务核验记录
 
-2026-11-26 的状态回读与 CLI 访问限制记录在 `../acceptance/RETAIL-00D-N0.md`。本规范不声称当前 Project 状态已经同步。
+状态回读历史见 `../acceptance/RETAIL-00D-N0.md`、`RETAIL-00D-N5.md`。早期 Project scope 不足和写入失败的记录保留；本轮修订开始时曾将 Issue/Project 同步为 IN_PROGRESS，交付时回读为 #14 Done、#15 Review、#7 Blocked。Issue #15 等待 PR #84 独立 Review；本规范不替代每个任务的实时状态核验。

@@ -60,3 +60,25 @@ PR 仅为新增文档；如审查要求撤回，可在合并后单独 revert。�
 - `gh project item-list 2 --owner 2Zest --format json --limit 100 --jq '.items[] | select(.content.number == 7 or .content.number == 14 or .content.number == 15) | {id, number: .content.number, title, status, labels}'` 退出码 0，回读：#7 Blocked / `BLOCKED`，#14 Done / `DONE`，#15 Review / `REVIEW`。
 - GitHub Issue/PR 回读：#14 Closed/DONE，PR #83 merge SHA `d3b402945ace1da4cd9e032690a394526079d09b`；#15 Open/REVIEW/Assigned 2Zest，PR #84 Open/未合并、HEAD `9b271d884969ce46ac83601a0a91bf096f9eb5e5`；#7 Open/BLOCKED；下游 #19 保持 Open/BACKLOG。
 - Project 状态现与 Issue 状态一致。#19 仍未解锁，等待 PR #84 独立 Review、实际合并及 Issue #15 完成验收。
+
+## 独立 Review 修订任务 A 交付（2026-11-26）
+
+- 修订范围仅触及 N0 冻结的 11 份文档路径；没有改写 37 份原始 Plan、DAG、已批准 PRD/ADR、其他 Issue/Plan、源码、包配置、锁文件或测试配置。
+- 规范已定稿轻量 DDD + 六边形架构、按业务能力组织的 Domain、可按需采用的战术模式、Analysis/Risk Review/Context/Prompts/Tools/Algorithms/Simulation/Trace/Eval 候选路径与职责、已批准纯领域校验依赖（含 #19 Zod 需求）、独立包/lock/build/typecheck/test discovery 和宿主公共接缝/ports 注入原则。
+- Issue 执行模板要求 N0 按实际源码、对应 Issue/Plan 及已批准架构细化；37 份原 Plan 与 DAG 保持只读；普通细化由主控核验，范围/依赖/验收/安全改变另行批准。PR 回执模板记录用户审批待办。
+- 相对审查基线 `52f16ef26fb224adbaf78603d72c5ee92d389331` 的实际变更路径（`git diff --name-only 52f16ef26fb224adbaf78603d72c5ee92d389331`）：
+  - `AGENTS.md`
+  - `docs/retailops/acceptance/RETAIL-00D-N0.md`
+  - `docs/retailops/acceptance/RETAIL-00D-N1.md`
+  - `docs/retailops/acceptance/RETAIL-00D-N2.md`
+  - `docs/retailops/acceptance/RETAIL-00D-N4.md`
+  - `docs/retailops/acceptance/RETAIL-00D-N5.md`
+  - `docs/retailops/engineering/ISSUE-PR-PROJECT-STATUS.md`
+  - `docs/retailops/engineering/PROJECT-STRUCTURE-AND-OWNERSHIP.md`
+  - `docs/retailops/engineering/templates/ISSUE-EXECUTION-PLAN.md`
+  - `docs/retailops/engineering/templates/PR-DELIVERY-RECEIPT.md`
+- 共修改 10 个 N0 已冻结路径；原 N3 回执未改。变更均为文档，没有修改冻结清单以外的文件。
+- 任务执行期间 Issue #15 与 Project #2 Status 从 Review 临时同步为 In Progress；完成后将 Issue 标签/正文、Project Status 恢复为 Review。Project #2 最终回读：#14 Done、#15 Review、#7 Blocked。
+- PR #84 保持 Open / 未合并，目标 `develop/retailops`。Issue 顶部及 PR 描述在推送后同步实际最新 HEAD；等待独立 Review，Review 通过后的用户审批及合并仍是待办。
+- Issue #7 继续 Open/BLOCKED；RETAIL-01（GitHub Issue #19）继续 Open/BACKLOG，不启动或解锁任何下游任务。
+- N4 复验命令、退出码、37 节点/Issue 映射结果及三层语义检查见本轮 N4 修订回执。

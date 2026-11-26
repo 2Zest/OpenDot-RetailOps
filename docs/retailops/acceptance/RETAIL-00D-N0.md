@@ -16,12 +16,12 @@
 - 环境：WSL Node `v24.22.3` / npm `11.19.1`。
 - 实际仓库结构：`src/**` 为根 TypeScript 编译范围；`apps/cloud-agent/**` 有独立包/锁文件/构建配置；`web/**`、`electron/**` 独立构建；根 `package.json` 无 workspaces；当前无 `apps/retailops/**`、`packages/**`、根 `AGENTS.md`。来源路径：`package.json`、`tsconfig.json`、`apps/cloud-agent/package.json`、`src/personal-agent/durable-runtime.ts`、`apps/cloud-agent/src/harness.ts`。
 
-## Projects 权限和真实状态
+## Projects 权限和真实状态（N0 历史快照）
 
 - 通过私有项目页面只读核验到 Project `RetailOps V0.2`：Issue #14 卡片仍在 `In Progress`，#15 仍在 `Backlog`，#7 在 `Blocked`。本任务写入前 Project 项目计数为 7 Ready / 30 Backlog 的旧描述。
 - N0 首次检查时 WSL `gh auth status` 退出码 1：`You are not logged into any GitHub hosts`。GitHub MCP 能写 Issue，但没有 Project V2 字段写入工具。
 - 使用本机 Computer Use 读取项目页时，截图通道在两次重新选择/重试后仍超时；按工具恢复规则停止 UI 写入。未尝试登录、提取凭据或修改 Project 字段。
-- 因此 #14 Issue 已 DONE、#15 Issue 已 IN_PROGRESS，而 Project 当前仍分别是 In Progress、Backlog。此为本节点未解决的状态漂移，未虚报 Projects 同步成功。等待有权限的 `gh` CLI/项目写入口后更新并回读；本任务不因此阻止独立文档设计继续，但不会解锁 #15 的下游 RETAIL-01。
+- 因此在 N0 时，#14 Issue 已 DONE、#15 Issue 已 IN_PROGRESS，而 Project 分别是 In Progress、Backlog；当时存在未解决的状态漂移，未虚报 Projects 同步成功。后续授权及状态收敛记录见 N5。N0 的漂移未作为解锁下游的依据。
 
 ## N5 初次 Projects CLI 权限复核（授权更新前）
 
@@ -45,4 +45,4 @@
 
 1. 总体计划/已批准 PRD：只形成未来工程边界和安全状态管理，不实现业务能力；保持单 Runtime 复用和真实运行门槛。结果：PASS。
 2. Issue #15 / 原 Plan：围绕文件职责/并行锁、模板/停止规则、dry-run、文档回归和独立 PR；固定路径未扩至源码。结果：PASS。
-3. N0 标准：实际 SHA、依赖、Worktree、资源、文件清单和阻塞可复核；发现 Projects 状态漂移并明确记录。结果：PASS（Projects 字段回读/同步仍 BLOCKED，不宣称完成）。
+3. N0 标准：实际 SHA、依赖、Worktree、资源、文件清单和阻塞可复核；发现 Projects 状态漂移并明确记录。结果：PASS（当时 Projects 字段读写 BLOCKED；后续同步见 N5）。

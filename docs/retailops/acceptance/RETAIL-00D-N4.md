@@ -52,4 +52,39 @@ T02 三类人工流程 dry-run 的实际场景和结果记录在 `RETAIL-00D-N3.
 2. Issue #15/Plan：T01 文档检查、T02 dry-run、T03 DAG 检查和文件范围与原目标一致。结果：PASS。
 3. N4 验收标准：实际命令、退出码和节点数量可复核；文件仅在冻结路径内。结果：PASS。
 
-节点结论：PASS。Project 写入权限仍 BLOCKED，状态漂移证据保留于 N0；Issue/PR 状态写入不代替 Project 字段同步。
+节点结论：PASS。首次 N4 验收时 Project 写入权限 BLOCKED，失败证据保留于 N0/N5；后续状态同步回执见 N5。
+
+## 独立 Review 修订任务 A 的 N4 复验（2026-11-26）
+
+- 执行基线：原 PR #84 HEAD `52f16ef26fb224adbaf78603d72c5ee92d389331`；总体计划、批准 PRD/Architecture/ADR、原 Issue Plan 和 DAG 保持只读。
+- 文档检查：WSL Node `v24.22.3` / npm `11.19.1`，`npm run docs:check` 退出码 0；检查 251 份 Markdown。
+- 差异检查：`git diff --check d3b402945ace1da4cd9e032690a394526079d09b` 退出码 0；无空白错误，仅有 Windows 工作树的 LF/CRLF 转换提示。
+- staged 差异检查：`git diff --cached --check d3b402945ace1da4cd9e032690a394526079d09b` 退出码 0；无空白错误。
+- DAG/映射脚本退出码 0：确认批准状态、37 个唯一 RETAIL ID、37 个唯一 GitHub Issue Number、Issue URL/编号映射、所有硬依赖及下游链接映射，并以 Kahn 算法确认无环。实际脚本：
+
+```js
+import fs from 'node:fs';
+const g=JSON.parse(fs.readFileSync('/mnt/d/workSpace/codeAgent/OpenDot-RetailOps-00d/docs/retailops/initial-plan-v0.2/dependency-graph.json','utf8'));
+const ns=g.nodes, byId=new Map(ns.map(n=>[n.id,n]));
+if(g.status!=='APPROVED'||ns.length!==37||byId.size!==37) throw Error('DAG status/node ID count mismatch');
+const nums=ns.map(n=>n.github_issue_number);
+if(nums.some(n=>!Number.isInteger(n))||new Set(nums).size!==37) throw Error('GitHub issue number mapping is missing or duplicated');
+for(const n of ns){
+  if(!n.github_issue_url.endsWith('/issues/'+n.github_issue_number)) throw Error('issue URL/number mismatch: '+n.id);
+  const deps=n.depends_on??[], links=n.depends_on_issue_links??[];
+  if(deps.length!==links.length) throw Error('dependency link count mismatch: '+n.id);
+  for(const d of deps){const target=byId.get(d), link=links.find(x=>x.id===d); if(!target||!link||link.number!==target.github_issue_number||!link.url.endsWith('/issues/'+target.github_issue_number)) throw Error('dependency mapping mismatch: '+n.id+' -> '+d);}
+  for(const link of n.blocks_issue_links??[]){const target=byId.get(link.id); if(!target||link.number!==target.github_issue_number||!link.url.endsWith('/issues/'+target.github_issue_number)) throw Error('downstream mapping mismatch: '+n.id+' -> '+link.id);}
+}
+if(byId.get('RETAIL-00D')?.github_issue_number!==15||byId.get('RETAIL-00C')?.github_issue_number!==14) throw Error('RETAIL-00C/00D mapping mismatch');
+const indegree=new Map(ns.map(n=>[n.id,0]));
+for(const n of ns) for(const d of n.depends_on??[]){if(!byId.has(d))throw Error('unknown dependency '+d); indegree.set(n.id,indegree.get(n.id)+1);}
+const q=[...indegree].filter(([,d])=>d===0).map(([id])=>id); let done=0;
+while(q.length){const id=q.shift();done++;for(const n of ns)if((n.depends_on??[]).includes(id)){const d=indegree.get(n.id)-1;indegree.set(n.id,d);if(d===0)q.push(n.id);}}
+if(done!==ns.length) throw Error('DAG cycle');
+console.log('PASS: approved DAG; 37 unique IDs and GitHub issue mappings; dependency/downstream links consistent; acyclic');
+```
+
+- 文件范围：修订限于 N0 冻结路径；无源码、包/锁文件、根/应用配置、37 份原 Plan、DAG、PRD/ADR 或其他 Issue 文件变更。最终 `git diff --name-only` 清单附于 N5。
+
+三层复核：已批准架构原则保持不变；Issue #15/Plan 范围未扩展；Review A 的工程规范要求与回归标准逐项覆盖。结果：PASS。
