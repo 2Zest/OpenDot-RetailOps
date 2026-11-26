@@ -78,3 +78,12 @@ Issue：[#12 RETAIL-00E-01](https://github.com/2Zest/OpenDot-RetailOps/issues/12
 - RetailBench 过期处理的源码注释与收入表达式不一致（注释写 0.6 倍、表达式为乘 0）；本次将此限制明确列为不可照搬项。
 - 未运行第三方项目，未复制许可不明确的代码/数据/资产，未改应用源码或配置。Issue #12 保持 Open/REVIEW，PR #75 保持开放；不标 DONE、不解锁下游。
 - `git diff --check`：退出码 0；本次差异仅限上述研究报告与节点回执。未重跑 `npm run docs:check`：历史路线图目标尚未合并修复，按 Review 要求待公共文档修复合并后复验。
+
+## 公共基线合并后最终复测（2026-11-26）
+
+- 集成基线：develop/retailops f6a7f33a3e106a19b8a3c06ee56bb87ccf4f3b61；本任务分支以普通 merge 同步，合并提交 252387bca4f4145f71c84eac52a2304fc0b8efc8，无强推。
+- PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm run docs:check：退出码 0，219 个 Markdown 文件通过。
+- git diff --check 与 git diff origin/develop/retailops...HEAD --check：均退出码 0；工作树干净。
+- 首次在 e8db2b6 基线的 docs:check 失败记录保留；公共 PR #81 合并后的复测通过。
+- 三层语义复核：总体计划/场景 PASS（静态业务研究范围不变）；Issue/Plan PASS（未运行参考项目、未复制代码或数据）；N4 节点 PASS（文档检查通过，差异检查通过）。
+- N5：PR #75 保持 Open/Review、目标 develop/retailops；Issue #12 保持 Open/REVIEW、未认领；未标 DONE、不解锁 #14/#22。
