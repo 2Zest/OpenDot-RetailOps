@@ -1,6 +1,6 @@
 # RETAIL-01（GitHub Issue #19）节点验收回执
 
-状态：N0 PASS；实施期间 IN_PROGRESS。尚未验收完成或合并。各节点事实按时间追加，不覆盖失败记录。
+状态：N0–N5 PASS；PR #86 已开放等待独立 Review；未合并，Issue 尚未 DONE。各节点事实按时间追加，不覆盖失败记录。
 
 ## N0：预检、依赖和文件范围冻结
 
@@ -117,7 +117,14 @@
 
 ## N5：独立 PR 与 Review
 
-N5 完成后追加实际分支 HEAD、PR URL、Issue/Project 状态回读与最终范围差异。PR 保持开放，不合并，不标记 DONE，不启动 RETAIL-01P（#20）、RETAIL-05P（#24）或 RETAIL-13A（#35）。
+- 代码交付提交：`5c5caa15782f7b327e90626aecfe5f9e5f2937f9`；分支 `feat/retail-01` 已推送并 tracking `origin/feat/retail-01`。
+- PR：[https://github.com/2Zest/OpenDot-RetailOps/pull/86](https://github.com/2Zest/OpenDot-RetailOps/pull/86)，目标 `develop/retailops`，创建时 GitHub 回读 `state=open`、`merged=false`、base SHA `8922d6aed84530779d2641d817ca01ec40ec76f0`、head SHA `5c5caa15782f7b327e90626aecfe5f9e5f2937f9`。
+- 回滚：`git revert 5c5caa15782f7b327e90626aecfe5f9e5f2937f9`；无数据库数据迁移。
+- Issue #19 已通过 GitHub API 更新并回读：Open，标签 `REVIEW`，指派仍为 `2Zest`；正文顶部已记录 PR #86 与 REVIEW 状态。
+- GitHub Project #2（[零售运营 V0.2](https://github.com/users/2Zest/projects/2/views/1)）状态未同步：看板最新可读状态仍将 #19 放在 In Progress，Review 列为 0。GitHub connector 未提供 Projects 状态写入能力；本机未安装 `gh`。浏览器操作尝试因窗口截图连续超时、可访问性点击报告 `coordinate input geometry is unavailable` 未完成，故不宣称看板已更新。需后续将 #19 从 In Progress 移至 Review。
+- PR #86 保持 Open、目标 `develop/retailops`，未合并；未关闭 Issue、未标 DONE、未启动下游任务。
+- 未启动下游 RETAIL-01P（GitHub Issue #20）、RETAIL-05P（#24）或 RETAIL-13A（#35）；不处理 #7 的 N1 阻塞任务。
+- 节点结论：PASS，等待独立 Review 与用户后续决定；未合并不代表 DONE。
 
 ### N1 候选决策（未批准值不冻结）
 
