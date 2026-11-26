@@ -50,3 +50,14 @@ OpenDot 管产品 Session/owner/ACL/provider fingerprint/request digest/产品 r
 DeepSeek 静态矩阵只证明 anthropic-messages 与 openai-completions 两种 API adapter 可配置；endpoint、auth、tools、streaming、usage、model alias 需要 #16 实际验证。#16 候选方案已列隔离 checkout/data/port/provider、启动命令、正常/重复及冲突/中断恢复/取消/授权失败用例和预期。源码未提供安全 checkpoint pause 命令；无法确认安全边界要 BLOCKED。详见调查报告固定 SHA 引用。
 
 保留原执行记录：N0 首次默认 PATH 缺 Node BLOCKED，错峰后 Node 24.22.3/npm 11.19.1、12 GiB 内存、945 GiB 可用磁盘、npm ci exit 0 后解除。定向 npm run demo:durable-runtime exit 0（5 files/26 tests）只属 isolated fixture/temp SQLite/faux provider/模拟效果/SIGKILL 子进程；非真实模型或 #16。npm run docs:check exit 1，基线 RETAILOPS-ROADMAP.md:1 旧链接，公共修复尚未合并。本轮不执行 Durable suite/docs check；公共 PR #81 合并后重跑 npm run demo:durable-runtime、npm run docs:check、git diff --check。状态首尾一致：静态调查/隔离 fixture PASS；docs:check 待复验；真实 Runtime/DeepSeek/外部效果/#16 NOT_RUN；不关 Issue、不标 DONE、不解锁下游。
+
+## 公共基线合并后最终复验（2026-11-26）
+
+- 当前 develop/retailops：f6a7f33a3e106a19b8a3c06ee56bb87ccf4f3b61；任务分支普通 merge commit：df51a2e5a9c1cb32a5243ab7017b788a81927380。
+- PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm run demo:durable-runtime：exit 0；5 files / 26 tests passed。全部为 isolated fixture、temporary SQLite、faux provider、模拟 effects 和测试子进程；不是真实 Runtime 或 #16 运行验收。
+- PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm run docs:check：exit 0；219 Markdown 文件通过。
+- git diff --check 与 git diff origin/develop/retailops...HEAD --check：exit 0。无业务代码/配置/依赖更改。
+- 历史 e8db2b6 基线 docs:check exit 1、公共修复未合并时的状态和回执均保留；本次复测只追加，明确已解除。
+- N4 三层结论 PASS（限本 Plan 的隔离 fixture 与文档检查）；N5 PR交付保持 REVIEW。Issue #9 Open/REVIEW、无人认领；真实 Runtime、模型、生产恢复、外部效果及 #16 NOT_RUN。
+
+PR #74 仍开放、目标 develop/retailops；等待独立 Review，不合并、不关闭 Issue、不标 DONE、不解锁下游。

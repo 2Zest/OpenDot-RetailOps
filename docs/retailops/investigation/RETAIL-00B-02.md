@@ -1,6 +1,6 @@
 # RETAIL-00B-02：Durable 源码契约调查
 
-历史初始状态：N0 环境门槛阻塞（已在执行窗口补充中解除）。当前状态：调查及隔离 fixture 验收 PASS；真实 Runtime/模型/生产恢复/#16 NOT_RUN；docs:check 待公共文档 PR 合并后复验。
+当前状态：N0–N4 静态调查与隔离 fixture 验收 PASS；PR #81 合并后 docs:check 退出 0（219 个 Markdown 文件）；真实 Runtime/模型/生产恢复/#16 NOT_RUN。Issue #9 保持 Open/REVIEW，未认领。
 基线：develop/retailops `e8db2b6b983e9cd2eeca79e596f81b2e5b93663a`；批准计划 `08679239c1e9959f465e74f1b191085ce86c2c4b`。
 Worktree/分支：`/home/szz_user/projects/OpenDot-RetailOps-RETAIL-00B-02` / `codex/retail-00b-02-durable-contract`。
 
@@ -131,4 +131,12 @@ checkpoint 粒度为已提交 Task checkpoint 和 Conversation/Submission 持久
 
 开头旧句“N0 阻塞/后续未验收”是执行窗口前历史快照，现标为历史；执行窗口补充记录已解除。当前：N0–N4 在静态调查/隔离测试范围 PASS，N5 为开放 PR Review；真实 Runtime/模型/副作用/#16 NOT_RUN。N0 首次 PATH 失败及解除保留。N1 三层 PASS（固定 SHA 调用链）；N2 三层 PASS（职责、映射、恢复边界静态证据）；N3 三层 PASS（调查交付、实测 NOT_RUN）；N4 fixture 5 files/26 tests exit 0，全是 isolated fixture/temp SQLite/faux provider/mock effects/SIGKILL 子进程；docs:check exit 1，基线旧链接待公共修复合并后复验，不能表述为通过。PR #81 合并后复验：npm run demo:durable-runtime、npm run docs:check、git diff --check。依赖 audit 48 advisories 维持原记录，无 audit fix。
 
-**最终状态：N0–N4 调查/隔离 fixture PASS；docs:check 待公共 PR 合并后复验；真实 Node Durable/DeepSeek/效果/生产恢复/#16 NOT_RUN。Issue 不关闭、不标 DONE、不解锁下游。**
+当前总结：调查与隔离 fixture 验收 PASS；npm run demo:durable-runtime 为 5 files/26 tests isolated fixture PASS；公共基线合并后 docs:check 通过。真实 Runtime/DeepSeek/外部效果/#16 NOT_RUN；Issue 不关闭、不标 DONE、不解锁下游。历史首轮失败及解除记录见上文。
+## 公共基线合并后复验（2026-11-26）
+
+- 集成基线：develop/retailops f6a7f33a3e106a19b8a3c06ee56bb87ccf4f3b61；本分支以普通 merge 同步，合并提交 df51a2e5a9c1cb32a5243ab7017b788a81927380。
+- 定向命令 PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm run demo:durable-runtime：退出码 0，5 个 test files / 26 tests 通过。证据仍限 isolated fixture、临时 SQLite、faux provider、模拟 effects 与测试子进程；不代表真实 Runtime、模型、外部效果或 #16 验收。
+- 文档命令 PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm run docs:check：退出码 0，219 个仓库 Markdown 文件通过。
+- git diff --check、git diff origin/develop/retailops...HEAD --check：均退出码 0；工作树干净。
+- 三层复核：总体计划 PASS（静态调查/fixture 范围不变）；Issue/Plan PASS（只保留调查和回归）；N4 节点 PASS（原定 fixture 与文档检查现均通过，证据级别明确）。
+- N5 状态：PR #74 保持 Open/Review，未合并；Issue #9 保持 Open/REVIEW、未认领。真实 Node Durable、DeepSeek、生产恢复和 #16 均 NOT_RUN；不标 DONE、不解锁下游。
