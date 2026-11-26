@@ -1,6 +1,6 @@
 # RETAIL-00C V0.2 业务架构审批材料
 
-**状态：N4 原则已批准；N5/N6 验收与交付进行中。** 用户于 2026-11-26 批准候选提交 `072ca30982792072bf6641eac916cbb05a5fb062` 中的八项业务与架构原则。该批准不冻结 D01–D16 的具体参数，不代表能力已实现或运行验收通过，也不解锁下游任务。
+**状态：N4 原则已批准；N5 通过；N6 独立 PR 已提交等待 Review。** 用户于 2026-11-26 批准候选提交 `072ca30982792072bf6641eac916cbb05a5fb062` 中的八项业务与架构原则。该批准不冻结 D01–D16 的具体参数，不代表能力已实现或运行验收通过，也不解锁下游任务。
 
 - GitHub Issue #14（RETAIL-00C）：[issue 页面](https://github.com/2Zest/OpenDot-RetailOps/issues/14)，Open / IN_PROGRESS。
 - 分支：[`docs/retail-00c`](https://github.com/2Zest/OpenDot-RetailOps/tree/docs/retail-00c)；Worktree：`D:/workSpace/codeAgent/OpenDot-RetailOps-00c`。
@@ -72,4 +72,4 @@
 - N0 初始环境发现：Windows Node `v26.13.0` / npm `11.20.0`；WSL Ubuntu 24.04.1 中 Node 缺失，npm 曾解析至 Windows fnm interop 路径。此为历史发现，已在本轮修复。
 - N5 执行基线已恢复并再次核验：WSL Ubuntu、Linux x64 Node `v24.22.3` / npm `11.19.1`；`node`、`npm` 位于 `/home/szz_user/.local/bin/` 并解析到官方 Linux 安装目录。官方归档 SHA-256=`4f2b175a6d53a5c617a80dba2676238a0688cef28c6da4eba35c7d844e66fcfb`，此前已通过官方 `SHASUMS256.txt` 校验。来源：[Node.js v24.22.3 官方发布页](https://nodejs.org/en/download/archive/v24.22.3)。
 - N5 按用户批准执行 `npm run docs:check`、`git diff --check` 与 Plan 定向语义检查，实际命令、退出码及结果记录在 `RETAIL-00C-N4.md` 的 N5/N6 追加回执。
-- N6 将通过既有 `docs/retail-00c` 分支创建目标为 `develop/retailops` 的独立 PR，保持开放等待独立审查；不合并、不实施业务代码、不认领或启动下游 Issue。RETAIL-00F（GitHub Issue #7）保持 Open/BLOCKED，所有真实 Runtime 门槛有效。
+- N6 已通过既有 `docs/retail-00c` 分支创建 [PR #83](https://github.com/2Zest/OpenDot-RetailOps/pull/83)，目标为 `develop/retailops`；PR 保持 Open，等待独立审查，未合并。未实施业务代码、未认领或启动下游 Issue。RETAIL-00F（GitHub Issue #7）保持 Open/BLOCKED，所有真实 Runtime 门槛有效。

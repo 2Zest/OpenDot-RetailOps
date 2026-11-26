@@ -104,4 +104,17 @@
 
 ## N6 独立 PR 交付
 
-状态：N5 已通过，正在执行 N6。将在最终范围与哈希核验后创建目标为 `develop/retailops`、关联 GitHub Issue #14 的独立 PR；保持开放，不合并。创建后追加 PR URL、最终 HEAD 和状态同步证据。
+### N6 交付结果（2026-11-26）
+
+- 已创建独立 [PR #83](https://github.com/2Zest/OpenDot-RetailOps/pull/83)，关联 GitHub Issue #14；目标分支 `develop/retailops`，来源分支 `docs/retail-00c`。
+- 首次创建时 PR head 为 `c4515d6b699a797e7d017dd9a90dfa57226d4aba`；GitHub 读取显示 PR Open、未合并、`mergeable=true`、`mergeable_state=clean`。后续仅追加本节交付回执与审批包状态，不改已批准架构内容。
+- PR 当前汇总 13 个文件，全部属于 N0 冻结的 13 个文档路径；本轮 N4–N6 追加提交改动其中 8 个路径。无源码、测试、配置、依赖、迁移、DAG 或其它任务文件变更。
+- PR 描述包含 Issue 关联、批准候选、集成基线、实际范围、节点记录、测试退出码、未验证项及文档回滚方式；不使用自动关闭 Issue 语句。
+- 加入 PR 地址及 N6 状态记录后再次执行 WSL `npm run docs:check`（240 份 Markdown，退出码 0）与 `git diff --cached --check 591ced31c0557cbb14d7b4dc6197da52923e55b6`（退出码 0）。
+- PR 保持开放等待独立审查；未合并，RETAIL-00C 尚不为 DONE。Issue #14 的标签/正文同步到 REVIEW 后在 GitHub 上复核。
+
+### N6 三层语义检查
+
+1. 总体计划/场景：PR 只交付已批准的文档与节点验收，不改变业务方向、V0/V1 边界或 #7/真实 Runtime 门槛。**PASS**。
+2. Issue/Plan：PR 关联 GitHub Issue #14、以 `develop/retailops` 为目标，工作仍在 RETAIL-00C 冻结路径内；没有启动或解锁下游。**PASS**。
+3. N6 节点标准：交付物、审批与哈希、测试结果、风险/未验证事项和独立 PR 均可复核；PR 未合并，故任务不标 DONE。**PASS**。
