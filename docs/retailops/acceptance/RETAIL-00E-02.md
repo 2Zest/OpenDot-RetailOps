@@ -130,3 +130,27 @@ Issue / Plan / 节点：Issue #13 RETAIL-00E-02；RETAIL-00E-02-PLAN.md；N5。�
 - `git diff --check`（本次全部修改后）：退出码0。
 
 此前 N4 的 docs:check BLOCKED 是公共失效链接尚未合并时的历史结果；失败证据保留，本轮合并后的 N4 文档回归为 PASS。PR #79 仍保持 Open，Issue #13 保持 Open/REVIEW；不标记 DONE、不解锁 #14/#21。没有训练模型、实现导入模块或执行算法验证。
+
+
+## 文件范围授权与节点回执补充（2026-11-26）
+
+### N0 — 调查辅助脚本文件范围
+
+用户在本轮 Review 中授权将以下唯一新增辅助文件纳入本 Issue 的文件范围：
+
+- `docs/retailops/investigation/RETAIL-00E-02-store-coverage.py`：只读、标准库 Python 调查脚本；读取固定 revision 的 Dataset Viewer 筛选 API，枚举已批准的 `store_id=0` train/eval 结果，校验覆盖并输出聚合哈希。脚本不修改仓库业务源码、依赖、配置或安全策略，不保存或输出原始销售行。
+
+本 PR 的交付文件清单限定为：
+1. `docs/retailops/investigation/RETAIL-00E-02.md`（调查报告）
+2. `docs/retailops/acceptance/RETAIL-00E-02.md`（本节点回执）
+3. `docs/retailops/investigation/RETAIL-00E-02-store-coverage.py`（上述单一调查辅助脚本）
+
+该补充仅确认辅助脚本的调查范围；未授权或实施数据导入器、业务代码、模型、算法、第三方源码或原始数据提交。
+
+| 对齐层 | 检查结果 | 判定 |
+|---|---|---|
+| 总体计划 / 场景 | 仅调查公开数据覆盖，不实现零售业务能力；脚本不改变运行环境 | PASS |
+| Issue / Plan | 用户明确将该路径纳入 RETAIL-00E-02 文件范围；现有报告和回执记录了脚本目的及边界 | PASS |
+| 节点验收 | N2/N3 脚本实际执行及74 SKU、共同97天证据保留在上节；本次不重做数据调查。新增范围记录后执行 `git diff --check` 和 `npm run docs:check` | PASS（以本次命令结果为准） |
+
+PR #79 保持 Open，Issue #13 保持 Open/REVIEW，等待人工合并确认；不认领、不标 DONE、不解锁 #14/#21。
