@@ -23,7 +23,7 @@
 - 使用本机 Computer Use 读取项目页时，截图通道在两次重新选择/重试后仍超时；按工具恢复规则停止 UI 写入。未尝试登录、提取凭据或修改 Project 字段。
 - 因此 #14 Issue 已 DONE、#15 Issue 已 IN_PROGRESS，而 Project 当前仍分别是 In Progress、Backlog。此为本节点未解决的状态漂移，未虚报 Projects 同步成功。等待有权限的 `gh` CLI/项目写入口后更新并回读；本任务不因此阻止独立文档设计继续，但不会解锁 #15 的下游 RETAIL-01。
 
-## N5 最新 Projects CLI 权限复核
+## N5 初次 Projects CLI 权限复核（授权更新前）
 
 - WSL `gh auth status` 当前退出码 0，显示已登录 GitHub 账号 `2Zest`。
 - `gh project list --owner 2Zest` 退出码 1，实际错误为 `your authentication token is missing required scopes [read:project]`。现有会话可访问 Issues/PR，但没有确认 Projects 读取/写入权限；GitHub MCP 也没有 Projects 字段写入工具。

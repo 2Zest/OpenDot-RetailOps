@@ -37,7 +37,7 @@
 
 - PR #84：Open，等待独立 Review；未合并。
 - Issue #15：节点及检查完成后设为 Open / REVIEW，保留执行人 `2Zest`。
-- GitHub Projects 状态尚未写入：WSL `gh auth status` 退出码 0（账号 `2Zest`），但 `gh project list --owner 2Zest` 退出码 1，缺少 `read:project` scope。已知项目卡片上次只读值为 #15 Backlog、#14 In Progress、#7 Blocked；无 Project 写入验证，不声称同步成功。
+- 初始 N5 回执提交时，GitHub Projects 尚未写入：当时 token 缺少 `read:project` scope，已知项目卡片上次只读值为 #15 Backlog、#14 In Progress、#7 Blocked。后续授权补齐及最终状态见本回执末尾。
 - Issue #14：Closed / DONE，PR #83 merge SHA `d3b402945ace1da4cd9e032690a394526079d09b`。
 - Issue #7：Open / BLOCKED；本任务未启动相关 Runtime、安全或业务验证。
 - PR 未合并，故 #15 的下游 RETAIL-01 / GitHub Issue #19 不解锁。未认领其他任务。
@@ -46,8 +46,17 @@
 
 1. 总体计划/已批准架构：仅形成未来工程边界和状态流程，未实施业务能力，未绕过 #7 安全门槛。结果：PASS。
 2. Issue #15/Plan：物理目录结构、原创代码隔离、Harness 适配器边界、模块依赖、路径所有权、模板及状态一致性均落在原范围。结果：PASS。
-3. N5 交付标准：独立 PR、目标分支、文件清单、检查结果和未解决阻塞可复核；合并及 Project 状态写入仍等待外部动作/权限。结果：PASS（Project 同步 BLOCKED，未解锁下游）。
+3. N5 交付标准：独立 PR、目标分支、文件清单、检查结果和状态回读可复核；Project 已同步，PR 仍开放等待独立 Review，未解锁下游。结果：PASS。
 
 ## 回滚
 
 PR 仅为新增文档；如审查要求撤回，可在合并后单独 revert。没有强推、重置分支或自动合并。
+
+## Projects 授权补齐及最终回读（2026-11-26）
+
+- 用户完成 GitHub 设备授权后，WSL `gh auth status` 退出码 0，scope 列表包含 `project`。授权刷新命令显示 Authentication complete；命令随后因 WSL Git cwd 检查失败退出码 1，但后续 `gh auth status` 及 Project 写入/回读均成功。
+- 写入前从项目 `RetailOps V0.2`（[Project #2](https://github.com/users/2Zest/projects/2)）实际读取 Status field ID `PVTSSF_lAHODjlUWM4BtKkTzhrVUJI` 及 Review option ID `abab67f3`；Issue #15 item ID `PVTI_lAHODjlUWM4BtKkTzhLw5CY`。
+- `gh project item-edit --id PVTI_lAHODjlUWM4BtKkTzhLw5CY --field-id PVTSSF_lAHODjlUWM4BtKkTzhrVUJI --project-id PVT_kwHODjlUWM4BtKkT --single-select-option-id abab67f3 --format json` 退出码 0；Issue #15 看板状态由 Backlog 更新为 Review。
+- `gh project item-list 2 --owner 2Zest --format json --limit 100 --jq '.items[] | select(.content.number == 7 or .content.number == 14 or .content.number == 15) | {id, number: .content.number, title, status, labels}'` 退出码 0，回读：#7 Blocked / `BLOCKED`，#14 Done / `DONE`，#15 Review / `REVIEW`。
+- GitHub Issue/PR 回读：#14 Closed/DONE，PR #83 merge SHA `d3b402945ace1da4cd9e032690a394526079d09b`；#15 Open/REVIEW/Assigned 2Zest，PR #84 Open/未合并、HEAD `9b271d884969ce46ac83601a0a91bf096f9eb5e5`；#7 Open/BLOCKED；下游 #19 保持 Open/BACKLOG。
+- Project 状态现与 Issue 状态一致。#19 仍未解锁，等待 PR #84 独立 Review、实际合并及 Issue #15 完成验收。
