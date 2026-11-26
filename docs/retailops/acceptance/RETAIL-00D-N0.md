@@ -19,9 +19,16 @@
 ## Projects 权限和真实状态
 
 - 通过私有项目页面只读核验到 Project `RetailOps V0.2`：Issue #14 卡片仍在 `In Progress`，#15 仍在 `Backlog`，#7 在 `Blocked`。本任务写入前 Project 项目计数为 7 Ready / 30 Backlog 的旧描述。
-- WSL `gh auth status` 退出码 1：`You are not logged into any GitHub hosts`。GitHub MCP 能写 Issue，但没有 Project V2 字段写入工具。
+- N0 首次检查时 WSL `gh auth status` 退出码 1：`You are not logged into any GitHub hosts`。GitHub MCP 能写 Issue，但没有 Project V2 字段写入工具。
 - 使用本机 Computer Use 读取项目页时，截图通道在两次重新选择/重试后仍超时；按工具恢复规则停止 UI 写入。未尝试登录、提取凭据或修改 Project 字段。
 - 因此 #14 Issue 已 DONE、#15 Issue 已 IN_PROGRESS，而 Project 当前仍分别是 In Progress、Backlog。此为本节点未解决的状态漂移，未虚报 Projects 同步成功。等待有权限的 `gh` CLI/项目写入口后更新并回读；本任务不因此阻止独立文档设计继续，但不会解锁 #15 的下游 RETAIL-01。
+
+## N5 最新 Projects CLI 权限复核
+
+- WSL `gh auth status` 当前退出码 0，显示已登录 GitHub 账号 `2Zest`。
+- `gh project list --owner 2Zest` 退出码 1，实际错误为 `your authentication token is missing required scopes [read:project]`。现有会话可访问 Issues/PR，但没有确认 Projects 读取/写入权限；GitHub MCP 也没有 Projects 字段写入工具。
+- 因此不能安全读取最新 Project item/field，也不能写入 #14 Done、#15 Review；已知卡片值仍以此前只读快照为 #14 In Progress、#15 Backlog、#7 Blocked。未运行 `gh auth refresh` 或改变凭据权限。
+- 状态结论：Project 同步仍 BLOCKED，待账号获得适当 Project scope/权限后再读、写并回读验证；在此之前不解锁 RETAIL-01（GitHub Issue #19）。
 
 ## 文件范围冻结
 

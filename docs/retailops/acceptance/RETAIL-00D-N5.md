@@ -37,7 +37,7 @@
 
 - PR #84：Open，等待独立 Review；未合并。
 - Issue #15：节点及检查完成后设为 Open / REVIEW，保留执行人 `2Zest`。
-- GitHub Projects 状态尚未写入：`gh auth status` 退出码 1，未认证；已知项目卡片仍为 #15 Backlog、#14 In Progress。该状态漂移如实记录于 N0，不声称同步成功。
+- GitHub Projects 状态尚未写入：WSL `gh auth status` 退出码 0（账号 `2Zest`），但 `gh project list --owner 2Zest` 退出码 1，缺少 `read:project` scope。已知项目卡片上次只读值为 #15 Backlog、#14 In Progress、#7 Blocked；无 Project 写入验证，不声称同步成功。
 - Issue #14：Closed / DONE，PR #83 merge SHA `d3b402945ace1da4cd9e032690a394526079d09b`。
 - Issue #7：Open / BLOCKED；本任务未启动相关 Runtime、安全或业务验证。
 - PR 未合并，故 #15 的下游 RETAIL-01 / GitHub Issue #19 不解锁。未认领其他任务。
