@@ -3,6 +3,7 @@
 - 状态：**PROPOSED / PENDING_USER_APPROVAL**。下列决策为待批准架构提案，不在 N4 之前自动生效。
 - 范围：RETAIL-00C 文档定稿；没有实施架构代码、配置或迁移。
 - 固定源码调查版本：OpenDot-RetailOps `e8db2b6b983e9cd2eeca79e596f81b2e5b93663a`；产品计划基线为本任务 N0 记录的 `591ced31c0557cbb14d7b4dc6197da52923e55b6`。
+- 编号规范：内部任务一律写作 `RETAIL-XX`；GitHub 编号写作 `GitHub Issue #N`。完整映射见 [`REQUIREMENTS-TRACEABILITY-V0.2.md`](REQUIREMENTS-TRACEABILITY-V0.2.md)，不以 `#06`、`#19` 等简称内部任务。
 
 ## ADR-001：V0 先做单店单 SKU 临期损耗闭环
 
@@ -34,7 +35,7 @@
 - **静态源码依据**：固定 SHA `e8db2b6b983e9cd2eeca79e596f81b2e5b93663a` 的 [Session 创建与 Runtime 选择](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/routes/agents.ts#L661-L748)、[产品模型配置](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-model.ts#L42-L113)、[Durable Adapter 的打开/恢复边界](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/durable-runtime.ts#L180-L239)。报告记录 Node Product Durable 依赖显式开关、Host/容器授权及冻结 provider/model fingerprint；静态调查不等于运行验收。
 - **职责提案**：OpenDot 产品层负责 owner/workspace/授权、输入 requestId/digest、产品 DB 状态投影和 recovery receipts；`pi-durable` 负责 Harness/Conversation/Submission/Task/checkpoint/memo 调度持久化；`pi-ai` 提供模型 API adapter。SDK 状态不是零售领域账本。
 - **DeepSeek 兼容性**：固定源码接受 OpenAI Completions / Anthropic Messages API 类型；`openai-completions` 路径可静态确认调用该适配器，[product-model.ts](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-model.ts#L81-L83)、[模型调用](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/src/personal-agent/product-model.ts#L276-L292)。DeepSeek 的 URL、鉴权、模型别名、工具调用、流式响应、错误与用量行为尚未真实验证。Anthropic Messages 端点也不能据 URL 声称 DeepSeek 已兼容。OAuth bridge 不可据普通 Pi 历史会话推断已打通。
-- **运行门槛**：#7 安全环境当前 BLOCKED；Durable 恢复需 #16、MCP exact-call 需 #17、Handoff 需 #18 分别完成并满足 DAG。不得为本 ADR 启用 Runtime、Provider、Session 或外部效果。
+- **运行门槛**：RETAIL-00F（GitHub Issue #7）安全环境当前 BLOCKED；Durable 恢复需 RETAIL-00B-02V（GitHub Issue #16）、MCP exact-call 需 RETAIL-00B-03V（GitHub Issue #17）、Handoff 需 RETAIL-00B-04V（GitHub Issue #18）分别完成并满足 DAG。不得为本 ADR 启用 Runtime、Provider、Session 或外部效果。
 
 ## ADR-005：副作用使用摘要绑定、幂等和 uncertain 对账
 
@@ -51,11 +52,11 @@
 
 ## ADR-007：分析 Agent 采用有界动态 Tool-use Loop，而非固定工作流
 
-- **状态**：待用户批准；保持 RETAIL-06 已有验收，不改 Issue 或 DAG。
-- **背景/已有要求**：RETAIL-06 要求真实模型生成有来源草案、按场景动态选工具、两个不同情景产生可解释工具路径差异、证据不足时拒绝，且不能以固定顺序冒充动态规划。
+- **状态**：待用户批准；保持 RETAIL-06（GitHub Issue #27）已有验收，不改 Issue 或 DAG。
+- **背景/已有要求**：RETAIL-06（GitHub Issue #27）要求真实模型生成有来源草案、按场景动态选工具、两个不同情景产生可解释工具路径差异、证据不足时拒绝，且不能以固定顺序冒充动态规划。
 - **提案**：运行时提供可观察的 `Task → Observation → progress/evidence judgment → authorized tool or abstain/stop → Observation` 循环。每一步模型基于当前 Observation 决定已完成、继续、缺证据、失败或停止；控制层只强制授权、预算、硬规则、状态转换及 Schema，不规定固定查询脚本。工具只从当前登记且已授权的只读集合中动态选择。
 - **预算/失败边界**：设置轮次、工具次数、token、总时限与安全重试预算；具体数值由 RETAIL-06 N0 审核配置，不在 N4 填默认值。工具错误/空响应不是证据；授权失败 fail-closed；分析 Agent 无写副作用权限；超时/取消若效果不明则 `UNCERTAIN`。
-- **验收与边界**：#06 两情景真实模型行为是最小 Agent 评测要求；RETAIL-19 仍负责完整多场景经营对照。静态计划、fixture、预先写死的工具轨迹不能冒充真实 Agent 行为。
+- **验收与边界**：RETAIL-06 两情景真实模型行为是最小 Agent 评测要求；RETAIL-19（GitHub Issue #39）仍负责完整多场景经营对照。静态计划、fixture、预先写死的工具轨迹不能冒充真实 Agent 行为。
 
 ## ADR-008：Context 分层，Memory 不作为业务事实源
 
@@ -63,18 +64,19 @@
 - **提案**：分离 System Context（可信规则/工具边界）、Task Context（当前任务和冻结快照）、Working Memory（本次 Run 中的 Observation 与证据引用）、历史经验（带来源/版本/时效的检索线索）。工具返回需按 schema 和 token 预算裁剪/摘要并保留原始定位、source/Tool Call ID、时间、单位和截断标记。
 - **约束**：Memory/摘要/检索结果不可替代库存、政策、授权、草案审批等权威服务。已有场景把复杂 RAG/Memory 优化列作以后候选；本 ADR 不引入独立 RAG、向量数据库、额外 Agent 或工具。超出已授权只读能力时另提范围变更。
 
-## ADR-009：行为 Eval 留在 #06 最小验收，完整经营对照由 #19 执行
+## ADR-009：行为 Eval 留在 RETAIL-06 最小验收，完整经营对照由 RETAIL-19 执行
 
 - **状态**：待用户批准的验收解释；不改任何下游验收标准。
-- **提案**：#06 的两个不同场景真实模型调用必须保留，核对动态工具选择、场景驱动的轨迹差异、来源证据、缺证据拒绝和结构化输出；其目的是 Agent 行为可证伪，不宣称业务 uplift。
-- **候选指标**：任务成功/正确拒绝率、工具选择和参数正确率、场景轨迹区分性、证据覆盖、无依据结论、硬规则违规、审批绕过、重复副作用、结构化输出、token、延迟、成本。指标阈值尚未批准或测量；安全违规候选目标为 0，绝不表示当前结果为 0。
-- **分工**：#19 固定数据/seed/模型/策略并执行完整多场景算法与 Agent 对照，报告原始指标、负例和仿真限制；不能把 #19 的实验套件挪入 #06，也不能削弱 #06 的真实模型双情景验收。
+- **提案**：RETAIL-06（GitHub Issue #27）的两个不同场景真实模型调用必须保留，核对动态工具选择、场景驱动的轨迹差异、来源证据、缺证据拒绝和结构化输出；其目的是 Agent 行为可证伪，不宣称业务 uplift。
+- **一般效果指标候选**：任务成功/正确拒绝率、工具选择和参数正确率、场景轨迹区分性、证据覆盖、无依据结论、结构化输出、token、延迟、成本。普通指标目标值待批准或下游冻结，不表示已有测量。
+- **不可权衡的零容忍安全门槛**：任何硬规则违规、未授权写入、审批绕过或重复业务副作用均直接导致安全验收失败并阻断；不得调宽阈值、按平均分折抵或以业务收益豁免。零次观测是必要条件，不足以单独证明安全通过。这些项目不是普通效果指标。
+- **分工**：RETAIL-19（GitHub Issue #39）固定数据/seed/模型/策略并执行完整多场景算法与 Agent 对照，报告原始指标、负例和仿真限制；不能把其套件挪入 RETAIL-06，也不能削弱 RETAIL-06 的真实模型双情景验收。
 
 ## ADR-010：Trace 从 Retail Task 贯通到副作用回执
 
 - **状态**：待用户批准的可观测合同；字段/存储实现留给现有 Issue。
 - **提案**：关联 `Retail Task → Agent Run → LLM Call → Tool Call → Handoff → Approval → Execution Receipt`，每条记录含 parent/correlation IDs、版本/digest、时间、输入/输出摘要、调用预算和 outcome。保存 evidence/source 引用，不记录 secret。
-- **范围对齐**：草案 revision/evidence digest 属于 #07；approval 身份与撤销属于 #09；Durable 恢复关联属于 #11；反馈指标属于 #12；occurrence/停止恢复属于 #15；完整聚合分析属于 #19。此 ADR 不增加数据库字段/API、业务范围或 DAG 边。
+- **范围对齐**：草案 revision/evidence digest 属于 RETAIL-07（GitHub Issue #26）；approval 身份与撤销属于 RETAIL-09（GitHub Issue #29）；Durable 恢复关联属于 RETAIL-11（GitHub Issue #31）；反馈指标属于 RETAIL-12（GitHub Issue #32）；occurrence/停止恢复属于 RETAIL-15（GitHub Issue #38）；完整聚合分析属于 RETAIL-19（GitHub Issue #39）。此 ADR 不增加数据库字段/API、业务范围或 DAG 边。
 
 ## ADR-011：拆分物理在手、不可售、预占与可售口径
 
@@ -86,9 +88,9 @@
 
 | 能力 | 调查证据 | 本次架构可下结论 | 尚未验证/门槛 |
 |---|---|---|---|
-| Node Product Durable | 固定 SHA `e8db2b6...` 的路由、产品 DB 和 adapter 代码；`pi-durable/pi-ai/chord` 版本及职责见调查报告 | 源码中存在候选 Node Durable 路径及产品/SDK 状态边界 | 真实 Provider、恢复点、取消/重启、外部副作用 uncertain 均未作为本 PRD 验收；#7/#16 门槛 |
-| MCP | 固定源码有 consent、catalog/grant、exact-call intent 与审批台账路径 | 可作为平台候选安全接口；未登记工具不能进入 grant/catalog；Product Approval 不是零售审批 | 无 RetailOps 注册工具或真实服务运行；#7/#17 门槛 |
-| Handoff | 固定源码有 Node/Cloud 开关与受限 grant；Node 与 Cloud 能力不同 | 现有协作能力可供后续评估 | 无 RetailOps risk-reviewer、独立风控结论或 digest 消费门禁；#7/#18 门槛 |
+| Node Product Durable | 固定 SHA `e8db2b6...` 的路由、产品 DB 和 adapter 代码；`pi-durable/pi-ai/chord` 版本及职责见调查报告 | 源码中存在候选 Node Durable 路径及产品/SDK 状态边界 | 真实 Provider、恢复点、取消/重启、外部副作用 uncertain 均未作为本 PRD 验收；RETAIL-00F（GitHub Issue #7）与 RETAIL-00B-02V（GitHub Issue #16）门槛 |
+| MCP | 固定源码有 consent、catalog/grant、exact-call intent 与审批台账路径 | 可作为平台候选安全接口；未登记工具不能进入 grant/catalog；Product Approval 不是零售审批 | 无 RetailOps 注册工具或真实服务运行；RETAIL-00F（GitHub Issue #7）与 RETAIL-00B-03V（GitHub Issue #17）门槛 |
+| Handoff | 固定源码有 Node/Cloud 开关与受限 grant；Node 与 Cloud 能力不同 | 现有协作能力可供后续评估 | 无 RetailOps risk-reviewer、独立风控结论或 digest 消费门禁；RETAIL-00F（GitHub Issue #7）与 RETAIL-00B-04V（GitHub Issue #18）门槛 |
 | Fixture 测试 | 上游报告列出隔离 fixture/unit 结果 | 仅能证明受测 fixture/code path | 不得表述为真实 Runtime/Provider/业务效果通过 |
 
 ## 审批和修改流程
