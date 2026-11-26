@@ -98,3 +98,13 @@ N0：**PASS**。N1：**BLOCKED**，原因是 Debian APT 代理对包文件请求
 - Issue/Plan：BLOCKED，原 Dockerfile 两次构建失败；未改变 N1 结论。
 - N1 节点标准：BLOCKED，smoke 未运行，兼容性未验证。
 - 追加验证只核对归档日志和文档检查，不进入 N2/N3，不解锁 #8/#16/#17/#18。
+
+## 公共基线合并后文档复验（2026-11-26）
+
+- 最新 develop/retailops：f6a7f33a3e106a19b8a3c06ee56bb87ccf4f3b61；本分支普通 merge commit bfe2b9b7ae0e3f0d861a37ff95d6ddaaca7ebc50。
+- WSL Node v24.22.3 / npm 11.19.1；PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm run docs:check 退出码 0，218 个 Markdown 文件通过。
+- git diff --check 与 git diff origin/develop/retailops...HEAD --check 均退出 0。
+- 本轮没有重新构建镜像、拉取新镜像或运行 smoke。原两次构建失败、官方镜像不可获取、目标镜像不存在、scripts/smoke-agent-image.sh NOT_RUN 等证据均保留。
+- N1 最终判定仍 BLOCKED：文档检查通过不能替代可验证的可信镜像、镜像 ID/工具版本与 smoke 证据。
+- 三层语义：总体计划 BLOCKED；Issue/Plan BLOCKED；N1 节点 BLOCKED。Issue #7 保持 Open/BLOCKED 且未分配；不进入 N2/N3、不标 DONE、不解锁 #8/#16/#17/#18。
+- PR #76 仍为阶段性证据归档 PR，保持 Open、目标 develop/retailops，等待独立 Review。
