@@ -5,11 +5,12 @@
 ## 结论摘要
 
 - 数据集 FreshRetailNet-50K 固定数据卡 revision：c374e85975c82816c495acfa904cc55ab14a47d3。数据卡标注版本 v1.0、CC BY 4.0，发布日期 2025-05-08；卡片最后修改日期 2026-10-09。[固定数据卡版本](https://huggingface.co/datasets/Dingdong-Inc/FreshRetailNet-50K/blob/c374e85975c82816c495acfa904cc55ab14a47d3/README.md#L86-L107)
-- Hugging Face Dataset Viewer /filter 按 store_id=0 AND product_id=38 分别查询 train/eval，返回公开真实样本90+7=97行，partial=false。该样本只证明一条编码门店-商品序列有覆盖，不能代表整店或全数据集。
+- Hugging Face Dataset Viewer /filter 按 store_id=0 AND product_id=38 分别查询 train/eval，返回公开真实样本90+7=97行，partial=false。该单序列样本本身不代表整店或全数据集。
+- 2026-11-26 对同一编码门店 store_id=0 的全部公开筛选结果分页复核：train 6,660行/74 SKU，eval 518行/同一74 SKU；每个SKU均有90+7天，74条序列共同覆盖连续97天。该结果是数据集编码门店范围内的覆盖证据，不是对现实门店或全数据集的外推；复现脚本和哈希见文末最终复验。
 - train.parquet 为106,436,287 bytes（>100MB），未下载；eval.parquet 也未整文件下载。样本只在本任务被忽略的 data/retail-00e-02/，不得提交。
 - 97行字段、日期、唯一键和缺货标签校验通过。小时销量与日销量使用1e-9容差比较；不使用浮点精确相等断言。
-- 候选日期划分：官方 train 前76天用于训练，后14天用于验证；官方 eval 7天只用于测试。此为后续验证的数据边界建议，不代表模型训练或算法验收。
-- 未训练模型、未安装依赖、未修改业务源码。npm run docs:check 存在已知基线坏链，已如实记录；本任务不修复无关文档。
+- 候选日期划分：官方 train 前76天用于训练，后14天用于验证；官方 eval 7天只用于测试。此为后续验证的数据边界建议，不代表模型训练或算法验收。最终分页扫描确认 store_id=0 的74个SKU均覆盖同一官方97天窗口；不将该结果外推至其他store_id。
+- 未训练模型、未安装依赖、未修改业务源码。初始 npm run docs:check 曾受公共路线图坏链阻塞；PR #81 合并后已在本任务 Worktree 复跑并通过，历史失败保留在节点回执。
 
 ## 版本、来源与许可
 
@@ -217,7 +218,7 @@ API row_idx 不保证跨版本稳定；可复现依据是数据 revision、官�
 场景说明V0先做单SKU临期折扣闭环，V1再扩展少量/约20–50个SKU、需求预测、缺货诊断和共享库存（[固定场景V0范围](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/docs/retailops/initial-plan-v0.2/RETAILOPS-SCENARIO-V0.2.md#L27-L43)、[V0/V1阶段](https://github.com/2Zest/OpenDot-RetailOps/blob/e8db2b6b983e9cd2eeca79e596f81b2e5b93663a/docs/retailops/initial-plan-v0.2/RETAILOPS-SCENARIO-V0.2.md#L77-L78))。
 
 - V0候选：本样本只可作为单SKU归一化历史销量和缺货标签的离线研究输入；不足以支持临期折扣的经营动作。后续V0仿真必须把批次数量、到期日、可售状态、单位成本/售价、初始可用库存、价格响应另行标成SIMULATED，固定种子和假设，不得混入或伪装成PUBLIC_HISTORICAL。本调查未训练模型、未生成决策、未运行仿真。
-- V1候选：需要分别取得同一编码门店下的多个SKU series，保留原product_id，逐条验证时间覆盖/单位/缺失；共同日期窗口需取被选series的日期集合交集并保存每条覆盖。还需补齐共享库存及线上订单预占/完成/取消、采购和批次字段。本次仅一个SKU，不能证明V1多SKU覆盖或共同窗口。
+- V1候选：最终复验已在同一编码门店 store_id=0 的公开筛选结果中确认74个共同SKU、每个SKU连续97天，数据层面足以支持后续选择20–50个编码SKU做多序列研究。SKU选择标准仍需预先明确并保留product_id、逐条覆盖与来源；该证据不代表现实门店的完整商品覆盖。共享库存、线上订单预占/完成/取消、采购和批次字段仍缺失，不能据此开展真实经营闭环。此前单SKU结论是当时抽样范围；以文末最终分页复验为准。
 
 ## 场景要求但FreshRetailNet缺失的业务字段
 
@@ -265,4 +266,24 @@ API row_idx 不保证跨版本稳定；可复现依据是数据 revision、官�
 - 不把编码 ID 映射成真实商户/商品；不将单条序列外推为全门店或总体覆盖。
 - 未训练模型、未接真实门店接口、未实现数据导入或下游算法；不得作为 #21 能力验收证据。
 - 待确认：归一化系数及稳定性、ID业务映射、天气变量单位和来源、全量日期/缺失分布、数据更新策略、生产用途范围。
-- 本分支只新增调查报告和节点回执，不修改业务源码、依赖、配置或原始数据；样本不在 diff。回滚为单独 revert 文档提交。
+- 本分支只新增调查报告、节点回执和可复现分析脚本，不修改业务源码、依赖、配置或原始数据；样本不在 diff。回滚为单独 revert 文档提交。
+
+
+## 最终复验：同一编码门店的 SKU 覆盖与共同日期窗口
+
+复验日期：2026-11-26。固定数据卡 revision 为 `c374e85975c82816c495acfa904cc55ab14a47d3`；分页扫描前后查询 `revision/main` 均为该 SHA。使用 Hugging Face Dataset Viewer `/filter` 对 `store_id=0` 分别扫描 `train` 和 `eval`，每页 `length=100`，完整消费全部页；没有下载 Parquet 文件，也没有提交原始数据。
+
+| Split | 公开筛选行数 | 页数 | 唯一 product_id | 每SKU天数 | 唯一 (store_id, product_id, dt) | 分页响应聚合 SHA-256 |
+|---|---:|---:|---:|---:|---:|---|
+| train | 6,660 | 67 | 74 | 90 | 6,660 | `60b5ee76e48f94549b74d21119b7b249b409edbf2748a56327cf9bc536f4ee85` |
+| eval | 518 | 6 | 74 | 7 | 518 | `f710d7bea6428190da664ada60869fca4b09b1a556f6a47579ebc916d6af671c` |
+
+两个 split 的 SKU 集合完全一致：74 个共同 `product_id`，无 train-only 或 eval-only SKU。每个 SKU 的 train 日期连续覆盖 2024-03-28 至 2024-06-25；eval 日期连续覆盖 2024-06-26 至 2024-07-02。74条序列共同日期交集为 2024-03-28 至 2024-07-02，连续97天，无缺日；split 间日期不重叠，复合键无重复。API `partial=false`，实际行数等于各自 `num_rows_total`。
+
+分页响应哈希算法：按 offset 递增顺序，对每个响应 body 先输入其 8 字节大端长度，再输入原始 body 字节，最终取 SHA-256。可复现命令（Python 3 标准库、网络访问 Hugging Face）：
+
+    python3 docs/retailops/investigation/RETAIL-00E-02-store-coverage.py
+
+脚本固定检查数据 revision 前后不变，分页检查 `partial`、总行数、页长、门店范围、SKU 集合、每SKU行数、复合键唯一性、每SKU日期连续性和共同日期窗口；本轮执行退出码0。脚本不保存或输出原始销售记录。
+
+**多SKU扩展判断：** 在该数据集公开编码范围内，store_id=0 有74个满足完整共同97天覆盖的SKU，数量上足以从中按预先说明的标准选择20–50个编码SKU，开展后续多序列数据质量或预测研究。不得把编码门店称为已识别的真实门店，不得声称74个SKU覆盖现实门店完整商品目录；商品实物单位/归一化系数、库存、批次、线上订单生命周期、采购和真实成本仍缺失。此调查未选择或拼接跨门店样本，未训练模型、开发导入模块或声称算法验收通过。

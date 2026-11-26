@@ -107,3 +107,26 @@ Issue / Plan / 节点：Issue #13 RETAIL-00E-02；RETAIL-00E-02-PLAN.md；N5。�
 1. 总体计划/场景：PASS；仅调查公开数据，没有开发业务能力。
 2. Issue #13 / Plan：PASS；版本许可、真实单序列profile、归一化限制和时间边界齐全。
 3. 节点验收：BLOCKED；npm run docs:check基线坏链失败，PR/独立Review待主控。没有算法验收结论，不解锁#14/#21。
+
+
+## PR #81 合并后的最终复验补充（2026-11-26）
+
+此次复验基于已合并公共修复后的集成基线 `f6a7f33a3e106a19b8a3c06ee56bb87ccf4f3b61`，在原 worktree `/home/szz_user/projects/OpenDot-RetailOps-RETAIL-00E-02`、分支 `docs/retail-00e-02` 内完成；未新建分支或 PR。早期回执中“仅一个SKU / 尚未测量跨SKU共同窗口”准确描述了当时单SKU抽样状态，现由以下全门店编码范围分页结果补充并取代其作为最终覆盖结论；原记录保留为历史。
+
+### N2/N3 补充：同一编码门店多SKU覆盖
+
+实际执行：`python3 docs/retailops/investigation/RETAIL-00E-02-store-coverage.py`，退出码0。脚本分页读取 store_id=0 的全部公开 Dataset Viewer `/filter` 行，不下载 Parquet。revision 前后均为 `c374e85975c82816c495acfa904cc55ab14a47d3`。
+
+- train：6,660行、67页、74个SKU；每个SKU连续90天；复合键6,660/6,660唯一；分页响应SHA-256（按8字节大端长度前缀及offset顺序聚合）`60b5ee76e48f94549b74d21119b7b249b409edbf2748a56327cf9bc536f4ee85`。
+- eval：518行、6页、相同74个SKU；每个SKU连续7天；复合键518/518唯一；聚合SHA-256 `f710d7bea6428190da664ada60869fca4b09b1a556f6a47579ebc916d6af671c`。
+- 74/74 SKU 的共同窗口为2024-03-28至2024-07-02，连续97天；train/eval日期相邻且无重叠。筛选结果 `partial=false`，SKU集合无差异。
+- 多SKU判断：数据集 store_id=0 范围内足以支持从74个编码SKU中按明示标准选择20–50个用于后续研究；不证明现实门店身份或完整商品目录，不补足库存、批次、成本等经营字段，也不代表真实经营验收。没有混入其他门店数据。
+
+对应可复现分析脚本及逐项结果已加入调查报告。样本仍只存于被 `.gitignore` 忽略的本地 `data/retail-00e-02/`，未进入提交。
+
+### N4/N5 状态说明
+
+- `PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm run docs:check`：退出码0，219份Markdown文档通过。
+- `git diff --check`（本次全部修改后）：退出码0。
+
+此前 N4 的 docs:check BLOCKED 是公共失效链接尚未合并时的历史结果；失败证据保留，本轮合并后的 N4 文档回归为 PASS。PR #79 仍保持 Open，Issue #13 保持 Open/REVIEW；不标记 DONE、不解锁 #14/#21。没有训练模型、实现导入模块或执行算法验证。
