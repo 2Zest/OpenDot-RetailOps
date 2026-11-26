@@ -153,3 +153,12 @@ Issue 契约 Blob：fc7fa13d5d6cc4fe6dc9df3f66e54cc586643df2。Plan Blob：e22d1
 ### 公共 docs 检查
 
 上一轮 docs:check 退出码 1，旧路线图断链。公共修复 PR 未合并，本轮按要求未复跑；修复合并后再复验。当前只运行 git diff --check。
+
+## PR #81 合并后复测（2026-11-26）
+
+- 当前 develop/retailops：f6a7f33a3e106a19b8a3c06ee56bb87ccf4f3b61；分支普通 merge commit：40910d8c2293ec609278d15e4a5d2ed827261679，无强推。
+- 定向命令 PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm test -- --run tests/goal-team.test.ts tests/bot-handoff-security.test.ts tests/bot-handoff-controls.test.ts tests/bot-handoff-recovery.test.ts：exit 0，4 files/16 tests passed（fixture/测试子进程）。
+- npm run docs:check：exit 0，219 Markdown files；git diff checks exit 0。
+- 合并前 docs:check exit 1 的失败证据保留；合并后复测通过。
+- N4三层 PASS，范围仅既有定向fixture和文档回归。真实 Handoff/Provider、Node/Cloud和 #18 未执行；未建业务 Agent。
+- Issue #11 Open/REVIEW、无人认领；PR #78 Open/Review，未标DONE或解锁下游。

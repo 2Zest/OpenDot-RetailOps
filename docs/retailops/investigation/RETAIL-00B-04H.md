@@ -102,3 +102,19 @@ Provider/身份绑定见 [productModelConfiguration](https://github.com/2Zest/Op
 ## 公共文档修复状态
 
 上一轮 npm run docs:check 曾退出码 1，失败为旧路线图失效链接。主控确认公共修复 PR 尚未合并，所以本轮按要求未复跑。待公共修复合并后再运行 docs:check 并记录结果；没有将未复测写成通过。
+## PR #81 合并后最终复测（2026-11-26）
+
+- 最新 develop/retailops：f6a7f33a3e106a19b8a3c06ee56bb87ccf4f3b61；本分支普通 merge commit 40910d8c2293ec609278d15e4a5d2ed827261679。
+- PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm test -- --run tests/goal-team.test.ts tests/bot-handoff-security.test.ts tests/bot-handoff-controls.test.ts tests/bot-handoff-recovery.test.ts：退出码 0，4 files/16 tests passed。运行类型为既有隔离 fixture/测试子进程；不等于真实 Cloud/Node Handoff 或 #18 验收。
+- PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm run docs:check：退出码 0，219 个仓库 Markdown 文件通过。
+- git diff --check 与 PR 分支差异检查：均退出码 0；工作树干净。
+- 三层复核：总体计划 PASS（仅调查/fixture范围）；Issue/Plan PASS（未扩大风控功能）；N4节点 PASS（定向测试和文档检查通过）。
+- #18 未执行；未创建业务风控 Agent；真实 Provider/Cloud/Node Runtime 仍未验证。Issue #11 保持 Open/REVIEW、未认领；PR #78 保持 Open，不标 DONE、不解锁 #18。
+## PR #81 合并后最终复测（2026-11-26）
+
+- 最新 develop/retailops：f6a7f33a3e106a19b8a3c06ee56bb87ccf4f3b61；本分支普通 merge commit 40910d8c2293ec609278d15e4a5d2ed827261679。
+- PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm test -- --run tests/goal-team.test.ts tests/bot-handoff-security.test.ts tests/bot-handoff-controls.test.ts tests/bot-handoff-recovery.test.ts：退出码 0，4 files/16 tests passed。运行类型为既有隔离 fixture/测试子进程；不等于真实 Cloud/Node Handoff 或 #18 验收。
+- PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm run docs:check：退出码 0，219 个仓库 Markdown 文件通过。
+- git diff --check 与 PR 分支差异检查：均退出码 0；工作树干净。
+- 三层复核：总体计划 PASS（仅调查/fixture范围）；Issue/Plan PASS（未扩大风控功能）；N4节点 PASS（定向测试和文档检查通过）。
+- #18 未执行；未创建业务风控 Agent；真实 Provider/Cloud/Node Runtime 仍未验证。Issue #11 保持 Open/REVIEW、未认领；PR #78 保持 Open，不标 DONE、不解锁 #18。
