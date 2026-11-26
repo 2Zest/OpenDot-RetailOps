@@ -111,7 +111,7 @@
 - PR 当前汇总 13 个文件，全部属于 N0 冻结的 13 个文档路径；本轮 N4–N6 追加提交改动其中 8 个路径。无源码、测试、配置、依赖、迁移、DAG 或其它任务文件变更。
 - PR 描述包含 Issue 关联、批准候选、集成基线、实际范围、节点记录、测试退出码、未验证项及文档回滚方式；不使用自动关闭 Issue 语句。
 - 加入 PR 地址及 N6 状态记录后再次执行 WSL `npm run docs:check`（240 份 Markdown，退出码 0）与 `git diff --cached --check 591ced31c0557cbb14d7b4dc6197da52923e55b6`（退出码 0）。
-- PR 保持开放等待独立审查；未合并，RETAIL-00C 尚不为 DONE。Issue #14 的标签/正文同步到 REVIEW 后在 GitHub 上复核。
+- PR 保持开放等待独立审查；未合并，RETAIL-00C 尚不为 DONE。GitHub #14 已复核为 Open、标签 `REVIEW`、负责人 `2Zest`，正文记录本次 N4–N6 结果及 PR #83；未关闭或标记 DONE。
 
 ### N6 三层语义检查
 
