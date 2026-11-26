@@ -1,6 +1,6 @@
 # RETAIL-00A-01 执行验收回执
 
-状态：三个脚本权限位已修复；全量 `make typecheck` 的 TypeScript 阶段通过，最终被仓库文档一致性检查阻塞。本回执不代表 Issue 完成或下游已解锁。
+历史首轮状态（基线 e8db2b6）：三个脚本权限位已修复；make typecheck 的 TypeScript 阶段通过，最终因 ROADMAP 失效链接退出 2。本轮已在公共修复合并后复验通过；不代表 Issue 完成或下游已解锁。
 
 ## N0 环境与范围预检
 
@@ -76,3 +76,20 @@ GNU Make 因 recipe 失败返回 2。该失败是 ROADMAP 文档链接缺少目�
 - 全量单元测试、独立 PR Review、合并均未执行。
 - Issue 保持 Open；此 PR 创建不解锁下游 `RETAIL-01P`。
 - PR 目标为 `develop/retailops`，保持开放等待 Review 和用户确认。回滚方式为 revert 本 PR，恢复原始 Git mode。
+## N4：公共基线合并后复测
+
+- 最新基线：develop/retailops = f6a7f33a3e106a19b8a3c06ee56bb87ccf4f3b61（PR #81 合并提交）；本任务分支以非强推 merge 同步，合并提交 99f3c493600b77125c275ff6a0339267003a9551。
+- 干净工作树核验：git status --porcelain 为空。三个脚本的 git ls-tree mode 均为 100755，checkout 后 test -x 均为 true。
+- 环境：WSL Node v24.22.3、npm 11.19.1；本次开始前 MemAvailable 为 13338112 kB。
+- 完整命令：PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin make typecheck
+- 退出码：0。后端 TypeScript、personal-agent、Web、Web E2E、container/agent-runner TypeScript 均通过；共享类型副本同步检查通过，13 个 prompt 引用通过，npm run docs:check 通过（218 个 Markdown 文件）。
+- N3 历史失败保留：基线 e8db2b6 上该命令最终退出 2，原因为 ROADMAP 坏链；PR #81 合并后同一完整命令现已通过。
+- 三层语义检查：总体计划 PASS（只修权限且公共链接已修复）；Issue/Plan PASS（未修改脚本正文、Makefile、断言或其他源码）；节点标准 PASS（干净 checkout 权限和完整调用链复验通过）。
+- N4 结论：PASS。
+
+## N5：更新 PR 与交付状态
+
+- 当前分支包含最新集成基线及本回执；PR #73 目标仍为 develop/retailops，保持 Open，等待独立 Review。
+- Issue #6 保持 Open/REVIEW、未认领；未标记 DONE，未解锁 RETAIL-01P / Issue #20。
+- 本次修改文件：仅本回执。脚本正文和构建配置未变。
+- 交付结论：N5 PASS（PR 描述已同步测试证据后）；等待 Review 和人工合并。
