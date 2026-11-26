@@ -141,3 +141,13 @@ Review 补充日期 / 当前状态：2026-11-26 / REVIEW（PR #77 开放；Issue
 - `docs:check` 退出码 1 的公共旧链接问题未修复。
 - 当前统一状态为 REVIEW；PR #77 保持 OPEN、未合并，独立 Review 待办。Issue #10 保持 Open / REVIEW；不自动认领、不关闭、不标 DONE。
 - 下游任务未解锁。
+
+## PR #81 合并后最终复测（2026-11-26）
+
+- 最新集成基线：develop/retailops f6a7f33a3e106a19b8a3c06ee56bb87ccf4f3b61；分支已用普通 merge 同步，未强推。
+- 复跑既定6文件定向 Vitest 命令：退出码 0，6 files/41 tests passed。测试为隔离 unit/fixture；mcp-approval.test.ts 输出 web/dist 缺失提示，但所有测试通过。
+- PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm run docs:check：退出码 0，219 Markdown 文件通过。
+- git diff --check 与 PR 分支差异检查均退出码 0。
+- 首轮 docs:check exit 1 已作为历史保留；公共修复合并后复测通过。
+- N4 三层 PASS（限定既有 fixture 与文档检查）；N5 PR状态 Open/Review。未连接真实 MCP server、未启用 Durable Runtime、未执行 #17。
+- Issue #10 保持 Open/REVIEW、无人认领；不标 DONE、不解锁下游。

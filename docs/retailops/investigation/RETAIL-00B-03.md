@@ -123,7 +123,7 @@ MCP startup consent 只授权某 Session 连接指定 server 的工具子集；e
 | 文档基线检查 | `PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm run docs:check`；报告既有失效链接：`docs/retailops/RETAILOPS-ROADMAP.md:1` 引用缺失的 `planning/v0.2/RETAILOPS-MASTER-PLAN-V0.2.md`。 | 1 | 属于已知公共基线失败；本任务未修改路线图或总体计划。 |
 | 白空格检查 | `git diff --check` | Review 补充后退出码 0。 | 仅检查本 PR 文档 diff。 |
 
-公共文档修复仍未合并，因此本轮不重跑 `npm run docs:check`；上次实际退出码 1 和具体既有失效链接见上表，不能表述为通过。待公共修复合并后再重跑。
+历史执行窗口记录（当时 PR #81 尚未合并）：docs:check 退出 1，因 ROADMAP 失效链接；现由 PR #81 修复。该次失败输出保留，最新复测见文末。
 
 ### 定向测试文件
 
@@ -142,3 +142,11 @@ MCP startup consent 只授权某 Session 连接指定 server 的工具子集；e
 - `npm run docs:check` 存在公共基线失效链接，本任务没有修正；应另建授权范围内的独立文档修复任务。
 - 本轮 Review 补充只改调查报告、节点回执和 PR 说明；没有源代码、测试、依赖、数据库、路由、配置或安全策略改动。
 - 当前整体状态为 **REVIEW**：PR #77 保持 open，Issue #10 保持 Open / REVIEW，等待独立 Review；未合并不标 DONE。#17 与其他下游任务未解锁。
+## PR #81 合并后复验（2026-11-26）
+
+- 最新基线 develop/retailops：f6a7f33a3e106a19b8a3c06ee56bb87ccf4f3b61；分支普通 merge commit 4d52493a8ba81aefd9d2f49725d6d808252d8fd6。
+- 按 N4 原计划重新执行：PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin ./node_modules/.bin/vitest run tests/mcp-contract.test.ts tests/mcp-approval.test.ts tests/mcp-session-consent.test.ts tests/mcp-approval-process-recovery.test.ts tests/durable-mcp-native.test.ts tests/coding-mcp-lease.test.ts；退出码 0，6 files/41 tests passed。测试是既有 unit/fixture；stderr 中 web/dist 静态目录缺失提示没有导致用例失败，不代表真实 MCP 或 Runtime 验收。
+- PATH=/home/szz_user/.nvm/versions/node/v24.22.3/bin:/usr/bin:/bin npm run docs:check：退出码 0，219 个仓库 Markdown 文件通过。
+- git diff --check 与分支差异检查均退出码 0；工作树干净。
+- 三层复核：总体计划 PASS（调查/fixture边界未扩大）；Issue/Plan PASS（T01/T02契约未变）；N4节点 PASS（定向fixture与公共文档检查通过）。
+- 当前状态：PR #77 Open/Review、Issue #10 Open/REVIEW、未认领；未执行 #17，不标 DONE、不解锁下游。
