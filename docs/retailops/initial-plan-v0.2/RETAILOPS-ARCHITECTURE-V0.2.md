@@ -1,6 +1,6 @@
-# RetailOps 领域架构 V0.2（待业务架构审批）
+# RetailOps 领域架构 V0.2（已批准）
 
-- 状态：**PENDING_USER_APPROVAL**；领域合同草案，不代表实现状态。
+- 状态：**APPROVED**；用户于 2026-11-26 批准候选提交 `072ca30982792072bf6641eac916cbb05a5fb062` 中的架构原则。具体参数仍按 D01–D16 的责任划分延期至对应 Issue/Plan 冻结；本文件描述目标领域合同，不代表实现或运行验收状态。
 - 基线：`develop/retailops` `591ced31c0557cbb14d7b4dc6197da52923e55b6`。
 - 编号规范：内部任务一律写作 `RETAIL-XX`；GitHub 编号写作 `GitHub Issue #N`。完整映射见 [`REQUIREMENTS-TRACEABILITY-V0.2.md`](REQUIREMENTS-TRACEABILITY-V0.2.md)，不以 `#06`、`#19` 等简称内部任务。
 
@@ -165,7 +165,7 @@ RETAIL-19（GitHub Issue #39）的经营效果对照应报告负例和数据/仿
 
 ## 7. 部署/运行时边界与门槛
 
-- 既有 OpenDot TypeScript/Hono/SQLite/Zod/Pi Runtime 是候选技术栈，最终采用策略列入 ADR，待审批。
+- 已批准复用现有 OpenDot/Pi Runtime 作为平台方向，不引入第二套 Agent Runtime；具体版本、Provider 兼容和运行开关仍由对应下游 Issue 验证，静态架构批准不代表运行通过。
 - Durable 调查显示 Node 产品入口与 SDK 有明确职责层次，但未进行真实 Node Durable 恢复验收。Checkpoint 粒度、副作用 uncertain 与状态对账必须由 RETAIL-00B-02V（GitHub Issue #16）验证。
 - MCP 调查确认通用调用/授权机制及限制，不代表已注册 RetailOps 工具；任何新工具需独立审查和授权。真实 exact-call 授权由 RETAIL-00B-03V（GitHub Issue #17）验证。
 - Handoff 调查不证明新增风控角色已具备运行时角色隔离。RETAIL-00F（GitHub Issue #7）安全环境目前 BLOCKED；不得解锁依赖该环境的 RETAIL-00B-04V（GitHub Issue #18）或其他真实验证。

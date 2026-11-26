@@ -1,4 +1,6 @@
-# RETAIL-00C N4 节点验收回执
+# RETAIL-00C N4–N6 节点验收回执
+
+> 本文件在 N4 原始验收记录后持续追加批准、N5 检查及 N6 交付证据。前文审批前的 `PENDING_USER_APPROVAL`、未执行检查和未建 PR 描述为当时快照；当前阶段状态以本文末尾的追加回执为准。
 
 ## 节点目标
 
@@ -41,8 +43,65 @@
 
 ## 第二轮 Review 后的最终审批候选
 
+> 以下记录的是用户批准前、候选提交 `072ca30982792072bf6641eac916cbb05a5fb062` 的审批快照。其待批准状态已被文末批准记录覆盖；候选当时的哈希核验结果保留为审批证据。
+
 - 任务编号统一规则：`RETAIL-XX` 表示 DAG 内部任务 ID；GitHub 号用 `GitHub Issue #N` 表示，并在需求追溯矩阵中提供交叉映射，不再用 `#06`、`#19` 指代内部任务。
 - 零容忍门槛：任意硬规则违规、未授权写入、审批绕过或重复业务副作用均使安全验收失败并阻断任务；不得通过平均分、效果收益或可调阈值放宽。它们不再作为可权衡的普通 Eval 指标。
 - D01–D16 保留既有分类；待用户批准原则，具体参数按对应下游任务明确延期冻结，本节点不填写默认值。
 - WSL Node v24.22.3/npm 11.19.1 已恢复并核验；`node`、`npm` 位于 Linux 用户路径并最终解析到官方 Linux x64 安装目录。官方归档 SHA-256=`4f2b175a6d53a5c617a80dba2676238a0688cef28c6da4eba35c7d844e66fcfb`，SHASUM 校验通过。环境满足 N5 工具基线，但审批未收到，N5/N6 未开始，所有检查仍未运行。
 - 最终候选提交及哈希见本回执对应的审批包；状态保持 **PENDING_USER_APPROVAL**。
+
+## N4 用户批准及正式冻结记录（2026-11-26）
+
+- 用户明确批准对象：`072ca30982792072bf6641eac916cbb05a5fb062`。批准内容为该候选审批包列出的八项业务与架构原则，未要求重定范围或修改 DAG。
+- 已接受的原则：①以 AI 应用/Agent 应用工程能力为项目目标，零售仅为受限业务场景；②保留 Agent Harness、真实模型驱动的动态 Tool Calling Loop、Observation 和证据缺口/停止规则；③Context/Memory 分层且不替代权威业务数据，不新增独立 RAG；④经营分析与独立风控、业务审批及执行职责分离，硬规则确定性 fail-closed；⑤库存物理量、不可售、可售和预占量按互斥分类守恒；⑥保留 Trace 与 Eval，区分 Agent 行为评测和业务对照；⑦硬规则违规、未授权写入、审批绕过和重复业务副作用为零容忍门槛；⑧复用 OpenDot/Pi Runtime，Durable、MCP、Handoff 和安全验证仍受原 Issue/DAG 门槛控制。
+- D01–D16 的所有具体参数均按现有责任划分延期至对应下游 Issue/Plan 指定节点冻结；不在 RETAIL-00C 填写门店、SKU、单位、阈值、预算、Provider、Schema 等默认值。
+- **N4：PASS。** 用户审批已记录；正式 PRD、领域架构及 ADR 的原则状态已冻结为 APPROVED/ACCEPTED，未宣称相关能力已实现或完成 Runtime 验收。
+- 原候选审批包的 11 个 Git Blob 内容 SHA-256 已再次从 `072ca30982792072bf6641eac916cbb05a5fb062` 读取并核验：11 行、0 个不匹配；核验退出码 0。该候选哈希结果是批准时证据；最终 PR 提交中的哈希另由审批包清单更新。
+- WSL 环境再次确认：Ubuntu，Node `v24.22.3`、npm `11.19.1`，Node/npm 命令来自 `/home/szz_user/.local/bin/`。N5 检查须在该 WSL Linux 环境执行。
+
+### N4 三层语义检查
+
+1. 总体计划/场景：批准没有改变单店单 SKU/单临期批次 V0、V1 分阶段扩展、来源分层、AI/Agent 工程主线或 #7 真实验证门槛。**PASS**。
+2. Issue/Plan：按 RETAIL-00C 原 Plan 记录审批及 N5/N6 授权；未修改其他 Issue、Plan、验收标准或 DAG。**PASS**。
+3. N4 节点标准：候选 SHA、用户批准、八项原则、D01–D16 延期、原候选哈希及 WSL Node 24 已记录。**PASS**。
+
+## N5 定向检查及语义验收
+
+状态：**PASS**。检查在 WSL Ubuntu 24.04、Node `v24.22.3`、npm `11.19.1`、Linux x64 环境执行。WSL Git 读取 Windows Worktree 元数据中的 `D:/...` 路径会失败；为 N5 命令临时设置 Linux `GIT_DIR`、`GIT_WORK_TREE` 并设置 `core.autocrlf=true` 后复测通过，未改 Git 配置或 Worktree 元数据。首次失败保留为环境偏差证据，不计作通过。全程仅检查文档；未启动真实模型/Runtime，未运行下游 Issue。
+
+### 实际命令与结果
+
+| 检查 | 命令/执行方式 | 结果 |
+|---|---|---|
+| WSL Node 基线 | `node -p 'JSON.stringify({version:process.version,platform:process.platform,arch:process.arch,execPath:process.execPath})'`; `npm --version`; `command -v node`; `command -v npm`; `readlink -f /home/szz_user/.local/bin/node`; `readlink -f /home/szz_user/.local/bin/npm` | Node `v24.22.3`、npm `11.19.1`、`linux/x64`；命令位于 `/home/szz_user/.local/bin/`，最终解析至 `/home/szz_user/.local/share/node-v24.22.3-linux-x64/`；退出码 0 |
+| Markdown 文档一致性 | WSL 环境设置 `GIT_DIR=/mnt/d/workSpace/codeAgent/OpenDot-RetailOps.git/worktrees/OpenDot-RetailOps-00c`、`GIT_WORK_TREE=/mnt/d/workSpace/codeAgent/OpenDot-RetailOps-00c`、`core.autocrlf=true` 后运行 `npm run docs:check` | `Documentation consistency check passed (240 repository Markdown files).`；退出码 0 |
+| 差异/空白检查 | WSL Git 映射环境运行 `git diff --cached --check 591ced31c0557cbb14d7b4dc6197da52923e55b6`；另以 Windows Git 对实际工作树运行 `git diff --check 591ced31c0557cbb14d7b4dc6197da52923e55b6` | 两项退出码均为 0，无空白错误。Windows Git 对 N0–N3 回执和追溯矩阵给出 5 条 LF/CRLF 转换提示；这是既有跨平台行尾差异，不是检查失败 |
+| 原候选哈希复核 | Node 脚本从 `git show 072ca30982792072bf6641eac916cbb05a5fb062:<path>` 读取审批包列出的 11 个 Blob 内容并计算 SHA-256 | 11 项、0 mismatch；退出码 0。复核的是用户实际批准的原候选版本 |
+| 最终审批包哈希清单 | Node 脚本从 Git 暂存索引 Blob 逐项计算审批包列出的 11 项 SHA-256 | 11 项、0 mismatch；退出码 0。该清单对应 N6 PR 候选中冻结文件的实际 Git Blob 内容 |
+| 内部任务编号映射 | WSL Node 内联脚本解析批准 DAG 的 `nodes[].id/github_issue_number` 与追溯矩阵 37 行 | DAG 节点 37、映射行 37、ID/Issue 均唯一、映射不匹配 0；退出码 0 |
+| #7 安全状态 | GitHub Issue #7 只读核验 | Open，标签 `BLOCKED`；未更新、未解锁 |
+
+首次 WSL `npm run docs:check` 使用默认 Worktree 环境时，脚本内部 `git ls-files` 因 Windows worktree 路径格式不能被 WSL Git 解析而失败（子进程退出码 128）；外层 PowerShell 包装还错误丢失了 Bash `$?`，该次调用无效。映射 Git 目录后的首次全工作树 WSL 差异扫描达到 30 秒工具等待上限，没有取得退出码，因此不计作通过；随后以 WSL Git 对已暂存的完整 PR 差异运行 `git diff --cached --check`，并以 Windows Git 对工作树运行 `git diff --check`，两者均退出 0。正式 `npm run docs:check` 在 WSL 显式映射 Git 目录后退出 0。以上恢复只作用于命令环境，没有改仓库元数据。
+
+### T01/T02 与范围语义验收
+
+- **T01 需求追溯：PASS。** `REQUIREMENTS-TRACEABILITY-V0.2.md` 的 37 个 RETAIL 内部任务 ID 与批准 DAG 的 GitHub Issue number 全量一致；例如 RETAIL-06 → GitHub Issue #27、RETAIL-19 → GitHub Issue #39、GitHub Issue #19 → RETAIL-01。没有重复内部 ID 或 GitHub Issue number。
+- **T02 业务/安全边界：PASS。** PRD、Architecture、ADR 保留单店单 SKU/单批次 V0 与 V1 分阶段边界、数据来源分层、确定性硬规则优先、独立风控/业务审批/执行职责分离、草案摘要绑定与 uncertain 对账、库存互斥守恒及零容忍安全门槛。Memory 未替代权威数据；未新增 RAG、Agent、Runtime、DAG 边或下游验收范围。
+- **参数检查：PASS。** D01–D16 的责任映射均保留；所有具体值仍标记为延期，无本任务补入的 SKU、单位、阈值、预算、Provider、Schema 或默认值。
+- **运行门槛：PASS。** GitHub Issue #7 保持 Open/BLOCKED；没有运行 Agent Runtime、真实模型、Durable、MCP、Handoff、仿真副作用或任何下游验证。
+- **文件范围：PASS。** 本轮只改 N0 冻结 13 个文档路径内的计划、路线图、PRD、Architecture、ADR、参数表、审批包及 N4–N6 回执；源码、测试、配置、依赖、DAG、总体计划及其他 Issue/Plan 未改。
+
+### N5 三层语义检查
+
+1. 总体计划/场景：单店单 SKU/单批次 V0、V1 扩展、来源层、AI/Agent 技术目标及安全门槛一致。**PASS**。
+2. Issue/Plan：交付仍限 RETAIL-00C 文档定稿；N5/N6 按已批准 Plan 执行，未修改其它任务、Issue、Plan 或 DAG。**PASS**。
+3. N5 节点标准：WSL Node 24 文档检查、差异检查、T01/T02、D01–D16、#7 状态和文件范围均有实际证据；两项规定检查退出码均为 0。**PASS**。
+
+### 未验证事项
+
+真实 Provider/模型行为、Agent Loop 运行、Durable 恢复、副作用对账、MCP 工具授权实际执行、Handoff 独立风控运行、仿真及业务效果均未在 RETAIL-00C 验证；分别保留原 Issue/DAG/安全门槛，不据文档检查结果声称已通过。
+
+## N6 独立 PR 交付
+
+状态：N5 已通过，正在执行 N6。将在最终范围与哈希核验后创建目标为 `develop/retailops`、关联 GitHub Issue #14 的独立 PR；保持开放，不合并。创建后追加 PR URL、最终 HEAD 和状态同步证据。

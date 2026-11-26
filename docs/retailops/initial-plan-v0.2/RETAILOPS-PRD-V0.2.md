@@ -1,6 +1,6 @@
-# RetailOps 产品需求文档 V0.2（待业务架构审批）
+# RetailOps 产品需求文档 V0.2（已批准）
 
-- 状态：**PENDING_USER_APPROVAL**；本文件是 GitHub Issue #14（RETAIL-00C）N2 交付草案，不等同于批准或实现。
+- 状态：**APPROVED**；用户于 2026-11-26 批准候选提交 `072ca30982792072bf6641eac916cbb05a5fb062` 中的业务与架构原则。本正式版本仅冻结批准的原则；D01–D16 具体参数按责任 Issue 延期，不填写默认值。本文件不表示相关能力已实现。
 - 基线：`develop/retailops` `591ced31c0557cbb14d7b4dc6197da52923e55b6`。
 - 依据：已批准总体计划与场景、RETAIL-00C 契约及五项已合并调查。源代码调查证明的是静态能力边界，不证明 RetailOps 产品 Runtime 已运行。
 - 编号规范：内部任务一律写作 `RETAIL-XX`；GitHub 编号写作 `GitHub Issue #N`。完整映射见 [`REQUIREMENTS-TRACEABILITY-V0.2.md`](REQUIREMENTS-TRACEABILITY-V0.2.md)，不使用 `#06`、`#19` 等简称指代任务。
