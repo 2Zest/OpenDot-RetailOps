@@ -25,4 +25,3 @@
 - 在本 Worktree 的 WSL Node v24.22.3 环境执行 `git -c core.autocrlf=true diff --check`：退出码 0。
 - 执行 `npm run docs:check`：退出码 0，271 份仓库 Markdown 通过。
 - `npm --prefix apps/retailops run build/typecheck/test`：N0 不执行，均为 NOT_RUN；本轮未改业务源码。
-

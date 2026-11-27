@@ -1,8 +1,8 @@
 # RETAIL-02（Issue #21）执行计划
 
-**状态：** N0 已整理，等待主控核验；未进入 N1  
-**基线：** develop/retailops `f3d1a7fc847f75cd0b4064aead0404ab4e23d67b`  
-**原 Plan：** `docs/retailops/initial-plan-v0.2/plans/RETAIL-02-PLAN.md`（只读）  
+**状态：** N0 已整理，等待主控核验；未进入 N1
+**基线：** develop/retailops `f3d1a7fc847f75cd0b4064aead0404ab4e23d67b`
+**原 Plan：** `docs/retailops/initial-plan-v0.2/plans/RETAIL-02-PLAN.md`（只读）
 **上游：** #20 PR #87 merge `048f3a7ef64a54986bfda1e839396b961969e46d`；#13 PR #79 merge `6a2ddc363f82ae9f9e66e296d2644efafb48565e`。
 
 ## 来源与语义冻结
@@ -57,4 +57,3 @@ Domain 只定义 FreshRetailNet 来源记录与字段语义；Application 端口
 - 总体计划/PRD：公开历史可追溯，归一化销量不伪造成现实单位。
 - Issue/Plan：可重复导入、异常可见、历史查询，不做预测。
 - 节点标准：来源/单位保留，幂等、异常报告和抽样相等均需实测；未复核不得 PASS。
-
