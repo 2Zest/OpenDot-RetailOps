@@ -27,3 +27,9 @@
 - SQLite adapter、所有新 migration 和 `migration-runner.ts` 修改仍禁止，待 #21 实际合并、同步最新 develop、主控移交迁移锁后再进入。
 - 内存替身仅验证应用逻辑，不代表 SQLite 持久化验收。#7 保持 BLOCKED；#22 保持 READY 且未认领。
 - 三层检查：Architecture 的不可变摘要/批准绑定 PASS；Issue #26 revision/status/trace 目标 PASS；部分放行的文件边界与迁移暂停标准 PASS。
+
+## 主控批准后的环境补充（2026-11-27）
+
+- 按主控批准，在该 Worktree 使用锁定的 `package-lock.json` 执行 `npm ci`：WSL Node `v24.22.3`、npm `11.19.1`，退出码 0；没有改 `package.json`、lockfile、依赖版本或全局配置。安装输出包含 better-sqlite3 安装脚本由当前 allowScripts 策略跳过的提示；本次没有手工放宽该策略。
+- N1–N3 的 Application/领域测试仅用内存 Repository 替身；这不构成 SQLite revision 持久化、迁移或事务回滚证据。包全量历史 SQLite 测试结果在后续回执中单独记录，不据此宣称 #26 SQLite adapter 通过。
+- 本次批准界限继续有效：只新增 #26 独占领域合同、Application Service、Repository port、单元测试和本任务回执/计划；SQLite adapter/migration/runner 仍待 #21 合并并由主控移交共享锁。

@@ -70,3 +70,9 @@ Vitest 已配置 Node 环境并发现 `test/unit/**/*.test.ts`、`test/contract/
 - 状态转换使用现有 `canTransitionDraft`；相同 event ID+语义请求幂等，复用 event ID 但内容不同则拒绝。未经可信应用来源确认的批准/硬规则证据拒绝。
 - 本次部分放行不包含 SQLite adapter、migration 或 `migration-runner.ts`。上述路径继续锁定，等 #21 合并、刷新 develop 并由主控移交迁移锁后再做。
 - 内存 Repository 替身只用于应用逻辑测试，不作为 SQLite 持久化通过证据。Issue #7 仍 BLOCKED；不运行模型、Harness、MCP 或真实业务副作用。
+
+## N1–N3 应用层实现补充
+
+根据已批准的摘要合同，冻结 Revision 内容显式保存 Product/Batch 合同快照、Operation 参数快照、input snapshot、Evidence 内容摘要与 Policy 完整版本。应用服务在计算摘要前重新校验来源合同版本及跨引用：Operation draftId/Product/Batch 与 Draft/input snapshot 一致，Batch 归属所列 Product，Evidence 属于同一 input snapshot，Policy ID/revision 和其 Evidence 属于同一快照。Schema 再校验这些引用关系；违反关系或 #19 Operation 非负售价约束的快照拒绝保存。
+
+Canonicalization v1 的对象键 comparator 按 Unicode code point 排序，数组保留合同顺序，精确金额/数量字符串不规范化。状态转换仍只调用 `canTransitionDraft`；Application command 不接受 Agent 自报风险、审批、预检或执行证据。N1–N3 的实际结果与完整检查见 `../acceptance/RETAIL-07-N1-N3.md`。SQLite revision 持久化仍暂停，未将内存替身结果表述为持久化验收。
