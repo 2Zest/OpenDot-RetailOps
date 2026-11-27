@@ -4,6 +4,7 @@ import {
   assertReferences,
   assertStoredFields,
   parseStoredEntity,
+  ImmutableEntityConflictError,
   readOrderedReferences,
   replaceOrderedReferences,
   validateForStorage,
@@ -25,10 +26,26 @@ export class SqliteEvidenceRepository {
   save(value: unknown): Evidence {
     const { entity, payload } = validateForStorage(evidenceSchema, value, "Evidence");
     withRetailOpsTransaction(this.database, () => {
+      const existing = this.database.prepare(
+        "SELECT id, contract_version, source_kind, snapshot_id, observed_at, payload FROM evidence WHERE id = ?",
+      ).get(entity.id) as StoredEvidence | undefined;
+      if (existing !== undefined) {
+        const prior = parseStoredEntity(evidenceSchema, existing.payload, "Evidence", entity.id);
+        assertStoredFields(existing, {
+          id: prior.id,
+          contract_version: prior.contractVersion,
+          source_kind: prior.sourceKind,
+          snapshot_id: prior.snapshotId,
+          observed_at: prior.observedAt,
+        }, "Evidence", entity.id);
+        const actual = readOrderedReferences(this.database, "evidence_parent_references", "evidence_id", entity.id, "parent_evidence_id");
+        const expected = prior.sourceKind === "DERIVED" ? prior.parentEvidenceIds : [];
+        assertReferences(actual, expected, "Evidence", entity.id, "parentEvidenceIds");
+        if (JSON.stringify(prior) !== payload) throw new ImmutableEntityConflictError("Evidence", entity.id);
+        return;
+      }
       this.database.prepare(
-        "INSERT INTO evidence(id, contract_version, source_kind, snapshot_id, observed_at, payload) VALUES (?, ?, ?, ?, ?, ?) " +
-        "ON CONFLICT(id) DO UPDATE SET contract_version=excluded.contract_version, source_kind=excluded.source_kind, " +
-        "snapshot_id=excluded.snapshot_id, observed_at=excluded.observed_at, payload=excluded.payload",
+        "INSERT INTO evidence(id, contract_version, source_kind, snapshot_id, observed_at, payload) VALUES (?, ?, ?, ?, ?, ?)",
       ).run(entity.id, entity.contractVersion, entity.sourceKind, entity.snapshotId, entity.observedAt, payload);
       this.database.prepare("DELETE FROM evidence_parent_references WHERE evidence_id = ?").run(entity.id);
       if (entity.sourceKind === "DERIVED") {

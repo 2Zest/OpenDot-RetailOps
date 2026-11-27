@@ -15,3 +15,12 @@
 - 失败/修订：首轮定向测试曾因测试对 SQLite 错误文案断言过严（期望 `SQLITE_CONSTRAINT_PRIMARYKEY`，实际为 `UNIQUE constraint failed: products.id`）失败；收窄到实际唯一约束语义后复测通过。新增合同测试首轮误用不存在的 `available_to_sell` 规范化列，改用实际 `quality_status` 列后复测通过。失败未隐藏。
 - 未验证：完整包/文档/范围检查记录在 N4/N5。
 - 决定：N3 PASS，继续 N4。日期：2026-11-27（Asia/Shanghai）。
+
+## 独立 Review REQUEST_CHANGES 修订记录（2026-11-27）
+
+- Evidence：相同 ID 的规范化 v0.3.0 语义内容为幂等 no-op；语义内容或来源关系不同则 `ImmutableEntityConflictError`，历史记录与引用不会覆盖。比较定义为 Zod parse 后的结构语义相等，属性顺序不同仍为同一内容。
+- Policy：相同 `(id, revision)` 仅语义相同可幂等保存；相同 revision 内容变化拒绝，修改需新 revision，旧 Draft 引用仍有效。
+- Draft/Operation：写入与读取均核验 Operation 的 Draft 所属、Draft snapshot 中的 Product/Batch、Batch 的 Product 归属一致，并校验 Operation 只被所属 Draft 引用。关联失败时跨 Repository 事务回滚。
+- `withRetailOpsTransaction` 静态签名拒绝 PromiseLike 返回类型；运行时调用前拒绝 AsyncFunction，普通函数返回 thenable 时在提交前报错并回滚同步写入。合同明确禁止 callback 调度 fire-and-forget 副作用；普通 wrapper 不能取消任意已调度的异步副作用，本实现不声称可以拦截。
+- Synthetic v0 迁移要求 JSON 经当前合同解析不丢弃/重解释字段，envelope ID 与实体 ID 一致；逐类检查六实体记录数及引用表行数。校验失败时事务回滚，源记录不会被静默删除。
+- 测试红绿与最终结果见 N4：保留既有 41 项测试和断言，本轮完整套件 7 files / 55 tests 通过。

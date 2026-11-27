@@ -24,3 +24,10 @@
 - 历史失败与修复：DDL 尾逗号已修复；首次 native 探针的 shell 引号错误、dist 冒烟查询引号错误均已修正并复测通过，均保留在本记录。
 - 未验证：还未完成最终全部包与仓库检查；N2–N5 在后续回执记录。
 - 决定：N1 PASS，继续 N2。日期：2026-11-27（Asia/Shanghai）。
+
+## 独立 Review REQUEST_CHANGES 修订记录（2026-11-27）
+
+- 复核迁移账本与真实 schema：版本和名称必须匹配；未知/错名版本、缺失已应用版本记录、缺表/缺列、缺少或错误外键、既有 FK 数据损坏均拒绝打开。校验在迁移事务提交之前完成，已存在版本的 schema 也会复核。
+- 将必要主键/唯一键纳入 schema guard：使用 `PRAGMA table_info`、`index_list`、`index_info` 比较键列及顺序；覆盖实体主键、关系顺序键、Policy `(id, revision)`、`draft_operations(operation_id)` 唯一归属约束。保持 0001 迁移版本不变。
+- 新增删除 `draft_operations(operation_id)` UNIQUE 的错配测试。临时停用 guard 时该测试退出码 1（1 failed、9 skipped，缺少约束未被拒绝）；恢复 guard 后相同测试退出码 0（1 passed、9 skipped）。临时停用仅用于验证测试，未作为代码变更保留。
+- 所有迁移/schema 验证仍只运行于内存测试 DB 或明确标注的合成 fixture，不连接真实数据库。

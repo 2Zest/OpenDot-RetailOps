@@ -19,6 +19,24 @@ export class CorruptPersistedEntityError extends Error {
   }
 }
 
+export class ImmutableEntityConflictError extends Error {
+  readonly code = "IMMUTABLE_ENTITY_CONFLICT";
+
+  constructor(entityType: string, entityId: string) {
+    super(entityType + " is immutable for identity " + entityId);
+    this.name = "ImmutableEntityConflictError";
+  }
+}
+
+export class InvalidDomainRelationError extends Error {
+  readonly code = "INVALID_DOMAIN_RELATION";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidDomainRelationError";
+  }
+}
+
 export interface RuntimeSchema<T> {
   safeParse(value: unknown):
     | { readonly success: true; readonly data: T }
@@ -118,8 +136,30 @@ export function assertReferences(
   }
 }
 
-export function withRetailOpsTransaction<T>(database: Database.Database, action: () => T): T {
-  return database.transaction(action)();
+type SynchronousTransactionResult<T> = T extends PromiseLike<unknown> ? never : T;
+
+/**
+ * Runs a synchronous callback in a SQLite transaction. Callbacks must not start
+ * fire-and-forget work: arbitrary asynchronous work cannot be cancelled after
+ * a callback has scheduled it. Async functions are rejected before invocation;
+ * any thenable result from a regular function is rejected before commit.
+ */
+export function withRetailOpsTransaction<T>(
+  database: Database.Database,
+  action: () => SynchronousTransactionResult<T>,
+): T {
+  if (action.constructor.name === "AsyncFunction") {
+    throw new TypeError("RetailOps SQLite transactions require a synchronous callback");
+  }
+  const run = database.transaction(() => {
+    const result = action();
+    if (result !== null && (typeof result === "object" || typeof result === "function")
+      && typeof (result as { then?: unknown }).then === "function") {
+      throw new TypeError("RetailOps SQLite transaction callbacks must not return a thenable");
+    }
+    return result as T;
+  });
+  return run();
 }
 
 export function openRetailOpsDatabase(filePath: string): Database.Database {

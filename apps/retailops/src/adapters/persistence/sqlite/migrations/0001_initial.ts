@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { isDeepStrictEqual } from 'node:util';
 import {
   batchSchema,
   draftSchema,
@@ -141,7 +142,8 @@ const schemaSql = [
   "  draft_id TEXT NOT NULL REFERENCES drafts(id) ON DELETE CASCADE,",
   "  operation_id TEXT NOT NULL REFERENCES operations(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,",
   "  position INTEGER NOT NULL CHECK (position >= 0),",
-  "  PRIMARY KEY (draft_id, position)",
+  "  PRIMARY KEY (draft_id, position),",
+  "  UNIQUE (operation_id)",
   ");",
   "CREATE INDEX IF NOT EXISTS idx_draft_operations_reference ON draft_operations(operation_id);",
 ].join('\n');
@@ -183,7 +185,50 @@ function parseLegacy<T>(
   if (!parsed.success) {
     throw new Error("Synthetic legacy record " + row.aggregate_type + "/" + row.entity_id + " violates contract: " + parsed.error.message);
   }
+  if (!isDeepStrictEqual(decoded, parsed.data)) {
+    throw new Error("Synthetic legacy record " + row.aggregate_type + "/" + row.entity_id + " would lose or reinterpret fields under the current contract");
+  }
+  if ((parsed.data as { id?: unknown }).id !== row.entity_id) {
+    throw new Error("Synthetic legacy envelope ID mismatch for " + row.aggregate_type + "/" + row.entity_id);
+  }
   return parsed.data;
+}
+
+function assertMigratedRecordCounts(database: Database.Database, records: Readonly<Record<string, readonly unknown[]>>): void {
+  const destinations: Readonly<Record<string, string>> = {
+    EVIDENCE: 'evidence',
+    PRODUCT: 'products',
+    POLICY: 'policies',
+    BATCH: 'batches',
+    DRAFT: 'drafts',
+    OPERATION: 'operations',
+  };
+  for (const [aggregateType, table] of Object.entries(destinations)) {
+    const expected = records[aggregateType]?.length ?? 0;
+    const actual = database.prepare("SELECT COUNT(*) AS count FROM " + table).get() as { count: number };
+    if (actual.count !== expected) {
+      throw new Error("Synthetic legacy migration lost " + aggregateType + " records: expected " + expected + ", got " + actual.count);
+    }
+  }
+
+  const relationCounts: ReadonlyArray<readonly [string, number]> = [
+    ['evidence_parent_references', records.EVIDENCE?.reduce<number>((total, item) => {
+      const value = item as Evidence;
+      return total + (value.sourceKind === 'DERIVED' ? value.parentEvidenceIds.length : 0);
+    }, 0) ?? 0],
+    ['product_evidence', records.PRODUCT?.reduce<number>((total, item) => total + (item as Product).evidenceIds.length, 0) ?? 0],
+    ['policy_evidence', records.POLICY?.reduce<number>((total, item) => total + (item as Policy).evidenceIds.length, 0) ?? 0],
+    ['batch_evidence', records.BATCH?.reduce<number>((total, item) => total + (item as Batch).evidenceIds.length, 0) ?? 0],
+    ['draft_products', records.DRAFT?.reduce<number>((total, item) => total + (item as Draft).inputSnapshot.productIds.length, 0) ?? 0],
+    ['draft_batches', records.DRAFT?.reduce<number>((total, item) => total + (item as Draft).inputSnapshot.batchIds.length, 0) ?? 0],
+    ['draft_evidence', records.DRAFT?.reduce<number>((total, item) => total + (item as Draft).inputSnapshot.evidenceIds.length, 0) ?? 0],
+    ['draft_operations', records.DRAFT?.reduce<number>((total, item) => total + (item as Draft).operationIds.length, 0) ?? 0],
+    ['operation_evidence', records.OPERATION?.reduce<number>((total, item) => total + (item as Operation).evidenceIds.length, 0) ?? 0],
+  ];
+  for (const [table, expected] of relationCounts) {
+    const actual = database.prepare("SELECT COUNT(*) AS count FROM " + table).get() as { count: number };
+    if (actual.count !== expected) throw new Error("Synthetic legacy migration lost references from " + table);
+  }
 }
 
 function migrateSyntheticLegacyRecords(database: Database.Database): void {
@@ -284,6 +329,14 @@ function migrateSyntheticLegacyRecords(database: Database.Database): void {
     insertOrderedReferences(database, "operation_evidence", "operation_id", entity.id, "evidence_id", entity.evidenceIds);
   }
 
+  assertMigratedRecordCounts(database, {
+    EVIDENCE: evidence.map(({ value }) => value),
+    PRODUCT: products.map(({ value }) => value),
+    POLICY: policies.map(({ value }) => value),
+    BATCH: batches.map(({ value }) => value),
+    DRAFT: drafts.map(({ value }) => value),
+    OPERATION: operations.map(({ value }) => value),
+  });
   database.exec("DROP TABLE legacy_records");
 }
 

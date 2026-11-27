@@ -3,6 +3,7 @@ import { policySchema, type Policy } from '../../../domain/index.js';
 import {
   assertReferences,
   assertStoredFields,
+  ImmutableEntityConflictError,
   parseStoredEntity,
   readOrderedReferences,
   replaceOrderedReferences,
@@ -18,9 +19,26 @@ export class SqlitePolicyRepository {
   save(value: unknown): Policy {
     const { entity, payload } = validateForStorage(policySchema, value, "Policy");
     withRetailOpsTransaction(this.database, () => {
+      const existing = this.database.prepare(
+        "SELECT id, revision, contract_version, payload FROM policies WHERE id = ? AND revision = ?",
+      ).get(entity.id, entity.revision) as StoredPolicy | undefined;
+      if (existing !== undefined) {
+        const prior = parseStoredEntity(policySchema, existing.payload, "Policy", entity.id + "@" + entity.revision);
+        assertStoredFields(existing, {
+          id: prior.id,
+          revision: prior.revision,
+          contract_version: prior.contractVersion,
+        }, "Policy", entity.id + "@" + entity.revision);
+        const actual = readOrderedReferences(this.database, "policy_evidence", "policy_id", entity.id, "evidence_id",
+          "policy_revision", entity.revision);
+        assertReferences(actual, prior.evidenceIds, "Policy", entity.id + "@" + entity.revision, "evidenceIds");
+        if (JSON.stringify(prior) !== payload) {
+          throw new ImmutableEntityConflictError("Policy revision", entity.id + "@" + entity.revision);
+        }
+        return;
+      }
       this.database.prepare(
-        "INSERT INTO policies(id, revision, contract_version, payload) VALUES (?, ?, ?, ?) " +
-        "ON CONFLICT(id, revision) DO UPDATE SET contract_version=excluded.contract_version, payload=excluded.payload",
+        "INSERT INTO policies(id, revision, contract_version, payload) VALUES (?, ?, ?, ?)",
       ).run(entity.id, entity.revision, entity.contractVersion, payload);
       replaceOrderedReferences(this.database, "policy_evidence", "policy_id", entity.id, "evidence_id", entity.evidenceIds,
         ["policy_revision"], [entity.revision]);

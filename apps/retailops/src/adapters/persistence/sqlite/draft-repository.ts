@@ -1,8 +1,11 @@
 import type Database from 'better-sqlite3';
 import { draftSchema, type Draft } from '../../../domain/index.js';
+import { SqliteBatchRepository } from './batch-repository.js';
 import {
   assertReferences,
   assertStoredFields,
+  CorruptPersistedEntityError,
+  InvalidDomainRelationError,
   parseStoredEntity,
   readOrderedReferences,
   replaceOrderedReferences,
@@ -21,6 +24,25 @@ export class SqliteDraftRepository {
   save(value: unknown): Draft {
     const { entity, payload } = validateForStorage(draftSchema, value, "Draft");
     withRetailOpsTransaction(this.database, () => {
+      const batches = new SqliteBatchRepository(this.database);
+      for (const batchId of entity.inputSnapshot.batchIds) {
+        const batch = batches.findById(batchId);
+        if (batch === undefined) throw new InvalidDomainRelationError("Draft references missing Batch " + batchId);
+        if (!entity.inputSnapshot.productIds.includes(batch.productId)) {
+          throw new InvalidDomainRelationError("Draft Batch " + batchId + " does not belong to one of its snapshot Products");
+        }
+      }
+      const findExistingOperation = this.database.prepare(
+        "SELECT draft_id, product_id, batch_id FROM operations WHERE id = ?",
+      );
+      for (const operationId of entity.operationIds) {
+        const operation = findExistingOperation.get(operationId) as { draft_id: string; product_id: string; batch_id: string } | undefined;
+        if (operation !== undefined && (operation.draft_id !== entity.id
+          || !entity.inputSnapshot.productIds.includes(operation.product_id)
+          || !entity.inputSnapshot.batchIds.includes(operation.batch_id))) {
+          throw new InvalidDomainRelationError("Draft cannot rebind Operation " + operationId + " to a different snapshot");
+        }
+      }
       this.database.prepare(
         "INSERT INTO drafts(id, contract_version, draft_digest, status, input_snapshot_id, policy_id, policy_revision, payload) " +
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET contract_version=excluded.contract_version, " +
@@ -59,6 +81,24 @@ export class SqliteDraftRepository {
       entity.inputSnapshot.evidenceIds, "Draft", id, "inputSnapshot.evidenceIds");
     assertReferences(readOrderedReferences(this.database, "draft_operations", "draft_id", id, "operation_id"),
       entity.operationIds, "Draft", id, "operationIds");
+    const batches = new SqliteBatchRepository(this.database);
+    for (const batchId of entity.inputSnapshot.batchIds) {
+      const batch = batches.findById(batchId);
+      if (batch === undefined || !entity.inputSnapshot.productIds.includes(batch.productId)) {
+        throw new CorruptPersistedEntityError("Draft", id, "Batch " + batchId + " does not belong to its Product snapshot");
+      }
+    }
+    const findExistingOperation = this.database.prepare(
+      "SELECT draft_id, product_id, batch_id FROM operations WHERE id = ?",
+    );
+    for (const operationId of entity.operationIds) {
+      const operation = findExistingOperation.get(operationId) as { draft_id: string; product_id: string; batch_id: string } | undefined;
+      if (operation !== undefined && (operation.draft_id !== entity.id
+        || !entity.inputSnapshot.productIds.includes(operation.product_id)
+        || !entity.inputSnapshot.batchIds.includes(operation.batch_id))) {
+        throw new CorruptPersistedEntityError("Draft", id, "Operation " + operationId + " does not match its Draft snapshot");
+      }
+    }
     return entity;
   }
 }

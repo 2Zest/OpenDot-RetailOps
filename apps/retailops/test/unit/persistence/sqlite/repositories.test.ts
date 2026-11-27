@@ -259,4 +259,163 @@ describe('RetailOps SQLite repositories', () => {
       database.close();
     }
   });
+
+  it('treats identical Evidence writes as idempotent and rejects ID collisions without changing provenance', () => {
+    const database = openRetailOpsDatabase(':memory:');
+    try {
+      const repo = new SqliteEvidenceRepository(database);
+      const original = evidence();
+      const secondParent = { ...evidence(), id: 'evidence-02', snapshotId: 'snapshot-02' };
+      const derived = {
+        contractVersion: '0.3.0' as const,
+        id: 'derived-01',
+        snapshotId: 'derived-snapshot-01',
+        locator: 'fixture://derived/01',
+        observedAt: '2026-11-27T12:00:00.123456Z',
+        sourceKind: 'DERIVED' as const,
+        parentEvidenceIds: [original.id],
+        methodVersion: 'derive-1',
+      };
+      repo.save(original);
+      repo.save(secondParent);
+      repo.save(derived);
+
+      const reordered = {
+        generatorVersion: original.generatorVersion,
+        seed: original.seed,
+        scenarioId: original.scenarioId,
+        sourceKind: original.sourceKind,
+        observedAt: original.observedAt,
+        locator: original.locator,
+        snapshotId: original.snapshotId,
+        id: original.id,
+        contractVersion: original.contractVersion,
+      };
+      expect(repo.save(reordered)).toEqual(original);
+      expect(() => repo.save({ ...derived, locator: 'fixture://tampered/01', parentEvidenceIds: [secondParent.id] })).toThrow();
+      expect(repo.findById(derived.id)).toEqual(derived);
+      expect(database.prepare('SELECT parent_evidence_id FROM evidence_parent_references WHERE evidence_id = ?').all(derived.id))
+        .toEqual([{ parent_evidence_id: original.id }]);
+    } finally {
+      database.close();
+    }
+  });
+
+  it('keeps a Policy ID and revision immutable while allowing a new revision', () => {
+    const database = openRetailOpsDatabase(':memory:');
+    try {
+      const evidenceRepo = new SqliteEvidenceRepository(database);
+      const repo = new SqlitePolicyRepository(database);
+      evidenceRepo.save(evidence());
+      evidenceRepo.save({ ...evidence(), id: 'evidence-02', snapshotId: 'snapshot-02' });
+      const original = policy();
+      repo.save(original);
+
+      expect(repo.save({ ...original })).toEqual(original);
+      expect(() => repo.save({ ...original, evidenceIds: ['evidence-02'] })).toThrow();
+      expect(repo.findByIdAndRevision(original.id, original.revision)).toEqual(original);
+      expect(repo.save({ ...original, revision: 'revision-2026-11-28', evidenceIds: ['evidence-02'] }))
+        .toEqual({ ...original, revision: 'revision-2026-11-28', evidenceIds: ['evidence-02'] });
+      expect(repo.findByIdAndRevision(original.id, original.revision)).toEqual(original);
+    } finally {
+      database.close();
+    }
+  });
+
+  it('rejects an Operation rebound to a second Draft that also references it', () => {
+    const database = openRetailOpsDatabase(':memory:');
+    try {
+      const { repos, entities } = seed(database);
+      const secondDraft = { ...entities.draft, id: 'draft-02', draftDigest: 'sha256:second-draft' };
+      expect(() => repos.drafts.save(secondDraft)).toThrow();
+      expect(repos.operations.findById(entities.operation.id)).toEqual(entities.operation);
+
+      const unboundDraft = { ...secondDraft, operationIds: ['operation-02'] };
+      expect(() => withRetailOpsTransaction(database, () => {
+        repos.drafts.save(unboundDraft);
+        repos.operations.save({ ...entities.operation, id: 'operation-02' });
+      })).toThrow();
+      expect(database.prepare('SELECT COUNT(*) AS count FROM drafts WHERE id = ?').get(unboundDraft.id)).toEqual({ count: 0 });
+      expect(database.prepare('SELECT COUNT(*) AS count FROM operations WHERE id = ?').get('operation-02')).toEqual({ count: 0 });
+    } finally {
+      database.close();
+    }
+  });
+
+  it('rejects Draft and Operation snapshots whose Batch belongs to a different Product', () => {
+    const database = openRetailOpsDatabase(':memory:');
+    try {
+      const { repos, entities } = seed(database);
+      const secondProduct = { ...entities.product, id: 'product-02' };
+      const secondBatch = { ...entities.batch, id: 'batch-02', productId: secondProduct.id };
+      repos.products.save(secondProduct);
+      repos.batches.save(secondBatch);
+
+      const invalidDraft = {
+        ...entities.draft,
+        id: 'draft-02',
+        draftDigest: 'sha256:cross-product-draft',
+        inputSnapshot: { ...entities.draft.inputSnapshot, productIds: [secondProduct.id], batchIds: [entities.batch.id] },
+        operationIds: ['operation-02'],
+      };
+      expect(() => repos.drafts.save(invalidDraft)).toThrow();
+      expect(database.prepare('SELECT COUNT(*) AS count FROM drafts WHERE id = ?').get(invalidDraft.id)).toEqual({ count: 0 });
+
+      const validSecondDraft = {
+        ...invalidDraft,
+        inputSnapshot: { ...invalidDraft.inputSnapshot, batchIds: [secondBatch.id] },
+      };
+      expect(() => withRetailOpsTransaction(database, () => {
+        repos.drafts.save(validSecondDraft);
+        repos.operations.save({
+          ...entities.operation,
+          id: 'operation-02',
+          draftId: validSecondDraft.id,
+          productId: secondProduct.id,
+          batchId: entities.batch.id,
+        });
+      })).toThrow();
+      expect(database.prepare('SELECT COUNT(*) AS count FROM drafts WHERE id = ?').get(validSecondDraft.id)).toEqual({ count: 0 });
+      expect(database.prepare('SELECT COUNT(*) AS count FROM operations WHERE id = ?').get('operation-02')).toEqual({ count: 0 });
+    } finally {
+      database.close();
+    }
+  });
+
+  it('rejects async transaction callbacks before invoking them', () => {
+    const database = openRetailOpsDatabase(':memory:');
+    try {
+      let callbackStarted = false;
+      const action = (async () => {
+        callbackStarted = true;
+        database.prepare('INSERT INTO evidence(id, contract_version, source_kind, snapshot_id, observed_at, payload) VALUES (?, ?, ?, ?, ?, ?)')
+          .run('async-write', '0.3.0', 'SIMULATED', 'async-snapshot', '2026-11-27T12:00:00Z', '{}');
+      }) as () => unknown;
+      expect(() => withRetailOpsTransaction(database, action)).toThrow();
+      expect(callbackStarted).toBe(false);
+      expect(database.prepare('SELECT COUNT(*) AS count FROM evidence').get()).toEqual({ count: 0 });
+
+      if (false) {
+        // @ts-expect-error Async transaction callbacks are not part of the synchronous API.
+        withRetailOpsTransaction(database, async () => undefined);
+      }
+    } finally {
+      database.close();
+    }
+  });
+
+  it('rejects a promise-returning callback and rolls back its synchronous writes', () => {
+    const database = openRetailOpsDatabase(':memory:');
+    try {
+      const action = () => {
+        database.prepare('INSERT INTO evidence(id, contract_version, source_kind, snapshot_id, observed_at, payload) VALUES (?, ?, ?, ?, ?, ?)')
+          .run('promise-write', '0.3.0', 'SIMULATED', 'promise-snapshot', '2026-11-27T12:00:00Z', '{}');
+        return { then: () => undefined };
+      };
+      expect(() => withRetailOpsTransaction(database, action)).toThrow();
+      expect(database.prepare('SELECT COUNT(*) AS count FROM evidence').get()).toEqual({ count: 0 });
+    } finally {
+      database.close();
+    }
+  });
 });

@@ -14,3 +14,9 @@
 
 - 未验证：后续 N3/N4 将完成所有 Repository 往返、损坏数据与事务边界覆盖，并执行完整包测试。
 - 决定：N2 PASS，继续 N3。日期：2026-11-27（Asia/Shanghai）。
+
+## 独立 Review REQUEST_CHANGES 修订记录（2026-11-27）
+
+- `draft_operations` 新增 `UNIQUE(operation_id)`，保证一个 Operation 只由一个 Draft 拥有；没有改变领域合同或迁移版本。
+- migration guard 对必要主键/唯一键列组合及顺序做 schema 校验。新增缺失上述唯一约束的 v1 schema 回归；移除 guard 时红测退出码 1，恢复 guard 后绿测退出码 0。
+- 恢复后的定向命令 `npm test -- test/unit/persistence/sqlite/migration-runner.test.ts -t "missing the unique Operation-to-Draft relationship constraint"` 退出码 0，1 passed / 9 skipped。错配在迁移事务提交前拒绝。
