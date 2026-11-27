@@ -1,6 +1,6 @@
 # RETAIL-05P N1 公式与决策说明（候选）
 
-状态：N1 设计候选，等待主控核验。下文公式是执行计划内的待审方案，不是已冻结生产规则、KPI 或业务参数；本节点没有实现算法或写测试代码。
+状态：主控于 2026-11-27 复核并批准候选设计，N2 获准实施且已交付候选 Schema/规则。下文公式是已批准的候选计算口径，不包含任何已批准的业务数值默认值；不冻结 RETAIL-12/RETAIL-19 KPI，不代表 N3 完整解释指标已实现或获执行授权。
 
 ## 1. 来源及边界
 
@@ -80,12 +80,12 @@ v0.3.0 Policy 目前只有 contractVersion、id、revision、evidenceIds，不�
 - 守恒分别为 10=5+1+4 与 10=8+1+1。例中候选差异只是人为提供的需求 fixture，禁止据此声称折扣提升销量或利润。
 - 计算结果状态最多是 CALCULATED / REJECTED / NOT_COMPUTABLE。即使规则通过，businessApproval=REQUIRED、executionAuthority=NONE；此 Issue 不产生可执行草案或现实业务副作用。
 
-## 6. 集中待决事项
+## 6. 主控已批准的候选口径与后续责任
 
 本节点只提交以下三组决策，所有其他数字值仍按 D02/D04/D05/D06 责任任务显式传入，不要求现在设默认：
 
-1. **输入与候选合同**：是否批准将每个候选的需求量和报损量作为带来源的显式场景输入，缺失即 NOT_COMPUTABLE；折价候选由调用方提供版本化折价列表，本模块只计算 base−discount 并执行显式上/下限。需求响应/弹性留给拥有相应证据的下游任务，不从价格差异推断。
-2. **中间指标口径**：是否接受 Contribution = Revenue−直接商品成本；同时报告独立的 Q_loss 和 SimulatedLossCostExposure=unitCost×Q_loss。该暴露只服务当前候选解释，不是 RETAIL-12/RETAIL-19 的最终损耗 KPI、分母、反事实、价格因果或业务 uplift。
-3. **精度与毛利硬规则输入**：是否批准计算结果用 BigInt 并把 Money scale 扩展到输入金额 scale + Quantity 小数位，无舍入；毛利限制以调用方显式带来源的 tagged constraint 表达（每件最低贡献金额，或最低毛利率 = Contribution / Revenue，Revenue=0 时不可判定），必须给值才可判通过。若不接受 scale 扩展，需在后续责任节点冻结舍入合同或同意对不可表示值 fail-closed。
+1. **输入与候选合同（已批准）**：每个候选的需求量和报损量作为带来源的显式场景输入，缺失即 NOT_COMPUTABLE；折价候选由调用方提供版本化折价列表，本模块只计算 base−discount 并执行显式上/下限。需求响应/弹性留给拥有相应证据的下游任务，不从价格差异推断。
+2. **中间指标口径（已批准）**：Contribution = Revenue−直接商品成本；同时报告独立的 Q_loss 和 SimulatedLossCostExposure=unitCost×Q_loss。该暴露只服务当前候选解释，不是 RETAIL-12/RETAIL-19 的最终损耗 KPI、分母、反事实、价格因果或业务 uplift。
+3. **精度与毛利硬规则输入（已批准）**：计算使用 BigInt，Money scale 扩展到输入金额 scale + Quantity 小数位，不舍入；毛利限制以调用方显式带来源的 tagged constraint 表达（每件最低贡献金额，或最低毛利率 = Contribution / Revenue，Revenue=0 时不可判定），必须给值才可判通过。
 
-决策值获批准后，N2 才能实施候选 Schema 与规则；本说明不冻结任何具体货币、SKU、折价阶梯、成本、需求、损耗、毛利数值、时间窗或 KPI。
+主控已批准本候选口径，N2 可据此实施候选 Schema 与规则；本说明不冻结任何具体货币、SKU、折价阶梯、成本、需求、损耗、毛利数值、时间窗或 KPI。

@@ -16,3 +16,6 @@ export { productSchema } from './product/product.js';
 export type { Product } from './product/product.js';
 export { CONTRACT_VERSION, contractVersionSchema, currencyCodeSchema, dateOnlySchema, instantSchema, moneySchema, opaqueReferenceSchema, passesPrecheck, quantitySchema, timeZoneSchema } from './shared/primitives.js';
 export type { DateOnly, Instant, Money, PrecheckEvidence, Quantity } from './shared/primitives.js';
+
+export { MARKDOWN_FORMULA_VERSION, calculateMarkdownCandidates, calculationSourceSchema, markdownCalculationInputSchema, markdownCalculationResultSchema, markdownMarginConstraintSchema } from './decision/markdown-calculation.js';
+export type { CalculationSource, MarkdownCalculationInput, MarkdownCalculationReason, MarkdownCalculationResult } from './decision/markdown-calculation.js';
