@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { markdownCalculationResultSchema } from '../decision/markdown-calculation.js';
+import type { MarkdownCalculationResult } from '../decision/markdown-calculation.js';
 import { assessSellability, asOfSchema } from '../expiry/expiry.js';
 import { batchSchema } from '../inventory/batch.js';
 import { policySchema } from '../policy/policy.js';
@@ -216,7 +217,7 @@ const metricsSchema = z.object({
   simulatedSpoilageCostExposure: moneySchema,
 }).strict();
 
-const computedResultSchema = z.object({
+const computedResultBaseSchema = z.object({
   contractVersion: contractVersionSchema,
   simulatorVersion: z.literal(SINGLE_SKU_SIMULATOR_VERSION),
   status: z.enum(['COMPLETED', 'REJECTED']),
@@ -242,51 +243,291 @@ const computedResultSchema = z.object({
   metrics: metricsSchema,
   precision: z.object({ quantityScale: z.number().int().min(0).max(MAX_SCALE), moneyInputScale: z.number().int().min(0).max(MAX_SCALE), moneyOutputScale: z.number().int().min(0).max(MAX_SCALE * 2) }).strict(),
   assumptions: z.array(z.string().max(180)),
-}).strict().superRefine((result, context) => {
+}).strict();
+
+const computedResultSchema = computedResultBaseSchema.superRefine((result, context) => {
   const add = (path: (string | number)[], message: string) => context.addIssue({ code: 'custom', path, message });
-  const { metrics } = result;
-  const qtyScale = result.precision.quantityScale;
-  const outputScale = result.precision.moneyOutputScale;
+  const { metrics, precision } = result;
+  const qtyScale = precision.quantityScale;
+  const outputScale = precision.moneyOutputScale;
+  let unsafePrecision = outputScale !== precision.moneyInputScale + qtyScale;
+
+  const quantities: Array<{ readonly value: z.infer<typeof quantitySchema>; readonly path: (string | number)[] }> = [];
+  const collectStock = (stock: z.infer<typeof stockStateSchema>, path: (string | number)[]) => {
+    quantities.push(
+      { value: stock.physicalOnHand, path: [...path, 'physicalOnHand'] },
+      { value: stock.unavailable, path: [...path, 'unavailable'] },
+      { value: stock.availableToSell, path: [...path, 'availableToSell'] },
+      { value: stock.reserved, path: [...path, 'reserved'] },
+    );
+  };
+  collectStock(result.openingStock, ['openingStock']);
+  collectStock(metrics.endingStock, ['metrics', 'endingStock']);
+  quantities.push(
+    { value: metrics.totalDemandQty, path: ['metrics', 'totalDemandQty'] },
+    { value: metrics.simulatedSoldQty, path: ['metrics', 'simulatedSoldQty'] },
+    { value: metrics.unmetDemandQty, path: ['metrics', 'unmetDemandQty'] },
+    { value: metrics.totalArrivedQty, path: ['metrics', 'totalArrivedQty'] },
+    { value: metrics.simulatedSpoilageQty, path: ['metrics', 'simulatedSpoilageQty'] },
+    { value: metrics.unsoldPhysicalQty, path: ['metrics', 'unsoldPhysicalQty'] },
+  );
+  result.events.forEach((event, index) => {
+    collectStock(event.stockBefore, ['events', index, 'stockBefore']);
+    collectStock(event.stockAfter, ['events', index, 'stockAfter']);
+    if (event.quantity !== null) quantities.push({ value: event.quantity, path: ['events', index, 'quantity'] });
+    quantities.push(
+      { value: event.soldQty, path: ['events', index, 'soldQty'] },
+      { value: event.unmetDemandQty, path: ['events', index, 'unmetDemandQty'] },
+    );
+  });
+
+  for (const { value, path } of quantities) {
+    const fractionalDigits = value.value.split('.')[1]?.length ?? 0;
+    if (value.value.replace('.', '').length > MAX_OUTPUT_DIGITS || fractionalDigits > qtyScale) {
+      add(path, 'Quantity must fit the declared scale and safe exact output size');
+      unsafePrecision = true;
+    }
+  }
+
+  const outputMoney: Array<{ readonly value: z.infer<typeof moneySchema>; readonly path: (string | number)[] }> = [
+    { value: metrics.simulatedRevenue, path: ['metrics', 'simulatedRevenue'] },
+    { value: metrics.simulatedDirectProductCost, path: ['metrics', 'simulatedDirectProductCost'] },
+    { value: metrics.simulatedContribution, path: ['metrics', 'simulatedContribution'] },
+    { value: metrics.simulatedSpoilageCostExposure, path: ['metrics', 'simulatedSpoilageCostExposure'] },
+  ];
+  result.events.forEach((event, index) => {
+    outputMoney.push(
+      { value: event.revenue, path: ['events', index, 'revenue'] },
+      { value: event.directProductCost, path: ['events', index, 'directProductCost'] },
+      { value: event.simulatedSpoilageCostExposure, path: ['events', index, 'simulatedSpoilageCostExposure'] },
+    );
+    if (event.priceAfter.minorUnits.replace('-', '').length > MAX_OUTPUT_DIGITS
+      || event.priceAfter.minorUnitScale > precision.moneyInputScale) {
+      add(['events', index, 'priceAfter', 'minorUnitScale'], 'Price precision exceeds the declared money input scale');
+      unsafePrecision = true;
+    }
+  });
+  for (const { value, path } of outputMoney) {
+    if (value.minorUnits.replace('-', '').length > MAX_OUTPUT_DIGITS || value.minorUnitScale !== outputScale) {
+      add(path, 'Ledger amount must fit the safe exact output size and declared output scale');
+      unsafePrecision = true;
+    }
+  }
+  if (unsafePrecision) return;
+
   const toQty = (quantity: z.infer<typeof quantitySchema>) => decimalToScaledInteger(quantity.value, qtyScale);
+  const toMoney = (moneyValue: z.infer<typeof moneySchema>) => BigInt(moneyValue.minorUnits);
+  const sameQuantity = (left: z.infer<typeof quantitySchema>, right: z.infer<typeof quantitySchema>) =>
+    left.unitCode === right.unitCode && toQty(left) === toQty(right);
+  const sameState = (left: z.infer<typeof stockStateSchema>, right: z.infer<typeof stockStateSchema>) =>
+    sameQuantity(left.physicalOnHand, right.physicalOnHand)
+    && sameQuantity(left.unavailable, right.unavailable)
+    && sameQuantity(left.availableToSell, right.availableToSell)
+    && sameQuantity(left.reserved, right.reserved);
+  const stateParts = (stock: z.infer<typeof stockStateSchema>) => ({
+    physical: toQty(stock.physicalOnHand),
+    unavailable: toQty(stock.unavailable),
+    available: toQty(stock.availableToSell),
+    reserved: toQty(stock.reserved),
+  });
+  const firstUnit = metrics.totalDemandQty.unitCode;
+  const expectedCurrency = metrics.simulatedRevenue.currencyCode;
+  let stateIsValid = true;
+  const validateStock = (stock: z.infer<typeof stockStateSchema>, path: (string | number)[]) => {
+    const parts = stateParts(stock);
+    const values = [stock.physicalOnHand, stock.unavailable, stock.availableToSell, stock.reserved];
+    if (values.some((value) => value.unitCode !== firstUnit)
+      || parts.physical !== parts.unavailable + parts.available + parts.reserved) {
+      add(path, 'Inventory partitions must use one unit and sum exactly to physical stock');
+      stateIsValid = false;
+    }
+  };
+  validateStock(result.openingStock, ['openingStock']);
+  validateStock(metrics.endingStock, ['metrics', 'endingStock']);
+  for (const { value, path } of quantities) {
+    if (value.unitCode !== firstUnit) add(path, 'All simulation quantities must retain one product unit');
+  }
+
+  const seenIds = new Set<string>();
+  let previousSequence = -1;
+  let previousAt: z.infer<typeof asOfSchema> | null = null;
+  let previousStock = result.openingStock;
+  let previousPrice: z.infer<typeof moneySchema> | null = null;
+  let totalDemand = 0n;
+  let totalSold = 0n;
+  let totalUnmet = 0n;
+  let totalArrived = 0n;
+  let totalSpoiled = 0n;
+  let totalRevenue = 0n;
+  let totalDirectCost = 0n;
+  let totalSpoilageExposure = 0n;
+  let rejectedCount = 0;
+
+  result.events.forEach((event, index) => {
+    const path = ['events', index] as (string | number)[];
+    const before = stateParts(event.stockBefore);
+    const after = stateParts(event.stockAfter);
+    validateStock(event.stockBefore, [...path, 'stockBefore']);
+    validateStock(event.stockAfter, [...path, 'stockAfter']);
+    if (seenIds.has(event.eventId) || event.sequence <= previousSequence) {
+      add(path, 'Ledger event IDs must be unique and sequence must increase in ledger order');
+    }
+    seenIds.add(event.eventId);
+    previousSequence = event.sequence;
+    if (!sameBasis(event.at, result.scenario.clock)
+      || compareAsOf(event.at, result.scenario.horizon.start) < 0
+      || compareAsOf(event.at, result.scenario.horizon.end) > 0
+      || previousAt !== null && compareAsOf(event.at, previousAt) < 0) {
+      add([...path, 'at'], 'Ledger events must use the scenario time basis and remain chronologically ordered');
+    }
+    previousAt = event.at;
+    if (event.source.scenarioId !== result.scenario.id || event.source.scenarioVersion !== result.scenario.version
+      || event.source.sourceKind !== 'SIMULATED') {
+      add([...path, 'source'], 'Every ledger event must retain the exact simulated scenario source');
+    }
+    if (!sameState(event.stockBefore, previousStock)) add([...path, 'stockBefore'], 'Adjacent ledger stock states must be continuous');
+
+    const quantity = event.quantity === null ? null : toQty(event.quantity);
+    const sold = toQty(event.soldQty);
+    const unmet = toQty(event.unmetDemandQty);
+    const revenue = toMoney(event.revenue);
+    const directCost = toMoney(event.directProductCost);
+    const spoilageExposure = toMoney(event.simulatedSpoilageCostExposure);
+    totalRevenue += revenue;
+    totalDirectCost += directCost;
+    totalSpoilageExposure += spoilageExposure;
+    if ([event.revenue, event.directProductCost, event.simulatedSpoilageCostExposure, event.priceAfter]
+      .some((amount) => amount.currencyCode !== expectedCurrency)) {
+      add(path, 'All ledger amounts and prices must use one explicit currency');
+    }
+    if (previousPrice !== null && (event.kind !== 'PRICE_ACTION' || event.outcome !== 'APPLIED')) {
+      if (!sameMoneyAtScale(previousPrice, event.priceAfter, precision.moneyInputScale)) {
+        add([...path, 'priceAfter'], 'Event price must remain unchanged unless a price action is applied');
+      }
+    }
+    if (previousPrice === null || event.kind === 'PRICE_ACTION' && event.outcome === 'APPLIED') previousPrice = event.priceAfter;
+
+    if (event.kind === 'DEMAND') {
+      if (quantity === null) add([...path, 'quantity'], 'Demand events require a quantity');
+      else totalDemand += quantity;
+      if (quantity === null || sold + unmet !== quantity) add(path, 'Demand quantity must equal sold plus unmet quantity');
+      if (after.physical !== before.physical - sold || after.available !== before.available - sold
+        || after.unavailable !== before.unavailable || after.reserved !== before.reserved) {
+        add(path, 'Demand events may only reduce physical and available stock by the sold quantity');
+      }
+      if (event.outcome === 'BLOCKED' && sold !== 0n || event.outcome === 'APPLIED' && unmet !== 0n
+        || event.outcome === 'PARTIALLY_FULFILLED' && unmet === 0n || event.outcome === 'REJECTED') {
+        add([...path, 'outcome'], 'Demand outcome must agree with its fulfilled and unmet quantities');
+      }
+      const expectedRevenue = atScale(event.priceAfter, precision.moneyInputScale) * sold;
+      if (revenue !== expectedRevenue || sold === 0n && directCost !== 0n) {
+        add(path, 'Demand revenue and cost must agree with the sold quantity and exact price arithmetic');
+      }
+      if (spoilageExposure !== 0n || event.priceCandidate !== null) add(path, 'Demand events cannot carry spoilage exposure or price candidates');
+      totalSold += sold;
+      totalUnmet += unmet;
+    } else if (event.kind === 'ARRIVAL') {
+      if (quantity === null) add([...path, 'quantity'], 'Arrival events require a quantity');
+      const blocked = event.outcome === 'BLOCKED';
+      if (quantity === null || sold !== 0n || unmet !== 0n || revenue !== 0n || directCost !== 0n || spoilageExposure !== 0n
+        || after.physical !== before.physical + quantity
+        || after.available !== before.available + (blocked ? 0n : quantity)
+        || after.unavailable !== before.unavailable + (blocked ? quantity : 0n)
+        || after.reserved !== before.reserved || event.priceCandidate !== null
+        || event.outcome !== 'APPLIED' && !blocked) {
+        add(path, 'Arrival ledger entry must apply or block the exact arrival without unrelated effects');
+      } else totalArrived += quantity;
+    } else if (event.kind === 'DISPOSAL') {
+      if (quantity === null) add([...path, 'quantity'], 'Disposal events require a quantity');
+      if (quantity === null || sold !== 0n || unmet !== 0n || revenue !== 0n || directCost !== 0n || event.priceCandidate !== null) {
+        add(path, 'Disposal entries cannot contain sales, demand or direct sales revenue');
+      } else if (event.outcome === 'APPLIED' && quantity <= before.physical) {
+        const fromUnavailable = quantity < before.unavailable ? quantity : before.unavailable;
+        const fromAvailable = quantity - fromUnavailable;
+        if (after.physical !== before.physical - quantity || after.unavailable !== before.unavailable - fromUnavailable
+          || after.available !== before.available - fromAvailable || after.reserved !== before.reserved) {
+          add(path, 'Applied disposal must reduce physical stock from unavailable stock before available stock');
+        }
+        totalSpoiled += quantity;
+      } else if (event.outcome === 'REJECTED' && quantity > before.physical) {
+        if (!sameState(event.stockBefore, event.stockAfter) || spoilageExposure !== 0n) add(path, 'Rejected disposal cannot mutate stock or report spoilage exposure');
+      } else {
+        add([...path, 'outcome'], 'Disposal outcome must match the available physical stock');
+      }
+    } else if (event.kind === 'PRICE_ACTION') {
+      if (quantity !== null || sold !== 0n || unmet !== 0n || revenue !== 0n || directCost !== 0n || spoilageExposure !== 0n
+        || !sameState(event.stockBefore, event.stockAfter)) {
+        add(path, 'Price actions cannot mutate inventory or report sales amounts');
+      }
+      if (event.outcome === 'APPLIED' && event.priceCandidate === null
+        || event.outcome !== 'APPLIED' && event.priceCandidate !== null) {
+        add([...path, 'priceCandidate'], 'Only an applied price action may carry a validated candidate reference');
+      }
+      if (event.priceCandidate !== null && (event.priceCandidate.policyId !== result.policy.id
+        || event.priceCandidate.policyRevision !== result.policy.revision)) {
+        add([...path, 'priceCandidate'], 'Applied price candidate must retain the result policy ID and exact revision');
+      }
+    } else {
+      if (quantity !== null || sold !== 0n || unmet !== 0n || revenue !== 0n || directCost !== 0n || spoilageExposure !== 0n
+        || event.outcome !== 'BLOCKED' || event.priceCandidate !== null
+        || after.physical !== before.physical || after.unavailable !== before.unavailable + before.available
+        || after.available !== 0n || after.reserved !== before.reserved) {
+        add(path, 'Sellability events must only move available inventory to unavailable inventory');
+      }
+    }
+
+    previousStock = event.stockAfter;
+    if (event.outcome === 'REJECTED') rejectedCount += 1;
+  });
+
+  if (result.events.length > 0 && !sameState(result.events.at(-1)!.stockAfter, metrics.endingStock)
+    || result.events.length === 0 && !sameState(result.openingStock, metrics.endingStock)) {
+    add(['metrics', 'endingStock'], 'Ending inventory must equal the final ledger state');
+  }
+  if (!stateIsValid || toQty(metrics.totalDemandQty) !== totalDemand || toQty(metrics.simulatedSoldQty) !== totalSold
+    || toQty(metrics.unmetDemandQty) !== totalUnmet || toQty(metrics.totalArrivedQty) !== totalArrived
+    || toQty(metrics.simulatedSpoilageQty) !== totalSpoiled) {
+    add(['metrics'], 'Summary quantities must equal the event ledger totals');
+  }
+  if (toQty(metrics.totalDemandQty) !== toQty(metrics.simulatedSoldQty) + toQty(metrics.unmetDemandQty)) {
+    add(['metrics'], 'Demand must equal simulated sales plus unmet demand');
+  }
+  if (!sameQuantity(metrics.unsoldPhysicalQty, metrics.endingStock.physicalOnHand)) {
+    add(['metrics', 'unsoldPhysicalQty'], 'Unsold stock is the ending physical inventory');
+  }
   const opening = toQty(result.openingStock.physicalOnHand);
   const arrived = toQty(metrics.totalArrivedQty);
   const sold = toQty(metrics.simulatedSoldQty);
   const spoiled = toQty(metrics.simulatedSpoilageQty);
   const ending = toQty(metrics.endingStock.physicalOnHand);
   if (opening + arrived !== sold + spoiled + ending) add(['metrics', 'endingStock'], 'Physical stock must conserve: opening + arrivals = sales + spoilage + ending');
-  if (toQty(metrics.totalDemandQty) !== sold + toQty(metrics.unmetDemandQty)) add(['metrics'], 'Demand must equal simulated sales plus unmet demand');
-  if (toQty(metrics.unsoldPhysicalQty) !== ending) add(['metrics', 'unsoldPhysicalQty'], 'Unsold stock is the ending physical inventory');
-  if (metrics.endingStock.physicalOnHand.unitCode !== metrics.totalDemandQty.unitCode
-    || metrics.endingStock.availableToSell.unitCode !== metrics.totalDemandQty.unitCode
-    || metrics.endingStock.unavailable.unitCode !== metrics.totalDemandQty.unitCode) {
-    add(['metrics', 'endingStock'], 'Simulation quantities must retain one product unit');
-  }
-  const revenue = BigInt(metrics.simulatedRevenue.minorUnits);
-  const directCost = BigInt(metrics.simulatedDirectProductCost.minorUnits);
-  const contribution = BigInt(metrics.simulatedContribution.minorUnits);
-  if ([metrics.simulatedRevenue, metrics.simulatedDirectProductCost, metrics.simulatedContribution, metrics.simulatedSpoilageCostExposure]
-    .some((money) => money.minorUnitScale !== outputScale)) {
-    add(['metrics'], 'All simulated amount totals must use the declared exact output scale');
-  }
+
+  const revenue = toMoney(metrics.simulatedRevenue);
+  const directCost = toMoney(metrics.simulatedDirectProductCost);
+  const contribution = toMoney(metrics.simulatedContribution);
   if (metrics.simulatedRevenue.currencyCode !== metrics.simulatedDirectProductCost.currencyCode
     || metrics.simulatedRevenue.currencyCode !== metrics.simulatedContribution.currencyCode
     || metrics.simulatedRevenue.currencyCode !== metrics.simulatedSpoilageCostExposure.currencyCode
+    || revenue !== totalRevenue || directCost !== totalDirectCost || toMoney(metrics.simulatedSpoilageCostExposure) !== totalSpoilageExposure
     || revenue - directCost !== contribution) {
-    add(['metrics', 'simulatedContribution'], 'Contribution must equal simulated revenue minus simulated direct product cost in one currency');
+    add(['metrics', 'simulatedContribution'], 'Summary amounts must match the event ledger and contribution must equal revenue minus direct cost');
   }
-  if (result.status === 'COMPLETED' && (result.events.some((event) => event.outcome === 'REJECTED') || result.reasonCodes.length > 0)) {
+  if (result.status === 'COMPLETED' && (rejectedCount > 0 || result.reasonCodes.length > 0)) {
     add(['status'], 'COMPLETED results cannot contain a rejected event');
   }
-  if (result.status === 'REJECTED' && (result.events.at(-1)?.outcome !== 'REJECTED' || result.reasonCodes[0] !== 'EVENT_REJECTED')) {
-    add(['status'], 'REJECTED results must end at a rejected event and identify it');
-  }
-  for (const money of [metrics.simulatedRevenue, metrics.simulatedDirectProductCost, metrics.simulatedContribution, metrics.simulatedSpoilageCostExposure]) {
-    if (!/^-?(?:0|[1-9]\d*)$/.test(money.minorUnits) || money.minorUnits.replace('-', '').length > MAX_OUTPUT_DIGITS) {
-      add(['metrics'], 'Simulated amount exceeds the safe exact output size');
-      break;
-    }
+  if (result.status === 'REJECTED' && (result.events.at(-1)?.outcome !== 'REJECTED'
+    || rejectedCount !== 1 || result.reasonCodes[0] !== 'EVENT_REJECTED')) {
+    add(['status'], 'REJECTED results must end at exactly one rejected event and identify it');
   }
 });
+
+function sameMoneyAtScale(
+  left: z.infer<typeof moneySchema>,
+  right: z.infer<typeof moneySchema>,
+  scale: number,
+): boolean {
+  return left.currencyCode === right.currencyCode && atScale(left, scale) === atScale(right, scale);
+}
 
 const notComputableResultSchema = z.object({
   contractVersion: contractVersionSchema,
@@ -309,10 +550,12 @@ export type SingleSkuSimulationResult = z.infer<typeof singleSkuSimulationResult
 type SimulationInput = z.infer<typeof simulationInputInnerSchema>;
 type SimulationEvent = SimulationInput['events'][number];
 type StockState = { physical: bigint; unavailable: bigint; available: bigint; reserved: bigint };
+type MarkdownResultSnapshot = NonNullable<MarkdownCalculationResult['inputSnapshot']>;
 type PreparedPriceAction = {
   readonly price: z.infer<typeof moneySchema> | null;
   readonly candidate: z.infer<typeof computedResultSchema>['events'][number]['priceCandidate'];
   readonly reason: z.infer<typeof ledgerEventSchema>['reasonCodes'][number] | null;
+  readonly snapshot: MarkdownResultSnapshot | null;
 };
 type ScheduledEvent = {
   readonly id: string;
@@ -495,8 +738,15 @@ function runSimulation(input: SimulationInput): SingleSkuSimulationResult {
           status = 'REJECTED';
           reasonCodes = ['PRICE_ACTION_BATCH_NOT_SELLABLE'];
         } else {
-          activePrice = prepared.price;
-          priceCandidate = prepared.candidate;
+          const currentStateReason = validatePriceActionCurrentState(prepared, input, inputEvent, state, activePrice, quantityScale);
+          if (currentStateReason !== null) {
+            outcome = 'REJECTED';
+            status = 'REJECTED';
+            reasonCodes = [currentStateReason];
+          } else {
+            activePrice = prepared.price;
+            priceCandidate = prepared.candidate;
+          }
         }
       }
     }
@@ -580,32 +830,38 @@ function runSimulation(input: SimulationInput): SingleSkuSimulationResult {
 
 function preparePriceAction(input: SimulationInput, event: Extract<SimulationEvent, { kind: 'PRICE_ACTION' }>): PreparedPriceAction {
   const parsed = markdownCalculationResultSchema.safeParse(event.calculation);
-  if (!parsed.success) return { price: null, candidate: null, reason: 'PRICE_CALCULATION_INVALID' };
+  if (!parsed.success) return { price: null, candidate: null, reason: 'PRICE_CALCULATION_INVALID', snapshot: null };
   const calculation = parsed.data;
   if (calculation.status !== 'CALCULATED' || calculation.inputSnapshot === null) {
-    return { price: null, candidate: null, reason: 'PRICE_CANDIDATE_NOT_CALCULATED' };
+    return { price: null, candidate: null, reason: 'PRICE_CANDIDATE_NOT_CALCULATED', snapshot: null };
   }
   const candidate = calculation.candidates.find((item) => item.inputOrdinal === event.candidateOrdinal);
-  if (candidate === undefined) return { price: null, candidate: null, reason: 'PRICE_CANDIDATE_MISSING' };
+  if (candidate === undefined) return { price: null, candidate: null, reason: 'PRICE_CANDIDATE_MISSING', snapshot: null };
   if (candidate.status !== 'CALCULATED' || candidate.hardRulesPassed !== true || candidate.proposedPrice === null) {
-    return { price: null, candidate: null, reason: 'PRICE_CANDIDATE_REJECTED' };
+    return { price: null, candidate: null, reason: 'PRICE_CANDIDATE_REJECTED', snapshot: null };
   }
   const snapshot = calculation.inputSnapshot;
   if (snapshot.batch.id !== input.batch.id || snapshot.batch.productId !== input.product.id
     || event.productId !== input.product.id || event.batchId !== input.batch.id
     || snapshot.policy.id !== input.policy.id || snapshot.policy.revision !== input.policy.revision
     || event.policyId !== input.policy.id || event.policyRevision !== input.policy.revision
-    || snapshot.scenario.id !== input.scenario.id || snapshot.scenario.version !== input.scenario.version) {
-    return { price: null, candidate: null, reason: 'PRICE_BINDING_MISMATCH' };
+    || snapshot.scenario.id !== input.scenario.id || snapshot.scenario.version !== input.scenario.version
+    || snapshot.batch.stockBalance.physicalOnHand.unitCode !== input.product.baseUnitCode
+    || snapshot.batch.stockBalance.unavailable.unitCode !== input.product.baseUnitCode
+    || snapshot.batch.stockBalance.availableToSell.unitCode !== input.product.baseUnitCode
+    || snapshot.batch.stockBalance.reserved.unitCode !== input.product.baseUnitCode
+    || snapshot.basePrice.source.unitCode !== input.product.baseUnitCode
+    || snapshot.unitCost.source.unitCode !== input.product.baseUnitCode) {
+    return { price: null, candidate: null, reason: 'PRICE_BINDING_MISMATCH', snapshot: null };
   }
   const candidateAsOf = snapshot.asOf;
-  if (!sameBasis(candidateAsOf, input.scenario.clock)
-    || compareAsOf(candidateAsOf, input.scenario.clock) < 0
-    || compareAsOf(candidateAsOf, event.at) > 0) {
-    return { price: null, candidate: null, reason: 'PRICE_CANDIDATE_STALE' };
+  if (!sameAsOf(candidateAsOf, input.scenario.clock)
+    || !timeIsWithin(event.at, snapshot.scenario.simulationWindow)
+    || !timeIsWithin(event.at, input.scenario.horizon)) {
+    return { price: null, candidate: null, reason: 'PRICE_CANDIDATE_STALE', snapshot: null };
   }
   if (candidate.proposedPrice.currencyCode !== input.initialPrice.value.currencyCode) {
-    return { price: null, candidate: null, reason: 'PRICE_CURRENCY_MISMATCH' };
+    return { price: null, candidate: null, reason: 'PRICE_CURRENCY_MISMATCH', snapshot: null };
   }
   return {
     price: candidate.proposedPrice,
@@ -617,7 +873,50 @@ function preparePriceAction(input: SimulationInput, event: Extract<SimulationEve
       candidateOrdinal: event.candidateOrdinal,
     },
     reason: null,
+    snapshot,
   };
+}
+
+function validatePriceActionCurrentState(
+  prepared: PreparedPriceAction,
+  input: SimulationInput,
+  _event: Extract<SimulationEvent, { kind: 'PRICE_ACTION' }>,
+  state: StockState,
+  activePrice: z.infer<typeof moneySchema>,
+  quantityScale: number,
+): z.infer<typeof ledgerEventSchema>['reasonCodes'][number] | null {
+  const snapshot = prepared.snapshot;
+  if (snapshot === null) return 'PRICE_CANDIDATE_NOT_CALCULATED';
+  if (!moneyEquals(snapshot.basePrice.value, activePrice)
+    || !moneyEquals(snapshot.unitCost.value, input.unitCost.value)) {
+    return 'PRICE_CANDIDATE_STALE';
+  }
+
+  const balance = snapshot.batch.stockBalance;
+  const snapshotQuantities = [balance.physicalOnHand, balance.unavailable, balance.availableToSell, balance.reserved];
+  if (snapshotQuantities.some((quantity) => quantity.unitCode !== input.product.baseUnitCode)) {
+    return 'PRICE_BINDING_MISMATCH';
+  }
+  const comparisonScale = Math.max(quantityScale, ...snapshotQuantities.map((quantity) => decimalScale(quantity.value)));
+  const lift = (value: bigint) => value * (10n ** BigInt(comparisonScale - quantityScale));
+  const expected = [lift(state.physical), lift(state.unavailable), lift(state.available), lift(state.reserved)];
+  const current = snapshotQuantities.map((quantity) => decimalToScaledInteger(quantity.value, comparisonScale));
+  if (expected.some((value, index) => value !== current[index])) return 'PRICE_CANDIDATE_STALE';
+  return null;
+}
+
+function timeIsWithin(
+  time: z.infer<typeof asOfSchema>,
+  window: { readonly start: z.infer<typeof asOfSchema>; readonly end: z.infer<typeof asOfSchema> },
+): boolean {
+  return sameBasis(time, window.start) && sameBasis(time, window.end)
+    && compareAsOf(time, window.start) >= 0 && compareAsOf(time, window.end) <= 0;
+}
+
+function moneyEquals(left: z.infer<typeof moneySchema>, right: z.infer<typeof moneySchema>): boolean {
+  if (left.currencyCode !== right.currencyCode) return false;
+  const scale = Math.max(left.minorUnitScale, right.minorUnitScale);
+  return atScale(left, scale) === atScale(right, scale);
 }
 
 function scheduleEvents(input: SimulationInput): ScheduledEvent[] {

@@ -73,8 +73,17 @@ export function singleSkuScenarioFixture() {
   return { ...base };
 }
 
-export function validMarkdownCandidate() {
+type MarkdownCandidateOverrides = {
+  readonly batch?: ReturnType<typeof singleSkuScenarioFixture>['batch'];
+  readonly basePriceMinorUnits?: string;
+  readonly unitCostMinorUnits?: string;
+  readonly simulationWindowEnd?: string;
+};
+
+export function validMarkdownCandidate(overrides: MarkdownCandidateOverrides = {}) {
   const fixture = singleSkuScenarioFixture();
+  const batch = overrides.batch ?? fixture.batch;
+  const unitCode = batch.stockBalance.availableToSell.unitCode;
   const policySource = {
     sourceKind: 'SIMULATED',
     dataMeaning: 'POLICY_RULE',
@@ -123,7 +132,7 @@ export function validMarkdownCandidate() {
   const calculationInput = {
     contractVersion: '0.3.0',
     formulaVersion: 'retailops.markdown-calculation/0.1.0-proposal',
-    batch: fixture.batch,
+    batch,
     asOf: fixture.scenario.clock,
     scenario: {
       id: scenarioId,
@@ -135,7 +144,7 @@ export function validMarkdownCandidate() {
       },
       simulationWindow: {
         start: { basis: 'DATE_ONLY', value: '2026-11-28', timeZone: 'UTC' },
-        end: { basis: 'DATE_ONLY', value: '2026-12-30', timeZone: 'UTC' },
+        end: { basis: 'DATE_ONLY', value: overrides.simulationWindowEnd ?? '2026-12-30', timeZone: 'UTC' },
       },
     },
     policy: fixture.policy,
@@ -145,16 +154,16 @@ export function validMarkdownCandidate() {
       asOf: fixture.scenario.clock,
       scenarioId,
       scenarioVersion,
-      batchId,
-      batchEvidenceIds: ['fixture-batch-evidence'],
+      batchId: batch.id,
+      batchEvidenceIds: batch.evidenceIds,
       policyId,
       policyRevision,
       policyEvidenceIds: ['fixture-policy-evidence'],
       evidenceIds: ['fixture-snapshot-evidence'],
       source: batchSnapshotEvidence,
     },
-    basePrice: { value: money('700'), source: unitPriceSource },
-    unitCost: { value: money('500'), source: unitCostSource },
+    basePrice: { value: money(overrides.basePriceMinorUnits ?? '700'), source: unitPriceSource },
+    unitCost: { value: money(overrides.unitCostMinorUnits ?? '500'), source: unitCostSource },
     discountPolicy: {
       policyId,
       policyRevision,

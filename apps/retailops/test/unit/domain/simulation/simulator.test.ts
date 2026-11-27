@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { singleSkuScenarioFixture, simulationFixtureReferences, validMarkdownCandidate } from '../../../fixtures/simulation/single-sku-scenario.js';
-import { simulateSingleSku } from '../../../../src/domain/simulation/simulator.js';
+import { simulateSingleSku, singleSkuSimulationResultSchema } from '../../../../src/domain/simulation/simulator.js';
 
 const source = (reference: string, scenarioVersion: string = simulationFixtureReferences.scenarioVersion) => ({
   sourceKind: 'SIMULATED',
@@ -154,10 +154,14 @@ describe('RETAIL-03 deterministic single-SKU simulator', () => {
 
   it('applies only a validated RETAIL-05P candidate at its effective sequence and simulation time', () => {
     const input = singleSkuScenarioFixture();
+    const postSaleBatch = {
+      ...input.batch,
+      stockBalance: { ...input.batch.stockBalance, physicalOnHand: qty('9'), availableToSell: qty('9') },
+    };
     input.events = [
       event('DEMAND', 'before-price', 1, '2026-11-28', '1'),
-      priceAction('markdown-1', 2, '2026-11-28'),
-      event('DEMAND', 'after-price', 3, '2026-11-28', '1'),
+      priceAction('markdown-1', 2, '2026-11-29', validMarkdownCandidate({ batch: postSaleBatch })),
+      event('DEMAND', 'after-price', 3, '2026-11-29', '1'),
     ];
 
     const result = simulateSingleSku(input);
@@ -192,6 +196,154 @@ describe('RETAIL-03 deterministic single-SKU simulator', () => {
     }
   });
 
+  it('rejects a same-ID candidate whose stock snapshot differs from the current stock', () => {
+    const base = singleSkuScenarioFixture();
+    const changedInventoryBatch = {
+      ...base.batch,
+      stockBalance: { ...base.batch.stockBalance, physicalOnHand: qty('9'), availableToSell: qty('9') },
+    };
+    const input = singleSkuScenarioFixture();
+    input.events = [priceAction('stale-stock', 1, '2026-11-28', validMarkdownCandidate({ batch: changedInventoryBatch }))];
+    const result = simulateSingleSku(input);
+    expect(result.status).toBe('REJECTED');
+    if (result.status === 'REJECTED') expect(result.events.at(-1)?.reasonCodes).toContain('PRICE_CANDIDATE_STALE');
+  });
+
+  it('rejects a same-ID candidate whose base price differs from the active price', () => {
+    const input = singleSkuScenarioFixture();
+    input.events = [priceAction('stale-price', 1, '2026-11-28', validMarkdownCandidate({ basePriceMinorUnits: '650' }))];
+    const result = simulateSingleSku(input);
+    expect(result.status).toBe('REJECTED');
+    if (result.status === 'REJECTED') expect(result.events.at(-1)?.reasonCodes).toContain('PRICE_CANDIDATE_STALE');
+  });
+
+  it('rejects a same-ID candidate whose unit cost differs from the simulation', () => {
+    const input = singleSkuScenarioFixture();
+    input.events = [priceAction('stale-cost', 1, '2026-11-28', validMarkdownCandidate({ unitCostMinorUnits: '450' }))];
+    const result = simulateSingleSku(input);
+    expect(result.status).toBe('REJECTED');
+    if (result.status === 'REJECTED') expect(result.events.at(-1)?.reasonCodes).toContain('PRICE_CANDIDATE_STALE');
+  });
+
+  it('rejects a candidate whose batch unit differs from the simulated product unit', () => {
+    const base = singleSkuScenarioFixture();
+    const candidateBatch = {
+      ...base.batch,
+      stockBalance: {
+        physicalOnHand: { ...base.batch.stockBalance.physicalOnHand, unitCode: 'KG' },
+        unavailable: { ...base.batch.stockBalance.unavailable, unitCode: 'KG' },
+        availableToSell: { ...base.batch.stockBalance.availableToSell, unitCode: 'KG' },
+        reserved: { ...base.batch.stockBalance.reserved, unitCode: 'KG' },
+      },
+    };
+    const input = singleSkuScenarioFixture();
+    input.events = [priceAction('wrong-unit-candidate', 1, '2026-11-28', validMarkdownCandidate({ batch: candidateBatch }))];
+    const result = simulateSingleSku(input);
+    expect(result.status).toBe('REJECTED');
+  });
+
+  it('rechecks candidate stock after earlier simulated sales in the same run', () => {
+    const input = singleSkuScenarioFixture();
+    input.events = [
+      event('DEMAND', 'before-candidate', 1, '2026-11-28', '1'),
+      priceAction('candidate-after-sale', 2, '2026-11-28', validMarkdownCandidate()),
+    ];
+    const result = simulateSingleSku(input);
+    expect(result.status).toBe('REJECTED');
+    if (result.status === 'REJECTED') expect(result.events.at(-1)?.reasonCodes).toContain('PRICE_CANDIDATE_STALE');
+  });
+
+  it('rejects a candidate after its declared effective simulation window', () => {
+    const input = singleSkuScenarioFixture();
+    input.scenario.horizon.end = day('2027-01-02');
+    input.events = [priceAction('outside-candidate-window', 1, '2026-11-29', validMarkdownCandidate({ simulationWindowEnd: '2026-11-28' }))];
+    const result = simulateSingleSku(input);
+    expect(result.status).toBe('REJECTED');
+    if (result.status === 'REJECTED') expect(result.events.at(-1)?.reasonCodes).toContain('PRICE_CANDIDATE_STALE');
+  });
+
+  it('returns structured schema errors for result decimals outside declared precision', () => {
+    const output = simulateSingleSku(singleSkuScenarioFixture());
+    expect(output.status).toBe('COMPLETED');
+    if (output.status !== 'COMPLETED') return;
+    const malformed = structuredClone(output);
+    malformed.metrics.simulatedSoldQty.value = '0.1';
+
+    expect(() => singleSkuSimulationResultSchema.safeParse(malformed)).not.toThrow();
+    expect(singleSkuSimulationResultSchema.safeParse(malformed).success).toBe(false);
+  });
+
+  it('rejects an event stock transition that breaks ledger continuity', () => {
+    const input = singleSkuScenarioFixture();
+    input.events = [event('DEMAND', 'ledger-demand', 1, '2026-11-28', '2')];
+    const output = simulateSingleSku(input);
+    expect(output.status).toBe('COMPLETED');
+    if (output.status !== 'COMPLETED') return;
+
+    const brokenTransition = structuredClone(output);
+    brokenTransition.events[0]!.stockAfter.physicalOnHand.value = '9';
+    brokenTransition.events[0]!.stockAfter.availableToSell.value = '9';
+    expect(singleSkuSimulationResultSchema.safeParse(brokenTransition).success).toBe(false);
+  });
+
+  it('rejects summary demand totals that disagree with event quantities', () => {
+    const input = singleSkuScenarioFixture();
+    input.events = [event('DEMAND', 'ledger-demand-summary', 1, '2026-11-28', '2')];
+    const output = simulateSingleSku(input);
+    expect(output.status).toBe('COMPLETED');
+    if (output.status !== 'COMPLETED') return;
+    const brokenSummary = structuredClone(output);
+    brokenSummary.metrics.totalDemandQty.value = '3';
+    brokenSummary.metrics.unmetDemandQty.value = '1';
+    expect(singleSkuSimulationResultSchema.safeParse(brokenSummary).success).toBe(false);
+  });
+
+  it('rejects revenue and contribution tampering that disagrees with ledger totals', () => {
+    const input = singleSkuScenarioFixture();
+    input.events = [event('DEMAND', 'ledger-revenue', 1, '2026-11-28', '2')];
+    const output = simulateSingleSku(input);
+    expect(output.status).toBe('COMPLETED');
+    if (output.status !== 'COMPLETED') return;
+    const brokenRevenue = structuredClone(output);
+    brokenRevenue.metrics.simulatedRevenue.minorUnits = (BigInt(brokenRevenue.metrics.simulatedRevenue.minorUnits) + 100n).toString();
+    brokenRevenue.metrics.simulatedContribution.minorUnits = (BigInt(brokenRevenue.metrics.simulatedContribution.minorUnits) + 100n).toString();
+    expect(singleSkuSimulationResultSchema.safeParse(brokenRevenue).success).toBe(false);
+  });
+
+  it('rejects duplicate ledger identity and isolated event cost or exposure tampering', () => {
+    const input = singleSkuScenarioFixture();
+    input.events = [
+      event('DEMAND', 'ledger-demand-cost', 1, '2026-11-28', '2'),
+      event('DISPOSAL', 'ledger-disposal-exposure', 2, '2026-11-28', '1'),
+    ];
+    const output = simulateSingleSku(input);
+    expect(output.status).toBe('COMPLETED');
+    if (output.status !== 'COMPLETED') return;
+
+    const duplicateId = structuredClone(output);
+    duplicateId.events[1]!.eventId = duplicateId.events[0]!.eventId;
+    expect(singleSkuSimulationResultSchema.safeParse(duplicateId).success).toBe(false);
+
+    const changedCost = structuredClone(output);
+    changedCost.events[0]!.directProductCost.minorUnits = (BigInt(changedCost.events[0]!.directProductCost.minorUnits) + 1n).toString();
+    expect(singleSkuSimulationResultSchema.safeParse(changedCost).success).toBe(false);
+
+    const changedExposure = structuredClone(output);
+    changedExposure.events[1]!.simulatedSpoilageCostExposure.minorUnits = (BigInt(changedExposure.events[1]!.simulatedSpoilageCostExposure.minorUnits) + 1n).toString();
+    expect(singleSkuSimulationResultSchema.safeParse(changedExposure).success).toBe(false);
+  });
+
+  it('rejects oversized result decimals without leaking BigInt or precision exceptions', () => {
+    const output = simulateSingleSku(singleSkuScenarioFixture());
+    expect(output.status).toBe('COMPLETED');
+    if (output.status !== 'COMPLETED') return;
+    const oversized = structuredClone(output);
+    oversized.metrics.simulatedSoldQty.value = '9'.repeat(301);
+
+    expect(() => singleSkuSimulationResultSchema.safeParse(oversized)).not.toThrow();
+    expect(singleSkuSimulationResultSchema.safeParse(oversized).success).toBe(false);
+  });
+
   it('retains exact decimal quantity and money precision without floating-point arithmetic', () => {
     const input = singleSkuScenarioFixture();
     input.batch.stockBalance = {
@@ -217,7 +369,7 @@ describe('RETAIL-03 deterministic single-SKU simulator', () => {
   it('requires a candidate to remain before expiry and never grants execution permission', () => {
     const input = singleSkuScenarioFixture();
     input.batch.expiry = { basis: 'DATE_ONLY', value: '2026-11-28', timeZone: 'UTC' };
-    input.events = [priceAction('at-expiry-price', 1, '2026-11-28')];
+    input.events = [priceAction('at-expiry-price', 1, '2026-11-29')];
     const result = simulateSingleSku(input);
     expect(result.status).toBe('REJECTED');
     if (result.status === 'REJECTED') {
