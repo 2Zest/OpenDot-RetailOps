@@ -1,0 +1,32 @@
+# RETAIL-05P（GitHub Issue #24）N5 交付回执
+
+Issue / Plan 版本 / 节点 ID：GitHub Issue #24、RETAIL-05P-PLAN、细化 Execution Plan、N5
+总体计划/PRD/ADR 版本及 SHA：已批准 RetailOps V0.2；领域合同 v0.3.0；RETAIL-05P 公式版本 0.1.0-proposal
+实际 Git HEAD / worktree / 执行角色：feat/retail-05p；D:/workSpace/codeAgent/OpenDot-RetailOps-05p
+依赖 Issue 状态、合并 SHA、证据：#19 PR #86 merge SHA 8ca176ff3f9e5990b6c2487e41be2953e682c192；#14 PR #83 merge SHA d3b402945ace1da4cd9e032690a394526079d09b；当前 develop/retailops 远端 HEAD 为 8ca176ff3f9e5990b6c2487e41be2953e682c192，分支包含该基线。
+允许修改路径与实际 diff：仅 N0 冻结的 #24 纯计算模块、两份 #24 测试、#24 Execution Plan 与 N3/N4/N5 回执；具体清单在最终 PR 文件范围摘要中列出。未改 #20 文件、依赖、基础合同、总体计划或 DAG。
+预期输出/标准：检查文档一致性、diff whitespace 和精确文件范围；提交并推送独立 PR 至 develop/retailops，Issue 与 Project 进入 REVIEW。
+实际输入/输出/行为/命令与退出码：WSL Ubuntu 24.04 / Node v24.22.3 / npm 11.19.1；根目录使用该 worktree 对应的 GIT_DIR、GIT_WORK_TREE、GIT_OPTIONAL_LOCKS=0 执行 npm run docs:check，最终退出码 0，262 份 Markdown 通过。Windows Git 执行 git diff --cached --check 与 git diff --check 均退出码 0。
+证据路径、数据来源、运行模式（静态/fixture/测试/真实模型/真实 runtime）：静态文档/源码差异和合成 fixture 测试；无真实模型、Runtime、数据库、真实业务数据或副作用。
+
+## 实际检查
+
+| 实际命令 | 退出码 | 实际结果 |
+|---|---:|---|
+| npm run docs:check（WSL Ubuntu 24.04 / Node v24.22.3 / npm 11.19.1；设置该 Worktree 的 GIT_DIR/GIT_WORK_TREE/GIT_OPTIONAL_LOCKS=0） | 0 | Documentation consistency check passed，262 repository Markdown files。 |
+| git diff --cached --check | 0 | 检查全部已暂存的 7 个授权路径；无空白错误。 |
+| git diff --check | 0 | 检查工作区未暂存差异；无空白错误。 |
+
+精确文件范围（7 个路径）：apps/retailops/src/domain/decision/markdown-calculation.ts；apps/retailops/test/unit/decision/markdown-calculation.test.ts；apps/retailops/test/contract/decision/markdown-calculation.test.ts；docs/retailops/plans/RETAIL-05P-EXECUTION-PLAN.md；docs/retailops/acceptance/RETAIL-05P-N3.md；docs/retailops/acceptance/RETAIL-05P-N4.md；docs/retailops/acceptance/RETAIL-05P-N5.md。Git status 未显示其他路径。
+
+| 对齐层 | 预期语义 | 实际事实及证据 | 判定 PASS/DEVIATION/BLOCKED |
+|---|---|---|---|
+| PRD / 总体计划 | 确定性候选计算保留来源/假设且无业务副作用 | N3/N4 回执和代码保留公式、来源、无 KPI/因果声明及 NONE 执行权限 | PASS |
+| Issue / Plan | 只交付 #24 的纯计算模块、测试及文档，独立 PR 等待 Review | N0 文件范围与冲突锁保留；未改 #20、DAG、合同或根依赖 | PASS |
+| N5 节点验收 | docs:check、git diff --check、精确范围和 PR/状态闭环 | docs:check 通过；diff check、PR 与状态闭环待执行 | 进行中 |
+
+偏差 ID / 影响 / 根因 / 修订措施：首次暂存差异检查报告新建 N3/N4/N5 回执若干行尾空格；去除 Markdown 行尾空格后重新暂存。最终 staged 与 unstaged diff check 均退出码 0，空格差异未影响文档语义。
+复测结果与回归范围：空格修正后重跑 npm run docs:check，262 份 Markdown 通过；staged/unstaged diff check 均通过；N4 build、typecheck、完整测试为 PASS。
+尚未验证项与风险：独立 PR 尚未创建；候选模拟和 fixture 不代表真实经营效果。
+决定：N5 静态检查 PASS；创建独立 PR 并同步 REVIEW 后停止等待独立 Review。
+审核者及时间：执行 Agent，2026-11-27；主控/独立 Review 待 PR。
