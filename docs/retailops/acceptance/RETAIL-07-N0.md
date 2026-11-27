@@ -11,10 +11,19 @@
 - 实际动作：只读读取 Issue/Plan、PRD/Architecture/ADR/DECISIONS-PENDING、ownership/status 规范、#20 包配置和 Draft/SQLite 代码；创建计划和回执。
 - 测试：N0 源码测试不适用；build/typecheck/test 未运行（NOT_RUN），没有标成 PASS。
 - 未验证：digest 实际算法/持久化、trace Runtime、审批/业务副作用；N1 尚未开始。
-- 结论：N0 文档化 PASS，整体等待主控核验。不得进入 N1。
+- 结论（历史）：N0 文档化 PASS，待主控核验；批准与部分放行见本回执末尾。
 
 
 ## N0 文档检查（2026-11-27）
 - 在本 Worktree 的 WSL Node v24.22.3 环境执行 `git -c core.autocrlf=true diff --check`：退出码 0。
 - 执行 `npm run docs:check`：退出码 0，271 份仓库 Markdown 通过。
 - `npm --prefix apps/retailops run build/typecheck/test`：N0 不执行，均为 NOT_RUN；本轮未改业务源码。
+
+
+## 主控 N0 审查与部分放行（2026-11-27）
+
+- 主控核验 N0 HEAD `c758ca355474eb431f6346f87f80084e77a6e90d`、基线 `f3d1a7fc847f75cd0b4064aead0404ab4e23d67b`、上游 #20 merge SHA `048f3a7ef64a54986bfda1e839396b961969e46d`；N0 通过。
+- 批准开始 N1–N3，范围仅领域合同、Application Service、Repository port 与测试；摘要规则以执行 Plan 的“主控批准与部分放行”章节为准。
+- SQLite adapter、所有新 migration 和 `migration-runner.ts` 修改仍禁止，待 #21 实际合并、同步最新 develop、主控移交迁移锁后再进入。
+- 内存替身仅验证应用逻辑，不代表 SQLite 持久化验收。#7 保持 BLOCKED；#22 保持 READY 且未认领。
+- 三层检查：Architecture 的不可变摘要/批准绑定 PASS；Issue #26 revision/status/trace 目标 PASS；部分放行的文件边界与迁移暂停标准 PASS。

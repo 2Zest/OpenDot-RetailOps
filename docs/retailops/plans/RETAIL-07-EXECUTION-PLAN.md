@@ -1,6 +1,6 @@
 # RETAIL-07（GitHub Issue #26）执行计划
 
-**状态：** N0 已整理，等待主控核验；未进入 N1
+**状态：** N0 主控核验通过；已批准 N1–N3 领域/Application/port/单元测试。SQLite adapter/migration 暂停，待 #21 合并并由主控移交锁。
 **基线：** develop/retailops `f3d1a7fc847f75cd0b4064aead0404ab4e23d67b`
 **原 Plan：** `docs/retailops/initial-plan-v0.2/plans/RETAIL-07-PLAN.md`（只读）
 **上游：** #20 RETAIL-01P，PR #87 merge `048f3a7ef64a54986bfda1e839396b961969e46d`。
@@ -58,3 +58,15 @@ Vitest 已配置 Node 环境并发现 `test/unit/**/*.test.ts`、`test/contract/
 - Issue/Plan：稳定摘要、不可变版本、状态 guard 和关联 ID；不做审批/执行。
 - 节点：内容变化、证据冲突、非法转换、回滚均须有真实测试证据。
 - #7 保持 BLOCKED；不运行模型、Harness、MCP 或真实副作用；不启动 #27 或其他下游。
+
+
+## 主控批准与部分放行（2026-11-27）
+
+主控通过 N0，并批准在不改基础领域合同的前提下开始 N1–N3：领域合同、受信任 Application Service、Repository port 与单元测试。此前“候选合同待核验”段落仅作 N0 提案历史；本节为当前已批准语义：
+
+- 服务计算 SHA-256，canonicalization 版本 `retail-draft-canonical-json-v1`；对象键按 Unicode 码点升序，数组按现有合同顺序保留，不排序或隐式去重。
+- 摘要覆盖业务内容/候选操作参数、完整 input snapshot、Evidence 合同内容摘要、Policy ID/revision。精确数量与金额字符串原样参与，不转浮点、不改变 scale。
+- 生命周期状态、trace event ID、task/run/tool 关联和非业务时间元数据不参与摘要。忽略 Agent 自报 digest、批准状态、硬规则通过证据；新业务内容产生新 revision，旧版本保留且不继承批准。
+- 状态转换使用现有 `canTransitionDraft`；相同 event ID+语义请求幂等，复用 event ID 但内容不同则拒绝。未经可信应用来源确认的批准/硬规则证据拒绝。
+- 本次部分放行不包含 SQLite adapter、migration 或 `migration-runner.ts`。上述路径继续锁定，等 #21 合并、刷新 develop 并由主控移交迁移锁后再做。
+- 内存 Repository 替身只用于应用逻辑测试，不作为 SQLite 持久化通过证据。Issue #7 仍 BLOCKED；不运行模型、Harness、MCP 或真实业务副作用。
