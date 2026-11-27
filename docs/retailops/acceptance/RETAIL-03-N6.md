@@ -76,3 +76,20 @@ Issue #22 和 Project #2 保持 REVIEW；PR #91 保持 OPEN 等待最终独立 R
 
 - 核心代码修订提交：`accb01e41a01c72cbe65eb0cd5403b2e421f1f56`；首次补充回执提交：`efff19efd6d2e3154026ae5a7f71bc02e009d90c`。两次提交均已推送至 `feat/retail-03`，无强推；后续回执修订不改变上述提交的历史含义。PR 当前 HEAD 以最终 GitHub 回读为准。
 - PR：[RETAIL-03：单 SKU 经营仿真器](https://github.com/2Zest/OpenDot-RetailOps/pull/91)，该回执提交后实际回读为 OPEN，目标 `develop/retailops`，HEAD 为 `efff19efd6d2e3154026ae5a7f71bc02e009d90c`；本次回执勘误后的最新 HEAD 以 GitHub 回读为准。
+
+## R1 异常安全边界补测（2026-11-27）
+
+恢复现场时，`computedResultSchema` 已有尺寸和声明精度保护，但指定的异常文本覆盖不完整：新的红测证实，数量 `1e100` 能在 Zod 基础字段产生格式 issue 后仍进入自定义 refine，并使 `safeParse` 的 `decimalToScaledInteger` 抛出 TypeError。已先保留该失败证据，再加格式/尺寸/小数位门禁，金额完整整数格式与长度门禁，以及安全整数精度和时间 schema 复核；没有删除或弱化原测试。
+
+| 命令 | 退出码 | 结果 |
+|---|---:|---|
+| `npm --prefix apps/retailops test -- test/unit/domain/simulation/simulator.test.ts` | 0 | 24/24 通过；原 23 项保留，新增一项覆盖非法数量、非法/超长金额、三个 scale 与无效时间。 |
+| `npm --prefix apps/retailops run build` | 0 | TypeScript 生产构建通过。 |
+| `npm --prefix apps/retailops run typecheck` | 0 | 源码和测试类型检查通过。 |
+| `npm --prefix apps/retailops test` | 0 | 17 个测试文件，160/160 通过；原 159 项全部保留。 |
+| `npm run docs:check` | 0 | 285 份仓库 Markdown 通过。 |
+| `git diff --check` | 0 | 无空白错误。 |
+
+R1 仅改变 `apps/retailops/src/domain/simulation/simulator.ts` 和对应单元测试；输出值均在 BigInt/十进制转换前通过文本、尺寸及精度保护，非法时间在比较前校验。最终修订提交和 GitHub PR HEAD 以本回执最后追加的远端回读为准。Issue #22 与 PR #91 保持 OPEN/REVIEW；不合并、不 DONE、不启动下游。
+
+全量 build、typecheck 与 test 日志保存在 `C:\Users\Administrator\AppData\Local\Temp\retailops-resume-final-20261127-233656` 的 `03-build.log`、`03-typecheck.log` 和 `03-full-test.log`；最终定向测试日志在同目录 `03-targeted-test.log`，文档检查和 Windows Git 差异检查分别见 `03-final-docs-check-r2.log` 与 `03-windows-diff-check-final.log`。

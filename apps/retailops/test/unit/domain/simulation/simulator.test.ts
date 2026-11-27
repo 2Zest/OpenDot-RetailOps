@@ -344,6 +344,44 @@ describe('RETAIL-03 deterministic single-SKU simulator', () => {
     expect(singleSkuSimulationResultSchema.safeParse(oversized).success).toBe(false);
   });
 
+  it('rejects malformed quantity, money, precision and time values without throwing during result parsing', () => {
+    const output = simulateSingleSku(singleSkuScenarioFixture());
+    expect(output.status).toBe('COMPLETED');
+    if (output.status !== 'COMPLETED') return;
+
+    const invalidResults = [
+      { ...structuredClone(output), precision: { ...output.precision, quantityScale: Number.MAX_SAFE_INTEGER + 1 } },
+      { ...structuredClone(output), precision: { ...output.precision, moneyInputScale: 1.5 } },
+      { ...structuredClone(output), precision: { ...output.precision, moneyInputScale: Number.MAX_SAFE_INTEGER + 1 } },
+      { ...structuredClone(output), precision: { ...output.precision, moneyOutputScale: Number.MAX_SAFE_INTEGER + 1 } },
+      (() => {
+        const invalid = structuredClone(output);
+        invalid.metrics.simulatedSoldQty.value = '1e100';
+        return invalid;
+      })(),
+      (() => {
+        const invalid = structuredClone(output);
+        invalid.metrics.simulatedRevenue.minorUnits = '1e100';
+        return invalid;
+      })(),
+      (() => {
+        const invalid = structuredClone(output);
+        invalid.metrics.simulatedRevenue.minorUnits = '9'.repeat(301);
+        return invalid;
+      })(),
+      (() => {
+        const invalid = structuredClone(output);
+        invalid.events[0]!.at = { basis: 'INSTANT', value: '2026-02-30T00:00:00Z' };
+        return invalid;
+      })(),
+    ];
+
+    for (const invalid of invalidResults) {
+      expect(() => singleSkuSimulationResultSchema.safeParse(invalid)).not.toThrow();
+      expect(singleSkuSimulationResultSchema.safeParse(invalid).success).toBe(false);
+    }
+  });
+
   it('retains exact decimal quantity and money precision without floating-point arithmetic', () => {
     const input = singleSkuScenarioFixture();
     input.batch.stockBalance = {

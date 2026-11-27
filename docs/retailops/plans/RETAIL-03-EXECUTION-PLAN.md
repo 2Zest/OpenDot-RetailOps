@@ -99,3 +99,10 @@ GitHub Issue #20（RETAIL-01P）及 Issue #12（RETAIL-00E-01）实际均 CLOSED
 - `#26` 独占当前 DraftRevision migration/runner 路径；#22 完全不写共享 schema、migration 或 runner，不与其争抢文件锁。
 - #22 的直接下游 RETAIL-04（GitHub Issue #25）、RETAIL-10（GitHub Issue #30）、RETAIL-12（GitHub Issue #32）均不在本轮启动。
 - 如实现需要第二 Batch、SKU 扩展、未批准的业务参数、公开数据单位变换、migration 或 Agent 工具，停止受影响节点，提交具体变更/锁移交请求；不自行更改计划。
+
+## R1 审查补充：结果 Schema 异常安全
+
+- 范围限定为 `computedResultSchema` 与仿真器单元测试，不修改仿真业务规则、迁移、依赖或历史断言。
+- 所有数量/金额格式、长度、小数位和金额整数文本必须在 `decimalToScaledInteger`/`BigInt` 前校验；三项 scale 必须是安全整数且处于 schema 允许范围；结果日期/时刻在比较前再次验证。
+- 对非法指数数量、非法/超长金额、非法 scale 和无效日历时刻逐项验证 `safeParse` 不抛异常且拒绝输入。
+- R1 验收命令：原定 build、typecheck、完整包测试、docs:check、diff check；定向命令仍为 simulator 单测。命令结果与 SHA 追加至 N6 回执。

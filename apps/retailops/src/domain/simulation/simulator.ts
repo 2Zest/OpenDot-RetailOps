@@ -27,6 +27,8 @@ const MAX_TREE_NODES = 50_000;
 const MAX_TREE_DEPTH = 32;
 const MAX_TEXT_LENGTH = 262_144;
 const MAX_OUTPUT_DIGITS = 300;
+const quantityValuePattern = /^\d+(?:\.\d+)?$/;
+const moneyIntegerPattern = /^-?(?:0|[1-9]\d*)$/;
 
 const simulationSourceSchema = z.object({
   sourceKind: z.literal('SIMULATED'),
@@ -241,7 +243,11 @@ const computedResultBaseSchema = z.object({
   reasonCodes: z.array(z.enum(['EVENT_REJECTED'])).max(1),
   events: z.array(ledgerEventSchema).max(MAX_EVENTS + 2),
   metrics: metricsSchema,
-  precision: z.object({ quantityScale: z.number().int().min(0).max(MAX_SCALE), moneyInputScale: z.number().int().min(0).max(MAX_SCALE), moneyOutputScale: z.number().int().min(0).max(MAX_SCALE * 2) }).strict(),
+  precision: z.object({
+    quantityScale: z.number().int().safe().min(0).max(MAX_SCALE),
+    moneyInputScale: z.number().int().safe().min(0).max(MAX_SCALE),
+    moneyOutputScale: z.number().int().safe().min(0).max(MAX_SCALE * 2),
+  }).strict(),
   assumptions: z.array(z.string().max(180)),
 }).strict();
 
@@ -250,7 +256,23 @@ const computedResultSchema = computedResultBaseSchema.superRefine((result, conte
   const { metrics, precision } = result;
   const qtyScale = precision.quantityScale;
   const outputScale = precision.moneyOutputScale;
-  let unsafePrecision = outputScale !== precision.moneyInputScale + qtyScale;
+  let unsafePrecision = !Number.isSafeInteger(qtyScale) || qtyScale < 0 || qtyScale > MAX_SCALE
+    || !Number.isSafeInteger(precision.moneyInputScale) || precision.moneyInputScale < 0 || precision.moneyInputScale > MAX_SCALE
+    || !Number.isSafeInteger(outputScale) || outputScale < 0 || outputScale > MAX_SCALE * 2
+    || outputScale !== precision.moneyInputScale + qtyScale;
+  let unsafeTime = false;
+  const times: Array<{ readonly value: unknown; readonly path: (string | number)[] }> = [
+    { value: result.scenario.clock, path: ['scenario', 'clock'] },
+    { value: result.scenario.horizon.start, path: ['scenario', 'horizon', 'start'] },
+    { value: result.scenario.horizon.end, path: ['scenario', 'horizon', 'end'] },
+    ...result.events.map((event, index) => ({ value: event.at, path: ['events', index, 'at'] })),
+  ];
+  for (const { value, path } of times) {
+    if (!asOfSchema.safeParse(value).success) {
+      add(path, 'Result timestamps must use a valid date or RFC 3339 instant');
+      unsafeTime = true;
+    }
+  }
 
   const quantities: Array<{ readonly value: z.infer<typeof quantitySchema>; readonly path: (string | number)[] }> = [];
   const collectStock = (stock: z.infer<typeof stockStateSchema>, path: (string | number)[]) => {
@@ -282,8 +304,10 @@ const computedResultSchema = computedResultBaseSchema.superRefine((result, conte
   });
 
   for (const { value, path } of quantities) {
-    const fractionalDigits = value.value.split('.')[1]?.length ?? 0;
-    if (value.value.replace('.', '').length > MAX_OUTPUT_DIGITS || fractionalDigits > qtyScale) {
+    const rawValue: unknown = value.value;
+    const fractionalDigits = typeof rawValue === 'string' ? rawValue.split('.')[1]?.length ?? 0 : 0;
+    if (typeof rawValue !== 'string' || !quantityValuePattern.test(rawValue)
+      || rawValue.replace('.', '').length > MAX_OUTPUT_DIGITS || fractionalDigits > qtyScale) {
       add(path, 'Quantity must fit the declared scale and safe exact output size');
       unsafePrecision = true;
     }
@@ -301,19 +325,27 @@ const computedResultSchema = computedResultBaseSchema.superRefine((result, conte
       { value: event.directProductCost, path: ['events', index, 'directProductCost'] },
       { value: event.simulatedSpoilageCostExposure, path: ['events', index, 'simulatedSpoilageCostExposure'] },
     );
-    if (event.priceAfter.minorUnits.replace('-', '').length > MAX_OUTPUT_DIGITS
-      || event.priceAfter.minorUnitScale > precision.moneyInputScale) {
+    const priceMinorUnits: unknown = event.priceAfter.minorUnits;
+    const priceScale: unknown = event.priceAfter.minorUnitScale;
+    if (typeof priceMinorUnits !== 'string' || !moneyIntegerPattern.test(priceMinorUnits)
+      || priceMinorUnits.replace('-', '').length > MAX_OUTPUT_DIGITS
+      || !Number.isSafeInteger(priceScale) || (priceScale as number) < 0
+      || (priceScale as number) > precision.moneyInputScale) {
       add(['events', index, 'priceAfter', 'minorUnitScale'], 'Price precision exceeds the declared money input scale');
       unsafePrecision = true;
     }
   });
   for (const { value, path } of outputMoney) {
-    if (value.minorUnits.replace('-', '').length > MAX_OUTPUT_DIGITS || value.minorUnitScale !== outputScale) {
+    const minorUnits: unknown = value.minorUnits;
+    const minorUnitScale: unknown = value.minorUnitScale;
+    if (typeof minorUnits !== 'string' || !moneyIntegerPattern.test(minorUnits)
+      || minorUnits.replace('-', '').length > MAX_OUTPUT_DIGITS
+      || !Number.isSafeInteger(minorUnitScale) || minorUnitScale !== outputScale) {
       add(path, 'Ledger amount must fit the safe exact output size and declared output scale');
       unsafePrecision = true;
     }
   }
-  if (unsafePrecision) return;
+  if (unsafePrecision || unsafeTime) return;
 
   const toQty = (quantity: z.infer<typeof quantitySchema>) => decimalToScaledInteger(quantity.value, qtyScale);
   const toMoney = (moneyValue: z.infer<typeof moneySchema>) => BigInt(moneyValue.minorUnits);
