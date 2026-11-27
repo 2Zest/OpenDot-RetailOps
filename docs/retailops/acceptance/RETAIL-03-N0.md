@@ -66,3 +66,11 @@ V0 限定单抽象门店、单 Product、单 Batch。初始化库存、arrival�
 - 总体计划、原始 Plan 与 DAG 未修改。
 
 **N0 结论：PASS，提交主控核验。** 当前没有 N1 授权；待主控核验本 Plan 文件 owner 和执行节点后再进入 N1。
+
+## 主控 N0 核验及 N1–N6 放行补记
+
+- 主控批准的 N0 HEAD：`59b8a7ea295e1c2b00cf53df6c1761eb13711de9`。主控授权 N1–N6 按本计划执行，保持单店/单 SKU/单 Batch、仿真事件账本内存返回、不创建迁移、不连接 Runtime/MCP/真实写接口。
+- 开发前从远程确认最新 `origin/develop/retailops` 为 `d5deb5b5f385aebe843bbfbcc97073dbfc967ec7`，这是 PR #89（RETAIL-02）已合并后的集成 HEAD。将该提交合入既有 `feat/retail-03`，产生同步提交 `0344532e58fa545029818e25db3ce6ab0a6bdbe7`，无冲突；保留原始 N0 文档和工作内容，未重建 Worktree/分支或覆盖未提交文件。
+- 主控批准的文件所有权继续有效。本轮不使用应用服务文件，不写共享 `domain/index.ts`、Repository、SQLite adapter、migration/runner、包 manifest、锁文件、编译或测试配置。
+- Issue #22 仍 OPEN/IN_PROGRESS；PR 创建前不改变任务状态。#21 已并入最新基线；#26 拥有 DraftRevision migration/runner 路径，但本任务无重叠写入。
+- 本补记不改变 N0 的历史结论、总体计划、DAG、原始 Plan 或未决业务参数。

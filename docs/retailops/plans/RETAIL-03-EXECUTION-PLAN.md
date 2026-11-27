@@ -1,7 +1,8 @@
 # RETAIL-03（GitHub Issue #22）执行计划
 
-**状态：** N0 已完成，等待主控核验；本轮未进入 N1
-**基线：** `develop/retailops` `f3d1a7fc847f75cd0b4064aead0404ab4e23d67b`
+**状态：** N0 主控核验通过；N1–N6 已获授权并行推进
+**集成基线：** `origin/develop/retailops` `d5deb5b5f385aebe843bbfbcc97073dbfc967ec7`
+**本分支同步提交：** `0344532e58fa545029818e25db3ce6ab0a6bdbe7`（将最新集成分支合入既有任务分支）
 **原计划：** `docs/retailops/initial-plan-v0.2/plans/RETAIL-03-PLAN.md`（只读；本文件仅细化执行）
 **Issue：** `RETAIL-03` / GitHub Issue #22
 **分支 / Worktree：** `feat/retail-03` / `D:/workSpace/codeAgent/OpenDot-RetailOps-03`
@@ -21,7 +22,7 @@
 | 零售领域合同 | PR #86 merge `8ca176ff3f9e5990b6c2487e41be2953e682c192`，contract `0.3.0` |
 | RETAIL-01P 持久化能力 | PR #87 merge `048f3a7ef64a54986bfda1e839396b961969e46d` |
 | RETAIL-00E-01 上游 | PR #75 merge `3469160b93b966e38757e48bbb3c0239362c16d3` |
-| 当前相关变更 | #21 PR #89 OPEN，HEAD `237ec20a5cbabf7e1e39336347f368e881eede57`，未合并；不属于 #22 硬依赖 |
+| RETAIL-02 公开数据导入 | PR #89 已合并至集成分支，integration HEAD `d5deb5b5f385aebe843bbfbcc97073dbfc967ec7`；#22 不依赖其数据表或迁移 |
 
 GitHub Issue #20（RETAIL-01P）及 Issue #12（RETAIL-00E-01）实际均 CLOSED/DONE，合并 SHA 如上；Project #2 对应状态为 Done。Issue #22 两项硬依赖均满足。本轮只认领 #22，不启动 #23 或其他下游。
 
@@ -48,7 +49,7 @@ GitHub Issue #20（RETAIL-01P）及 Issue #12（RETAIL-00E-01）实际均 CLOSED
 | D04 | 折价步长、价格底线与策略来自 Policy 和 RETAIL-05P 计算合同 | 仿真只接收显式且合同有效的候选/Policy revision；不重算或扩大折扣边界 |
 | D06 | 需求响应/弹性尚未实证；00E-01 明确参考项目的数据与策略不能直接作为 RetailOps 真实因果结论 | 需求来自显式 SIMULATED 场景输入；没有显式响应模型时不推断价格导致的需求变化 |
 | D07 | 初始库存、到货及盘点差异由 PRD 和 DECISIONS-PENDING 列为来源决策；FreshRetailNet 不提供本目标 Batch 库存 | 输入库存和 arrival 必须标 SIMULATED；禁止从公开归一化销量推导初始物理库存 |
-| D09 | seed、仿真时钟、场景组合及 horizon 延期至 RETAIL-03 N0 | seed、clock、场景版本和 horizon 都为必填参数；本轮不写生产默认值。种子算法版本在 N1 实现前记录并做重复性测试 |
+| D09 | seed、仿真时钟、场景组合及 horizon 延期至 RETAIL-03 N0 | seed、clock、场景版本和 horizon 都为必填参数；本轮不写生产默认值。需求数量显式输入，不引入未经批准的随机分布/生成器；seed 记录于仿真输入和输出以便场景复现 |
 
 ## 4. 精确文件范围与所有权
 
@@ -58,12 +59,13 @@ GitHub Issue #20（RETAIL-01P）及 Issue #12（RETAIL-00E-01）实际均 CLOSED
 |---|---|---|---|
 | `docs/retailops/plans/RETAIL-03-EXECUTION-PLAN.md` | N0 新增；后续只更新本 Issue 计划 | #22 | 保留原 Plan，不改总体计划/DAG |
 | `docs/retailops/acceptance/RETAIL-03-N0.md` | N0 新增 | #22 | 本节点真实状态和三层回执 |
-| `docs/retailops/acceptance/RETAIL-03-N1.md`–`N5.md` | 后续按节点新增 | #22 | 每节点一个 receipt；记录命令、SHA、源码证据 |
+| `docs/retailops/acceptance/RETAIL-03-N1.md`–`N6.md` | 后续按节点新增 | #22 | 每节点一个 receipt；记录命令、SHA、源码证据；N6 独立交付回执 |
 | `apps/retailops/src/domain/simulation/simulator.ts` | 后续新增 | #22 | 单 SKU/BATCH 仿真输入、纯确定性转移、事件账本与守恒；无 DB/Runtime 依赖 |
-| `apps/retailops/src/application/use-cases/run-single-sku-simulation.ts` | 后续新增 | #22 | 仅在确需协调已有 Product/Batch/Policy/RETAIL-05P 合同时新增；不暴露给 Agent 工具注册 |
+| `apps/retailops/src/application/use-cases/run-single-sku-simulation.ts` | 只读；本轮不新增 | #22 不修改 | 纯领域仿真已足以协调现有 Product/Batch/Policy/RETAIL-05P 合同；不加包装层或 Agent/tool 接口 |
 | `apps/retailops/test/fixtures/simulation/single-sku-scenario.ts` | 后续新增 | #22 | 仅合成测试 fixture，不得作为生产默认值 |
 | `apps/retailops/test/unit/domain/simulation/simulator.test.ts` | 后续新增 | #22 | 守恒、质量/效期拒绝、seed/clock 确定性、重复事件 |
-| `apps/retailops/test/unit/application/run-single-sku-simulation.test.ts` | 后续新增 | #22 | 价格动作生效时点及应用层边界；不使用 Agent/Runtime |
+| `apps/retailops/test/unit/application/run-single-sku-simulation.test.ts` | 不新增 | #22 不修改 | 无应用服务实现；生效时间由领域仿真定向单测覆盖 |
+| `docs/retailops/acceptance/RETAIL-03-N6.md` | N6 新增 | #22 | 独立交付回执；记录 PR/Issue/Project 回读和实际 HEAD，不表示合并或 DONE |
 | `apps/retailops/src/domain/index.ts` | 只读 | #22 不拥有 | 不导出给 Agent/公共 API；保持内部模块边界 |
 | `apps/retailops/src/application/ports/retail-repositories.ts`、`adapters/persistence/sqlite/**`、任何 migration / `migration-runner.ts` | 只读 | 当前 migration lock owner 为 #21；后续需主控移交 | 本 Plan 不修改、不创建迁移，不依赖 #21 尚未合并的 v2 |
 | `apps/retailops/package.json`、lockfile、tsconfig、Vitest 配置、根配置 | 只读 | 共享配置 | 不加依赖、不改发现范围 |
@@ -74,11 +76,11 @@ GitHub Issue #20（RETAIL-01P）及 Issue #12（RETAIL-00E-01）实际均 CLOSED
 | 节点 | 对应原 Plan 目标 | 执行动作与路径 | 验收条件 |
 |---|---|---|---|
 | N0 | 预检与范围冻结 | 核验基线、上游、Issue/Project、环境和文件 owner；仅修改本计划与 N0 回执 | 上游 merge SHA 和当前状态有远端证据；未来路径精确冻结；无源码改动 |
-| N1 | 初始批次及需求情景 | 实现上述 SIMULATED fixture / scenario 输入，复用 Batch、Product、Policy 合同 | 必填来源、单位、seed、clock；无历史公开销量单位转换；scenario 与每个事件的来源可追溯 |
-| N2 | 推进与库存守恒 | 实现纯确定性状态转移与单 Batch 事件账本 | same input yields same output；初始 + arrival = sale + disposal + ending；质量/效期 hard rule 不被绕过 |
-| N3 | 内部价格命令接口 | 接收 RETAIL-05P 候选及 Policy revision；仅在模拟内按显式 effectiveAt 生效 | 生效时间前后边界可复测；接口不在 Agent/tool registry 或 package public export 中；不改真实 Product/Policy |
-| N4 | 输出指标 | 汇总需求、销售、未售、报损、期末库存及可计算的模拟金额 | 每项可由事件账本手算复核；未确定的 KPI 不固化，无法计算时返回缺项 |
-| N5 | 定向测试与回归 | T01 全覆盖；执行 package build/typecheck/test、docs:check、diff check | 不删除原测试；原 87 项与新增测试全通过；失败完整记录 |
+| N1 | 初始批次及需求情景 | 实现 `domain/simulation/simulator.ts` 输入合同和合成 fixture | 库存/价格/成本/需求/到货/动作来源均标 SIMULATED；seed、clock、scenario version、horizon、需求及到货显式；无未批准的随机需求默认 |
+| N2 | 推进与库存守恒 | 在纯函数内按时间和显式序号推进单 Batch 事件账本 | 同输入账本完全一致；期初 + 到货 = 销售 + 显式报损 + 期末；停售只改分类；非法事件不得造成负库存 |
+| N3 | 内部价格命令接口 | 仅接受 RETAIL-05P schema 通过且 CALCULATED/hardRulesPassed 的指定候选 | Policy ID/revision、Product/Batch、Scenario 与候选证据绑定；有效时间受 horizon/候选 asOf 限制；仅模拟，不授权审批/执行；无 Agent/tool/public export |
+| N4 | 输出指标 | 汇总需求、销售、未满足需求、到货、未售、报损、期末库存及模拟金额 | 由事件账本手算复核；BigInt 与显式 scale，无浮点/隐式舍入；不冻结最终损耗 KPI，不宣称价格因果 |
+| N5 | 定向测试与回归 | T01 全覆盖；执行 package build/typecheck/test、docs:check、diff check | 不删除原测试；集成基线 109 项与新增测试全通过；失败完整记录 |
 | N6 | 交付与 Review | 精确范围审计；提交中文回执和独立 PR 指向 develop/retailops；Issue/Project 回读 REVIEW | PR 开放且 HEAD 核实；不自动合并、不标 DONE、不启动下游 |
 
 ## 6. 检查命令和测试发现
@@ -86,14 +88,14 @@ GitHub Issue #20（RETAIL-01P）及 Issue #12（RETAIL-00E-01）实际均 CLOSED
 - 包：`apps/retailops` 独立包；Node `>=24 <25`；依赖和 lockfile 不改。
 - Test discovery：Vitest，`test/unit/**/*.test.ts` 与 `test/contract/**/*.test.ts`。
 - N0 不运行源码测试，不存在源码变更。
-- 后续定向：`npm --prefix apps/retailops test -- test/unit/domain/simulation/simulator.test.ts` 与 `npm --prefix apps/retailops test -- test/unit/application/run-single-sku-simulation.test.ts`（对应文件创建后）。
+- 后续定向：`npm --prefix apps/retailops test -- test/unit/domain/simulation/simulator.test.ts`。
 - N5 完整回归：`npm --prefix apps/retailops run build`、`npm --prefix apps/retailops run typecheck`、`npm --prefix apps/retailops test`、`npm run docs:check`、`git diff --check`。
 - N0 实际环境：WSL2 Linux x86_64；Node v24.22.3；npm 11.19.1；可用内存约 14 GiB。无高负载任务启动。
 
 ## 7. 安全与停机条件
 
 - `#7` 保持 BLOCKED；本 Issue 不启动 Runtime、模型、MCP、Harness、真实业务写入或隔离实例。
-- `#21` PR #89 继续 REVIEW；#22 不依赖 #21，不等待其 merge，也不编辑其拥有的 migration 文件。
-- `#26` 持久化部分等待 #21 merge 与 migration lock；本 Issue 不与其争抢 schema/runner。
+- `#21` PR #89 已合并到 `d5deb5b5f385aebe843bbfbcc97073dbfc967ec7`；#22 不依赖其导入数据表，也不编辑 migration 文件。
+- `#26` 独占当前 DraftRevision migration/runner 路径；#22 完全不写共享 schema、migration 或 runner，不与其争抢文件锁。
 - #22 的直接下游 RETAIL-04（GitHub Issue #25）、RETAIL-10（GitHub Issue #30）、RETAIL-12（GitHub Issue #32）均不在本轮启动。
 - 如实现需要第二 Batch、SKU 扩展、未批准的业务参数、公开数据单位变换、migration 或 Agent 工具，停止受影响节点，提交具体变更/锁移交请求；不自行更改计划。
