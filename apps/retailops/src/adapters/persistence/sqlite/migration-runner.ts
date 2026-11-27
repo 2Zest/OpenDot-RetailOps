@@ -1,8 +1,9 @@
 import type Database from 'better-sqlite3';
 import { initialRetailOpsMigration } from './migrations/0001_initial.js';
 import { publicHistoryMigration } from './migrations/0002_public_history.js';
+import { draftRevisionMigration } from './migrations/0003_draft_revisions.js';
 
-const migrations = [initialRetailOpsMigration, publicHistoryMigration] as const;
+const migrations = [initialRetailOpsMigration, publicHistoryMigration, draftRevisionMigration] as const;
 const syntheticLegacyVersionName = 'synthetic-v0-record-envelope';
 
 const v1RequiredColumns: Readonly<Record<string, readonly string[]>> = {
@@ -101,6 +102,28 @@ const v2RequiredForeignKeys: readonly ExpectedForeignKey[] = [
   { table: 'public_history_import_rows', group: 'history-record', from: 'product_id', targetTable: 'public_history_records', to: 'product_id' },
   { table: 'public_history_import_rows', group: 'history-record', from: 'dt', targetTable: 'public_history_records', to: 'dt' },
 ];
+
+const v3RequiredColumns: Readonly<Record<string, readonly string[]>> = {
+  draft_revisions: [
+    'draft_id', 'revision', 'contract_version', 'canonicalization_version', 'canonical_digest', 'initial_status', 'payload',
+  ],
+  draft_revision_events: ['sequence', 'event_id', 'draft_id', 'revision', 'kind', 'payload'],
+};
+
+const v3RequiredUniqueKeys: Readonly<Record<string, readonly (readonly string[])[]>> = {
+  draft_revisions: [['draft_id', 'revision']],
+  draft_revision_events: [['sequence'], ['event_id']],
+};
+
+const v3RequiredForeignKeys: readonly ExpectedForeignKey[] = [
+  { table: 'draft_revision_events', group: 'draft-revision', from: 'draft_id', targetTable: 'draft_revisions', to: 'draft_id' },
+  { table: 'draft_revision_events', group: 'draft-revision', from: 'revision', targetTable: 'draft_revisions', to: 'revision' },
+];
+
+const v3RequiredTriggers: Readonly<Record<string, readonly string[]>> = {
+  draft_revisions: ['draft_revisions_immutable_update', 'draft_revisions_immutable_delete'],
+  draft_revision_events: ['draft_revision_events_immutable_update', 'draft_revision_events_immutable_delete'],
+};
 
 type LedgerRow = { version: number; name: string };
 
@@ -233,6 +256,21 @@ function assertForeignKeyIntegrity(database: Database.Database): void {
   }
 }
 
+function assertRequiredTriggers(database: Database.Database, required: Readonly<Record<string, readonly string[]>>): void {
+  for (const [table, names] of Object.entries(required)) {
+    for (const name of names) {
+      const trigger = database.prepare(
+        "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = ? AND tbl_name = ?",
+      ).get(name, table) as { sql: string | null } | undefined;
+      const normalizedSql = trigger?.sql?.replaceAll(/\s+/g, ' ').toUpperCase() ?? '';
+      const expectedOperation = name.endsWith('_update') ? 'BEFORE UPDATE' : 'BEFORE DELETE';
+      if (trigger === undefined || !normalizedSql.includes(expectedOperation) || !normalizedSql.includes('RAISE(ABORT')) {
+        throw new Error('RetailOps schema is missing required immutable trigger ' + name);
+      }
+    }
+  }
+}
+
 function assertDatabaseMatchesLedger(database: Database.Database): void {
   const rows = assertLedger(database);
   const latest = rows.reduce((maximum, row) => Math.max(maximum, row.version), 0);
@@ -248,11 +286,20 @@ function assertDatabaseMatchesLedger(database: Database.Database): void {
     assertForeignKeyDefinitions(database, v2RequiredForeignKeys);
     assertForeignKeyIntegrity(database);
   }
+  if (latest >= 3) {
+    assertSchemaColumns(database, v3RequiredColumns);
+    assertUniqueKeys(database, v3RequiredUniqueKeys);
+    assertForeignKeyDefinitions(database, v3RequiredForeignKeys);
+    assertForeignKeyIntegrity(database);
+    assertRequiredTriggers(database, v3RequiredTriggers);
+  }
 }
 
 function assertNoUnversionedRetailSchema(database: Database.Database, ledger: readonly LedgerRow[]): void {
   const appliedVersions = new Set(ledger.map((row) => row.version));
-  for (const [version, requiredColumns] of [[1, v1RequiredColumns], [2, v2RequiredColumns]] as const) {
+  for (const [version, requiredColumns] of [
+    [1, v1RequiredColumns], [2, v2RequiredColumns], [3, v3RequiredColumns],
+  ] as const) {
     if (appliedVersions.has(version)) continue;
     const existingTables = Object.keys(requiredColumns)
       .filter((table) => table !== 'retailops_schema_migrations' && tableExists(database, table));

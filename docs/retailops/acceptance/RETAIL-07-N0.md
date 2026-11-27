@@ -33,3 +33,9 @@
 - 按主控批准，在该 Worktree 使用锁定的 `package-lock.json` 执行 `npm ci`：WSL Node `v24.22.3`、npm `11.19.1`，退出码 0；没有改 `package.json`、lockfile、依赖版本或全局配置。安装输出包含 better-sqlite3 安装脚本由当前 allowScripts 策略跳过的提示；本次没有手工放宽该策略。
 - N1–N3 的 Application/领域测试仅用内存 Repository 替身；这不构成 SQLite revision 持久化、迁移或事务回滚证据。包全量历史 SQLite 测试结果在后续回执中单独记录，不据此宣称 #26 SQLite adapter 通过。
 - 本次批准界限继续有效：只新增 #26 独占领域合同、Application Service、Repository port、单元测试和本任务回执/计划；SQLite adapter/migration/runner 仍待 #21 合并并由主控移交共享锁。
+
+## #21 合并后的迁移锁交接更正（2026-11-27）
+
+- 主控确认 PR #89 已实际合并，并将 SQLite migration lock 正式交给 #26。以下为历史 N0 审查结果的状态更正：v1/v2 migration 和 runner 修改原先受限的状态已解除；#26 独占新增 migration v3 `0003_draft_revisions.ts` 和 `migration-runner.ts` 注册。
+- 经安全 fetch/merge，最新集成基线为 `d5deb5b5f385aebe843bbfbcc97073dbfc967ec7`，`feat/retail-07` merge commit 为 `f27d823432e9091ee063439d66c028c50f477565`。合并前工作树干净，没有 reset、强推或清理操作。
+- migration ledger 按主控要求核验为 v1/v2 后开始实现；正式应用 schema 和 N4 验收证据见 `docs/retailops/acceptance/RETAIL-07-N4-N5.md`。N1–N3 和既有 N0 审查结论保留，不修改基础领域合同。

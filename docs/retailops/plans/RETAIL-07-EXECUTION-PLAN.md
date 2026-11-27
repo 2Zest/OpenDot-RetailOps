@@ -1,7 +1,7 @@
 # RETAIL-07（GitHub Issue #26）执行计划
 
-**状态：** N0 主控核验通过；已批准 N1–N3 领域/Application/port/单元测试。SQLite adapter/migration 暂停，待 #21 合并并由主控移交锁。
-**基线：** develop/retailops `f3d1a7fc847f75cd0b4064aead0404ab4e23d67b`
+**状态：** N0–N4 已执行；#21 合并后主控已于 2026-11-27 移交 migration lock，#26 独占 v3 migration/runner。N5 集成检查与 PR 提交完成后进入 REVIEW。
+**最初基线：** develop/retailops `f3d1a7fc847f75cd0b4064aead0404ab4e23d67b`；迁移锁交接后的集成基线为 `d5deb5b5f385aebe843bbfbcc97073dbfc967ec7`。
 **原 Plan：** `docs/retailops/initial-plan-v0.2/plans/RETAIL-07-PLAN.md`（只读）
 **上游：** #20 RETAIL-01P，PR #87 merge `048f3a7ef64a54986bfda1e839396b961969e46d`。
 
@@ -26,14 +26,14 @@ Worktree `D:/workSpace/codeAgent/OpenDot-RetailOps-07`、分支 `feat/retail-07`
 | `apps/retailops/src/application/ports/draft-revision-repository.ts` | 新增/#26 | 独立端口；不改共享 retail-repositories.ts |
 | `apps/retailops/src/application/use-cases/freeze-draft-revision.ts` | 新增/#26 | 摘要、版本、guard 协调 |
 | `apps/retailops/src/adapters/persistence/sqlite/draft-revision-repository.ts` | 新增/#26 | 复用 #20 helpers/事务，不覆盖旧 Repository |
-| `apps/retailops/src/adapters/persistence/sqlite/migrations/0003_draft_revisions.ts` | 当前禁止；#21 合并、更新基线及主控转交锁后才可选用下一空版本 | 共享 migration 序列锁 |
-| `apps/retailops/src/adapters/persistence/sqlite/migration-runner.ts` | 当前只读；须待 #21 集成后由主控串行授权 #26 | 禁止并行注册 |
+| `apps/retailops/src/adapters/persistence/sqlite/migrations/0003_draft_revisions.ts` | 已获迁移锁交接；#26 独占 | v3 migration；只创建 Draft revision/event 存储 |
+| `apps/retailops/src/adapters/persistence/sqlite/migration-runner.ts` | 已获迁移锁交接；#26 独占 | 注册 v3 并验证 v3 表、唯一键、FK、不可变触发器及账本 |
 | `apps/retailops/test/unit/domain/decision/draft-revision.test.ts`、`test/unit/freeze-draft-revision.test.ts`、`test/unit/persistence/sqlite/draft-revision-repository.test.ts`、`test/contract/draft-revision-trace.test.ts` | 新增/#26 独占 | revision、冲突、持久化、trace 合同 |
 | `domain/decision/draft.ts`、`domain/index.ts`、`application/ports/retail-repositories.ts`、#20 files、#21 files、配置/依赖 | 只读/共享锁 | 直接导入 leaf modules；不改公共入口 |
 
 ### 共享迁移串行协议
 
-#21 是 migration v2 和 runner 唯一 owner。#26 不创建迁移文件或改 runner；先以独立文件准备，经主控核验后，必须等 #21 合并并刷新 base，主控再根据真实 ledger 分配下一版本。如果无需表结构，本任务不添加迁移。不得竞争版本或引入第二注册机制。
+历史记录：#21 是 migration v2 和 runner 唯一 owner。#26 在 #21 合并前不创建迁移文件、不改 runner。主控确认 #21 实际合并、基线刷新及账本后，于 2026-11-27 正式将 SQLite migration lock 移交 #26；本任务因此独占 migration v3 和 runner 注册。其他任务仍不得修改共享 migration runner 或迁移序列。
 
 ## Revision / digest 候选合同（待 N1 实现）
 
@@ -77,10 +77,19 @@ Vitest 已配置 Node 环境并发现 `test/unit/**/*.test.ts`、`test/contract/
 
 Canonicalization v1 的对象键 comparator 按 Unicode code point 排序，数组保留合同顺序，精确金额/数量字符串不规范化。状态转换仍只调用 `canTransitionDraft`；Application command 不接受 Agent 自报风险、审批、预检或执行证据。N1–N3 的实际结果与完整检查见 `../acceptance/RETAIL-07-N1-N3.md`。SQLite revision 持久化仍暂停，未将内存替身结果表述为持久化验收。
 
-## SQLite Adapter 准备与共享迁移锁边界
+## SQLite Adapter 准备（初始共享迁移锁边界，历史记录）
 
 `SqliteDraftRevisionRepository` 只依赖两张由迁移提供的表，不会自行建表：`draft_revisions` 以 `(draft_id, revision)` 为主键，存储合同版本、canonicalization 版本、digest、初始状态及冻结事件 payload，并要求迁移创建拒绝 UPDATE/DELETE 的不可变触发器；`draft_revision_events` 以全局唯一 `event_id` 和递增 `sequence` 保存创建/状态事件，并以 `(draft_id, revision)` 外键关联冻结 revision。N0 已分配 `draft-revision-repository.ts` 和 `test/unit/persistence/sqlite/draft-revision-repository.test.ts` 给 #26；#26 不拥有 migration 文件或 migration-runner。
 
 Adapter 在单一同步事务中分配下一 revision、写冻结内容和创建事件；状态事件在同一写事务读取当前事件链、核对 `fromStatus` 并运行 `canTransitionDraft(current, to, {})` 后追加。未提供可信状态证据时不能经仓储进入 APPROVED、PRECHECK、EXECUTING 等状态。重复 eventId + 同语义返回原事件，冲突拒绝。读回时重新校验 schema、规范化列和 canonical digest；内容只有 INSERT 路径，仓储不提供覆盖更新。
 
-迁移锁未移交期间，SQLite adapter 测试仅在显式手工建立的内存 test schema 上验证，不打开已迁移应用数据库、不新增 schema 文件、也不代表正式迁移集成通过。待 #21 合并且主控移交锁后，必须根据实际 ledger 建立迁移，并在真实迁移数据库上复验 unique keys、FK、内容不可变和重开恢复。
+当时迁移锁未移交，SQLite adapter 测试仅在显式手工建立的内存 test schema 上验证，不代表正式迁移集成通过。该限制在 #21 合并、同步基线、核实 v1/v2 ledger 并由主控正式交接迁移锁后解除；当前验收依据以本文件末尾“N4/N5 迁移锁移交与正式 schema 实施记录”和 `acceptance/RETAIL-07-N4-N5.md` 为准。
+
+## N4/N5 迁移锁移交与正式 schema 实施（2026-11-27）
+
+- 主控核验 PR #89 已合并；锁交接基线 `develop/retailops` 为 `d5deb5b5f385aebe843bbfbcc97073dbfc967ec7`。在原 Worktree / 分支 `feat/retail-07` 安全合入该基线，生成合并提交 `f27d823432e9091ee063439d66c028c50f477565`；没有 reset、强推或覆盖未提交文件。
+- 打开真实 RetailOps 应用 SQLite schema 前，原 migration ledger 确认为 v1/v2；实现后 `openRetailOpsDatabase(':memory:')` 实际 ledger 为 v1/v2/v3：`1 initial-retailops-contract-storage`、`2 public-history-import-storage`、`3 draft-revision-append-only-storage`。
+- N4 实现正式 `0003_draft_revisions.ts`：Draft ID + revision 复合主键；全局唯一 eventId；revision/event 外键；JSON、合同版本、canonicalization 版本、SHA-256 格式和 DRAFTED 初态约束；revision 与 event 的 UPDATE/DELETE 拒绝触发器。
+- `migration-runner.ts` 注册 v3，并按已记账版本分别校验 v1/v2/v3 列、唯一键、外键完整性；v3 另外校验四个不可变触发器。无 v3 ledger 而已有任一 v3 表时拒绝；v3 migration 后验证失败会在同一事务回滚表、触发器及 ledger 记录。v1 初始化不会提前要求 v2/v3 schema。
+- Repository 测试改为使用 `openRetailOpsDatabase` 创建正式应用 schema；落盘关闭并重开同样重跑正式 migration runner。验证 revision/event 不可变、全局 eventId、摘要重算、事务回滚、FK 拒绝孤立事件、状态 guard、相同事件幂等和重开历史保留。
+- N4/N5 定向及全包检查结果、实际失败重试记录、修改清单和三层语义检查见 `docs/retailops/acceptance/RETAIL-07-N4-N5.md`。原 N1–N3 领域合同与 108 项既有测试/断言保留；新增迁移回归测试另行计数。未实现审批、审批状态授权、业务执行、Runtime 或下游功能。

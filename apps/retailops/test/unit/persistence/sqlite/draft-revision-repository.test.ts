@@ -1,13 +1,14 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { SqliteDraftRevisionRepository } from '../../../../src/adapters/persistence/sqlite/draft-revision-repository.js';
 import {
   CorruptPersistedEntityError,
   ImmutableEntityConflictError,
   InvalidDomainEntityError,
+  openRetailOpsDatabase,
 } from '../../../../src/adapters/persistence/sqlite/database.js';
 import {
   DRAFT_REVISION_CANONICALIZATION_VERSION,
@@ -23,35 +24,6 @@ afterEach(() => {
   for (const database of databases.splice(0)) database.close();
   for (const directory of temporaryDirectories.splice(0)) rmSync(directory, { recursive: true, force: true });
 });
-
-function createContractTables(database: Database.Database): void {
-  database.pragma('foreign_keys = ON');
-  database.exec(`
-    CREATE TABLE draft_revisions (
-      draft_id TEXT NOT NULL,
-      revision INTEGER NOT NULL CHECK (revision > 0),
-      contract_version TEXT NOT NULL,
-      canonicalization_version TEXT NOT NULL,
-      canonical_digest TEXT NOT NULL,
-      initial_status TEXT NOT NULL,
-      payload TEXT NOT NULL,
-      PRIMARY KEY (draft_id, revision)
-    );
-    CREATE TABLE draft_revision_events (
-      sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_id TEXT NOT NULL UNIQUE,
-      draft_id TEXT NOT NULL,
-      revision INTEGER NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('DRAFT_REVISION_CREATED', 'DRAFT_STATUS_TRANSITIONED')),
-      payload TEXT NOT NULL,
-      FOREIGN KEY (draft_id, revision) REFERENCES draft_revisions(draft_id, revision)
-    );
-    CREATE TRIGGER draft_revisions_immutable_update BEFORE UPDATE ON draft_revisions
-      BEGIN SELECT RAISE(ABORT, 'frozen draft revision is immutable'); END;
-    CREATE TRIGGER draft_revisions_immutable_delete BEFORE DELETE ON draft_revisions
-      BEGIN SELECT RAISE(ABORT, 'frozen draft revision is immutable'); END;
-  `);
-}
 
 function makeSeed(eventId = 'create-01', draftId = 'draft-01'): DraftRevisionSeed {
   const content: DraftRevisionSeed['content'] = {
@@ -101,13 +73,12 @@ function statusEvent(revision: number, toStatus: DraftRevisionStatusEvent['toSta
 }
 
 function setup() {
-  const database = new Database(':memory:');
+  const database = openRetailOpsDatabase(':memory:');
   databases.push(database);
-  createContractTables(database);
   return { database, repository: new SqliteDraftRevisionRepository(database) };
 }
 
-describe('SQLite Draft revision repository (test schema; migration remains locked)', () => {
+describe('SQLite Draft revision repository (formal application schema)', () => {
   it('allocates monotonically within the append transaction and keeps frozen history immutable', () => {
     const { database, repository } = setup();
     const first = repository.appendRevision(makeSeed('create-01'));
@@ -122,6 +93,13 @@ describe('SQLite Draft revision repository (test schema; migration remains locke
       .run('sha256:' + '0'.repeat(64), 'draft-01')).toThrow(/immutable/);
     expect(() => database.prepare('DELETE FROM draft_revisions WHERE draft_id = ? AND revision = 1').run('draft-01'))
       .toThrow(/immutable/);
+    expect(() => database.prepare('UPDATE draft_revision_events SET payload = ? WHERE event_id = ?')
+      .run('{}', 'create-01')).toThrow(/append-only/);
+    expect(() => database.prepare('DELETE FROM draft_revision_events WHERE event_id = ?').run('create-01'))
+      .toThrow(/append-only/);
+    expect(() => database.prepare(
+      "INSERT INTO draft_revision_events(event_id, draft_id, revision, kind, payload) VALUES ('orphan', 'missing', 1, 'DRAFT_STATUS_TRANSITIONED', '{}')",
+    ).run()).toThrow(/FOREIGN KEY constraint failed/);
   });
 
   it('enforces eventId uniqueness globally and makes an identical create request idempotent', () => {
@@ -175,9 +153,8 @@ describe('SQLite Draft revision repository (test schema; migration remains locke
     const directory = mkdtempSync(join(tmpdir(), 'retailops-draft-revision-'));
     temporaryDirectories.push(directory);
     const databasePath = join(directory, 'draft-revisions.sqlite');
-    const firstDatabase = new Database(databasePath);
+    const firstDatabase = openRetailOpsDatabase(databasePath);
     databases.push(firstDatabase);
-    createContractTables(firstDatabase);
     const firstRepository = new SqliteDraftRevisionRepository(firstDatabase);
     const revision = firstRepository.appendRevision(makeSeed());
     const event = statusEvent(revision.revision, 'RISK_REVIEW', 'review-01');
@@ -185,7 +162,7 @@ describe('SQLite Draft revision repository (test schema; migration remains locke
     firstDatabase.close();
     databases.splice(databases.indexOf(firstDatabase), 1);
 
-    const reopened = new Database(databasePath);
+    const reopened = openRetailOpsDatabase(databasePath);
     databases.push(reopened);
     const repository = new SqliteDraftRevisionRepository(reopened);
     expect(repository.findRevisionByDraftIdAndNumber('draft-01', 1)).toEqual(revision);

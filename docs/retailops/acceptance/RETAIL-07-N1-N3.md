@@ -92,3 +92,7 @@ adapter 所需正式 schema 合同：
 | SQLite 适配器测试证据 | 唯一 revision key、全局 eventId、冻结记录 UPDATE/DELETE 拒绝、摘要回读、追加失败事务回滚、审批/执行越权拒绝、关闭重开后 trace/state/revision 保留均通过；全部使用人工测试 schema，无正式 migration |
 
 新增/更新文件：`src/domain/decision/draft-revision.ts`（共享 canonical digest 算法和 revision seed schema）、`src/application/ports/draft-revision-repository.ts`、`src/application/use-cases/freeze-draft-revision.ts`、新增 `src/adapters/persistence/sqlite/draft-revision-repository.ts`、更新 `test/unit/freeze-draft-revision.test.ts`、新增 `test/unit/persistence/sqlite/draft-revision-repository.test.ts`、本执行计划及本回执。migration 与 runner 保持未修改。#21 尚未合并及迁移锁尚未移交，因此 N4 正式 SQLite 持久化验收仍为 BLOCKED；不创建 #26 PR，不改变 Issue/Project 状态。
+
+## 状态更正（迁移锁已移交，2026-11-27）
+
+以上“BLOCKED/迁移锁未移交/无正式 migration”内容为锁交接前的历史快照。PR #89 实际合并后，主控核实 v1/v2 ledger 并授权 #26 独占 migration v3 和 runner 注册。正式应用 schema 上的 N4/N5 结果、测试、当前状态与 PR 信息见 [`RETAIL-07-N4-N5.md`](RETAIL-07-N4-N5.md)。
