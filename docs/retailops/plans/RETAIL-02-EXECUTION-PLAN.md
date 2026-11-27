@@ -1,6 +1,6 @@
 # RETAIL-02（Issue #21）执行计划
 
-**状态：** N0 已整理，等待主控核验；未进入 N1
+**状态：** N0 主控核验通过；N1–N5 已获批准
 **基线：** develop/retailops `f3d1a7fc847f75cd0b4064aead0404ab4e23d67b`
 **原 Plan：** `docs/retailops/initial-plan-v0.2/plans/RETAIL-02-PLAN.md`（只读）
 **上游：** #20 PR #87 merge `048f3a7ef64a54986bfda1e839396b961969e46d`；#13 PR #79 merge `6a2ddc363f82ae9f9e66e296d2644efafb48565e`。
@@ -30,6 +30,7 @@ Worktree `D:/workSpace/codeAgent/OpenDot-RetailOps-02`，分支 `feat/retail-02`
 | `apps/retailops/src/adapters/persistence/sqlite/public-history-repository.ts` | 新增 SQLite 实现 |
 | `apps/retailops/src/adapters/persistence/sqlite/migrations/0002_public_history.ts` | 若仍需新增表，由 #21 唯一创建 |
 | `apps/retailops/src/adapters/persistence/sqlite/migration-runner.ts` | 共享注册入口，本轮唯一修改者为 #21，仅登记 v2 并校验 schema |
+| `scripts/retail-02/fetch-fixed-snapshot.py` | 新增来源获取脚本，#21 独占；Python 标准库下载固定 commit Parquet、核对 LFS OID；以仓库外临时 DuckDB CLI 解码 |
 | `apps/retailops/test/unit/domain/history/fresh-retailnet-record.test.ts`、`test/unit/import-public-history.test.ts`、`test/unit/persistence/sqlite/public-history-repository.test.ts`、`test/contract/public-history-import.test.ts` | #21 独占新增测试 |
 | `apps/retailops/src/domain/index.ts`、`application/ports/retail-repositories.ts`、根/包配置、宿主、已合并合同、#26 路径 | 只读 |
 
@@ -39,7 +40,7 @@ Worktree `D:/workSpace/codeAgent/OpenDot-RetailOps-02`，分支 `feat/retail-02`
 
 ## 接口边界与 N1–N5
 
-Domain 只定义 FreshRetailNet 来源记录与字段语义；Application 端口接受已解码记录并提供幂等导入/条件查询；SQLite Adapter 落库并校验读取。测试使用小型合成行；源数据抽样比较用固定 revision 的临时下载快照。不引入 Parquet/网络依赖。
+Domain 只定义 FreshRetailNet 来源记录与字段语义；Application 端口接受已解码记录并提供幂等导入/条件查询；SQLite Adapter 落库并校验读取。来源逻辑唯一键为 `(dataset revision, source split, store_id, product_id, dt)`。#21 独占的 `scripts/retail-02/fetch-fixed-snapshot.py` 用 Python 标准库从固定 commit URL 下载 Parquet 并验证 LFS OID/size；调用主控批准的仓库外临时 DuckDB CLI 解码 JSONL。原始文件、样本和运行 manifest 在忽略目录 `data/retail-02/`。逻辑键为 `(dataset revision, source split, store_id, product_id, dt)`。测试用小型合成行，源样本比对用本轮 pinned Parquet 快照；不新增仓库/应用依赖。
 
 | 节点 | 实施与验收 |
 |---|---|
@@ -57,3 +58,9 @@ Domain 只定义 FreshRetailNet 来源记录与字段语义；Application 端口
 - 总体计划/PRD：公开历史可追溯，归一化销量不伪造成现实单位。
 - Issue/Plan：可重复导入、异常可见、历史查询，不做预测。
 - 节点标准：来源/单位保留，幂等、异常报告和抽样相等均需实测；未复核不得 PASS。
+
+
+## 主控批准的补充范围（2026-11-27）
+主控已通过 N0，并批准 N1–N5。store_id=0、74 SKU、共同连续 97 天是本任务历史数据导入与验收范围，不能据此声称 V0 多 SKU 经营仿真。执行计划允许新增唯一数据获取脚本 `scripts/retail-02/fetch-fixed-snapshot.py`（#21 独占，Python 标准库，不新增依赖）；仅将固定 revision Parquet、JSONL 样本和本轮 run manifest 写入忽略目录 `data/retail-02/`，不提交数据。#21 固定来源入口为 HF 仓库 commit `c374e85975c82816c495acfa904cc55ab14a47d3` 下的 `data/train.parquet` 与 `data/eval.parquet`。先读取该 commit tree 中的 LFS OID/size，下载 resolve/<commit> 文件并逐项校验；不使用历史调查缓存或无固定 SHA 证明的 Viewer 响应替代。
+
+#21 唯一拥有 SQLite migration v2 与 `migration-runner.ts`。v1 的初始化/校验只检查 v1 对应 schema，v2 schema 检查只在 ledger 证明 v2 已应用后执行。必须保留 v1 数据并覆盖 v1→v2、空库→v2、重复迁移、失败回滚和 schema 不匹配测试。
