@@ -49,6 +49,50 @@ describe('RetailOps SQLite migrations', () => {
     }
   });
 
+  it.each([
+    ['Batch Product differs from its Draft snapshot', (database: Database.Database) => {
+      database.prepare('INSERT INTO legacy_records(aggregate_type, entity_id, payload) VALUES (?, ?, ?)')
+        .run('PRODUCT', 'product-synthetic-02', JSON.stringify({
+          contractVersion: '0.3.0', id: 'product-synthetic-02', baseUnitCode: 'each', evidenceIds: ['evidence-synthetic-01'],
+        }));
+      const row = database.prepare('SELECT payload FROM legacy_records WHERE aggregate_type = ?').get('BATCH') as { payload: string };
+      database.prepare('UPDATE legacy_records SET payload = ? WHERE aggregate_type = ?')
+        .run(JSON.stringify({ ...JSON.parse(row.payload), productId: 'product-synthetic-02' }), 'BATCH');
+    }],
+    ['Operation Product differs from its Batch', (database: Database.Database) => {
+      database.prepare('INSERT INTO legacy_records(aggregate_type, entity_id, payload) VALUES (?, ?, ?)')
+        .run('PRODUCT', 'product-synthetic-02', JSON.stringify({
+          contractVersion: '0.3.0', id: 'product-synthetic-02', baseUnitCode: 'each', evidenceIds: ['evidence-synthetic-01'],
+        }));
+      const row = database.prepare('SELECT payload FROM legacy_records WHERE aggregate_type = ?').get('OPERATION') as { payload: string };
+      database.prepare('UPDATE legacy_records SET payload = ? WHERE aggregate_type = ?')
+        .run(JSON.stringify({ ...JSON.parse(row.payload), productId: 'product-synthetic-02' }), 'OPERATION');
+    }],
+    ['Draft omits a persisted Operation', (database: Database.Database) => {
+      const operationRow = database.prepare('SELECT payload FROM legacy_records WHERE aggregate_type = ?').get('OPERATION') as { payload: string };
+      const operation = JSON.parse(operationRow.payload);
+      database.prepare('INSERT INTO legacy_records(aggregate_type, entity_id, payload) VALUES (?, ?, ?)')
+        .run('OPERATION', 'operation-synthetic-02', JSON.stringify({ ...operation, id: 'operation-synthetic-02' }));
+      const row = database.prepare('SELECT payload FROM legacy_records WHERE aggregate_type = ?').get('DRAFT') as { payload: string };
+      database.prepare('UPDATE legacy_records SET payload = ? WHERE aggregate_type = ?')
+        .run(JSON.stringify({ ...JSON.parse(row.payload), operationIds: ['operation-synthetic-02'] }), 'DRAFT');
+    }],
+  ])('rejects synthetic legacy relationship mismatch: %s', (_description, mutate) => {
+    const database = new Database(':memory:');
+    try {
+      database.exec(syntheticLegacySchema);
+      mutate(database);
+
+      expect(() => migrateRetailOpsDatabase(database)).toThrow(/relationship|Product|Operation/i);
+      expect(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'legacy_records'").all())
+        .toHaveLength(1);
+      expect(database.prepare('SELECT version FROM retailops_schema_migrations ORDER BY version DESC LIMIT 1').get())
+        .toEqual({ version: 0 });
+    } finally {
+      database.close();
+    }
+  });
+
   it('rolls a failed synthetic upgrade back without dropping its legacy evidence', () => {
     const database = new Database(':memory:');
     try {

@@ -42,3 +42,14 @@
 - 绿测：npm test -- test/unit/persistence/sqlite/repositories.test.ts -t "detached Repository writes" 退出码 0，1 passed / 14 skipped。覆盖同步嵌套 save、成功事务后的 queued save 拒绝、失败事务后的 queued save 拒绝，以及后续独立同步 save 可正常落库。
 - 更新后完整 npm run build 退出码 0；npm run typecheck 退出码 0；npm test 退出码 0，7 files / 56 tests passed。dist migration smoke 输出 version 1 / initial-retailops-contract-storage，退出码 0。
 - 保留之前完整回归 55 项的记录；本次新增 1 项用例，没有删除或弱化原有 41 项测试断言。AsyncLocalStorage 的 Repository 写保护边界和裸 SQLite 限制见 N3。
+
+## 最终针对性关系回归（2026-11-27）
+
+- 红测：新增 Batch Product owner 更新、Draft 移除已持久化 Operation、synthetic migration 三类一致性回归。命令 npm test -- test/unit/persistence/sqlite/repositories.test.ts test/unit/persistence/sqlite/migration-runner.test.ts -t "keeps a persisted Batch|does not remove a persisted Operation|rejects synthetic legacy relationship mismatch" 退出码 1，2 files / 5 failed / 25 skipped。
+- 红测输入经修正为有效合同场景：Draft 至少保留一个 Operation；迁移负例先加入合法的第二 Product 或第二 Operation，以隔离跨记录不变量，不把单实体 schema 校验失败误当关系检测证据。
+- 修复后相同定向命令退出码 0，2 files / 5 passed / 25 skipped。覆盖 Batch owner 拒绝且 Draft/Operation 仍可读取、Draft 删除旧 Operation 时拒绝并回滚同一外层事务中的新增 Product、合成迁移在丢弃 legacy_records 前拒绝并保留来源。
+- 本轮完整 build/typecheck/test、dist smoke、docs/diff 检查等待主控资源放行，当前尚未运行，不能视为 PASS。
+
+- 主控释放资源后的最终完整结果（WSL Node 24.22.3 / npm 11.19.1）：npm run build 退出码 0；npm run typecheck 退出码 0；npm test 退出码 0，7 files / 61 tests passed；本轮影响的 Repository/migration 两文件定向回归退出码 0，2 files / 30 tests passed。原有 56 项完整套件测试与断言全部保留，本轮新增 5 项（2 Repository、3 synthetic migration）。
+- dist migration smoke：退出码 0，打开构建后的 dist/adapters/persistence/sqlite/database.js 并创建 :memory: DB，ledger 输出 version 1 / initial-retailops-contract-storage。
+- 根目录 npm run docs:check 退出码 0，261 份 Markdown 通过；git diff --check 退出码 0。命令使用临时显式 WSL worktree Git 环境，没有改全局配置。

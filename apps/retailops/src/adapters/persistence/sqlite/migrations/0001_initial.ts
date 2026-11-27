@@ -231,6 +231,34 @@ function assertMigratedRecordCounts(database: Database.Database, records: Readon
   }
 }
 
+function assertMigratedRelationshipIntegrity(database: Database.Database): void {
+  const batchMismatch = database.prepare(
+    "SELECT relation.draft_id, relation.batch_id FROM draft_batches AS relation " +
+    "JOIN batches AS batch ON batch.id = relation.batch_id " +
+    "WHERE NOT EXISTS (SELECT 1 FROM draft_products AS product " +
+    "WHERE product.draft_id = relation.draft_id AND product.product_id = batch.product_id) LIMIT 1",
+  ).get() as { draft_id: string; batch_id: string } | undefined;
+  if (batchMismatch !== undefined) {
+    throw new Error("Synthetic legacy Draft/Batch/Product relationship mismatch for "
+      + batchMismatch.draft_id + "/" + batchMismatch.batch_id);
+  }
+
+  const operationMismatch = database.prepare(
+    "SELECT operation.id FROM operations AS operation " +
+    "LEFT JOIN batches AS batch ON batch.id = operation.batch_id " +
+    "LEFT JOIN draft_operations AS relation ON relation.operation_id = operation.id " +
+    "WHERE batch.product_id IS NOT operation.product_id " +
+    "OR relation.draft_id IS NOT operation.draft_id " +
+    "OR NOT EXISTS (SELECT 1 FROM draft_products AS product " +
+    "WHERE product.draft_id = operation.draft_id AND product.product_id = operation.product_id) " +
+    "OR NOT EXISTS (SELECT 1 FROM draft_batches AS draft_batch " +
+    "WHERE draft_batch.draft_id = operation.draft_id AND draft_batch.batch_id = operation.batch_id) LIMIT 1",
+  ).get() as { id: string } | undefined;
+  if (operationMismatch !== undefined) {
+    throw new Error("Synthetic legacy Draft/Operation/Batch/Product relationship mismatch for " + operationMismatch.id);
+  }
+}
+
 function migrateSyntheticLegacyRecords(database: Database.Database): void {
   if (!tableExists(database, "legacy_records")) return;
   const rows = database.prepare(
@@ -337,6 +365,7 @@ function migrateSyntheticLegacyRecords(database: Database.Database): void {
     DRAFT: drafts.map(({ value }) => value),
     OPERATION: operations.map(({ value }) => value),
   });
+  assertMigratedRelationshipIntegrity(database);
   database.exec("DROP TABLE legacy_records");
 }
 

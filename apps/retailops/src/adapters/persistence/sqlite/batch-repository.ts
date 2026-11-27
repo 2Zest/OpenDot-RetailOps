@@ -3,6 +3,7 @@ import { batchSchema, type Batch } from '../../../domain/index.js';
 import {
   assertReferences,
   assertStoredFields,
+  InvalidDomainRelationError,
   parseStoredEntity,
   readOrderedReferences,
   replaceOrderedReferences,
@@ -21,6 +22,10 @@ export class SqliteBatchRepository {
   save(value: unknown): Batch {
     const { entity, payload } = validateForStorage(batchSchema, value, "Batch");
     withRetailOpsTransaction(this.database, () => {
+      const existing = this.findById(entity.id);
+      if (existing !== undefined && existing.productId !== entity.productId) {
+        throw new InvalidDomainRelationError("Batch " + entity.id + " cannot change its owning Product");
+      }
       this.database.prepare(
         "INSERT INTO batches(id, product_id, contract_version, quality_status, expiry_basis, expiry_value, expiry_time_zone, payload) " +
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET product_id=excluded.product_id, " +

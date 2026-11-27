@@ -31,3 +31,10 @@
 - 同一数据库的 RetailOps Repository 写入若来自该事务 callback 返回后执行的 microtask，会在启动新的 Repository SQLite 事务前被 TypeError 拒绝。同步嵌套 Repository 写入仍可使用活动 parent scope；事务结束后的普通独立 Repository 写入不受影响。
 - 该保护只覆盖使用 RetailOps Repository / withRetailOpsTransaction 的写入；调用方绕过 Repository 对 database.prepare(...).run() 的裸 SQLite 写入无法由此拦截。也不声称取消任意异步副作用。
 - 回归先红后绿：未实现 scope guard 时 microtask 测试退出码 1，writeError 为 undefined 且写入可完成；实现后退出码 0。测试还覆盖活动外层中的嵌套同步 save、失败回滚后排队写入拒绝、以及随后独立同步 save 成功。最终完整测试见 N4。
+
+## 最终针对性关联一致性修订（2026-11-27）
+
+- Batch 持久化后其 productId 作为所属 Product 身份不可变；Batch Repository 先读取并校验既有 payload/规范化列/证据引用，再拒绝跨 Product 重绑。此变更不修改领域合同。
+- Draft 更新前校验现有 Draft，并核对属于该 Draft 的持久化 Operation 集合；不能移除仍存在的 Operation 记录。失败发生在 Draft/关系表写入前；处于外层事务时同时回滚此前写入。保留新增 Operation 通过同步多 Repository 事务绑定的用法。
+- Synthetic legacy migration 在删除 legacy_records 前校验 Draft-Batch-Product 与 Operation-Draft-Product-Batch 双向关系；关系不一致会使迁移事务回滚且保留合成来源记录。
+- 仅修改 Batch/Draft SQLite Repository、初始迁移的合成数据关系 guard 与回归测试；无领域合同、现有事务/审计修订或其它任务范围变更。

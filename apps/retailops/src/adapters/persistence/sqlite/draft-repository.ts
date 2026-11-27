@@ -24,6 +24,19 @@ export class SqliteDraftRepository {
   save(value: unknown): Draft {
     const { entity, payload } = validateForStorage(draftSchema, value, "Draft");
     withRetailOpsTransaction(this.database, () => {
+      const existing = this.findById(entity.id);
+      if (existing !== undefined) {
+        const nextOperationIds = new Set(entity.operationIds);
+        const persistedOperations = this.database.prepare(
+          "SELECT id FROM operations WHERE draft_id = ? ORDER BY id",
+        ).all(entity.id) as { id: string }[];
+        const removedOperation = persistedOperations.find((operation) => !nextOperationIds.has(operation.id));
+        if (removedOperation !== undefined) {
+          throw new InvalidDomainRelationError(
+            "Draft " + entity.id + " cannot remove persisted Operation " + removedOperation.id,
+          );
+        }
+      }
       const batches = new SqliteBatchRepository(this.database);
       for (const batchId of entity.inputSnapshot.batchIds) {
         const batch = batches.findById(batchId);

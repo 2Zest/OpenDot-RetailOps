@@ -382,6 +382,50 @@ describe('RetailOps SQLite repositories', () => {
     }
   });
 
+  it('keeps a persisted Batch owned by its original Product', () => {
+    const database = openRetailOpsDatabase(':memory:');
+    try {
+      const { repos, entities } = seed(database);
+      const secondProduct = { ...entities.product, id: 'product-02' };
+      repos.products.save(secondProduct);
+
+      expect(() => repos.batches.save({ ...entities.batch, productId: secondProduct.id })).toThrow();
+      expect(repos.batches.findById(entities.batch.id)).toEqual(entities.batch);
+      expect(repos.drafts.findById(entities.draft.id)).toEqual(entities.draft);
+      expect(repos.operations.findById(entities.operation.id)).toEqual(entities.operation);
+    } finally {
+      database.close();
+    }
+  });
+
+  it('does not remove a persisted Operation from its owning Draft update', () => {
+    const database = openRetailOpsDatabase(':memory:');
+    try {
+      const { repos, entities } = seed(database);
+      const draftWithTwoOperations = { ...entities.draft, operationIds: [entities.operation.id, 'operation-02'] };
+      withRetailOpsTransaction(database, () => {
+        repos.drafts.save(draftWithTwoOperations);
+        repos.operations.save({ ...entities.operation, id: 'operation-02' });
+      });
+      const updatedDraft = { ...draftWithTwoOperations, operationIds: ['operation-02'] };
+
+      expect(() => withRetailOpsTransaction(database, () => {
+        repos.products.save({ ...entities.product, id: 'product-rollback' });
+        repos.drafts.save(updatedDraft);
+      })).toThrow();
+      expect(repos.products.findById('product-rollback')).toBeUndefined();
+      expect(repos.drafts.findById(entities.draft.id)).toEqual(draftWithTwoOperations);
+      expect(repos.operations.findById(entities.operation.id)).toEqual(entities.operation);
+      expect(repos.operations.findById('operation-02')).toEqual({ ...entities.operation, id: 'operation-02' });
+      expect(database.prepare('SELECT draft_id, operation_id FROM draft_operations WHERE operation_id = ?')
+        .get(entities.operation.id)).toEqual({ draft_id: entities.draft.id, operation_id: entities.operation.id });
+      expect(database.prepare('SELECT COUNT(*) AS count FROM draft_operations WHERE draft_id = ?')
+        .get(entities.draft.id)).toEqual({ count: 2 });
+    } finally {
+      database.close();
+    }
+  });
+
   it('rejects async transaction callbacks before invoking them', () => {
     const database = openRetailOpsDatabase(':memory:');
     try {

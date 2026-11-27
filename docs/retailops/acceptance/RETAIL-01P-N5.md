@@ -37,3 +37,10 @@
 - 本节写入后重跑根目录 npm run docs:check、git diff --check；最新结果附下。
 
 - 根目录检查最终结果：在 WSL worktree 环境运行 npm run docs:check 退出码 0，261 份仓库 Markdown 通过；git diff --check 退出码 0。设置仅用于本次命令的 GIT_DIR/GIT_WORK_TREE/GIT_OPTIONAL_LOCKS/core.autocrlf，未修改仓库全局配置。
+
+## 最终针对性关系修订范围（2026-11-27）
+
+- 本轮精确文件：apps/retailops/src/adapters/persistence/sqlite/batch-repository.ts、draft-repository.ts、migrations/0001_initial.ts；apps/retailops/test/unit/persistence/sqlite/repositories.test.ts、migration-runner.test.ts；N3–N5 回执。其余 #20 Review 修订只读。
+- 当前定向红绿见 N4。全量 build/typecheck/test、dist smoke、docs:check 与 git diff --check 尚待主控释放资源，结果将追加。
+
+- 本轮最终验收：build/typecheck/test、dist migration smoke、docs:check 与 git diff --check 均按 N4 实际命令通过；全量测试 7 files / 61 passed，文档检查 261 文件通过。未运行 audit fix、依赖升级或业务副作用。
