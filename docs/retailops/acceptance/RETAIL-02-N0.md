@@ -6,7 +6,7 @@
 - 来源冻结：FreshRetailNet revision `c374e85975c82816c495acfa904cc55ab14a47d3`；74 SKU、共同 97 天、train/eval LFS 与分页哈希见执行计划。整文件未下载，N0 未新抓数据；调查缓存不等于当前本地数据。
 - 环境：WSL Ubuntu，Node v24.22.3/npm 11.19.1，gh 用户 2Zest。复用包 v0.1.0/合同 0.3.0、Zod 4.4.3、better-sqlite3 12.11.1、types 7.6.13；SQLite migration ledger v1；Vitest discovery unit+contract。未安装依赖/运行测试。
 - 文件范围：精确路径和所有者见 `docs/retailops/plans/RETAIL-02-EXECUTION-PLAN.md`。本轮仅新增该 Plan 和 N0 回执；未修改源码、迁移、配置、依赖、基础合同或共享接口。
-- 起始 Project 核验：#21 不在 Project #2；#22 为 Ready 且未认领。N0 文档推送后，按用户授权将 #21 加入 Project 并同步 In Progress。
+- Project #2 实际回读：#21 已加入，Status=In Progress，item ID `PVTI_lAHODjlUWM4BtKkTzhLw7Og`；Issue #21 Open/IN_PROGRESS/指派 2Zest。#22 仍为 Ready、未认领。
 
 | 对齐层 | 核对结果 | 判定 |
 |---|---|---|
