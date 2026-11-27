@@ -1,6 +1,6 @@
 # RETAIL-07（GitHub Issue #26）执行计划
 
-**状态：** N0–N4 已执行；#21 合并后主控已于 2026-11-27 移交 migration lock，#26 独占 v3 migration/runner。N5 集成检查与 PR 提交完成后进入 REVIEW。
+**状态：** N0–N5 已执行；#21 合并后主控于 2026-11-27 移交 migration lock，#26 独占 v3 migration/runner。PR #90 已提交并保持开放，等待独立 Review。
 **最初基线：** develop/retailops `f3d1a7fc847f75cd0b4064aead0404ab4e23d67b`；迁移锁交接后的集成基线为 `d5deb5b5f385aebe843bbfbcc97073dbfc967ec7`。
 **原 Plan：** `docs/retailops/initial-plan-v0.2/plans/RETAIL-07-PLAN.md`（只读）
 **上游：** #20 RETAIL-01P，PR #87 merge `048f3a7ef64a54986bfda1e839396b961969e46d`。
