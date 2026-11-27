@@ -31,7 +31,7 @@ describe('RETAIL-01 domain value boundaries', () => {
   it('keeps generic money signed but rejects a negative markdown candidate price', () => {
     expect(moneySchema.safeParse({ minorUnits: '-1', currencyCode: 'USD', minorUnitScale: 2 }).success).toBe(true);
     const markdownProposal = {
-      contractVersion: '0.2.0', id: 'fixture-operation', draftId: 'fixture-draft',
+      contractVersion: '0.3.0', id: 'fixture-operation', draftId: 'fixture-draft',
       productId: 'fixture-product', batchId: 'fixture-batch',
       quantity: { value: '1', unitCode: 'fixture-unit' }, status: 'PROPOSED',
       evidenceIds: ['fixture-evidence'], kind: 'MARKDOWN_PROPOSAL',
@@ -131,7 +131,7 @@ describe('RETAIL-01 domain value boundaries', () => {
 
   it('requires source-specific provenance for evidence', () => {
     const common = {
-      contractVersion: '0.2.0',
+      contractVersion: '0.3.0',
       id: 'fixture-evidence',
       snapshotId: 'fixture-snapshot',
       locator: 'fixture-row:1',
@@ -166,7 +166,7 @@ describe('RETAIL-01 domain value boundaries', () => {
 
   it('requires explicit batch quality, expiry, stock partitions, and evidence reference', () => {
     const batch = {
-      contractVersion: '0.2.0',
+      contractVersion: '0.3.0',
       id: 'fixture-batch',
       productId: 'fixture-product',
       expiry: { basis: 'DATE_ONLY', value: '2025-06-01', timeZone: 'UTC' },
@@ -192,7 +192,7 @@ describe('RETAIL-01 domain value boundaries', () => {
       reserved: { value: '1', unitCode: 'fixture-unit' },
     };
     const batch = {
-      contractVersion: '0.2.0', id: 'fixture-batch', productId: 'fixture-product',
+      contractVersion: '0.3.0', id: 'fixture-batch', productId: 'fixture-product',
       expiry: { basis: 'DATE_ONLY', value: '2025-06-01', timeZone: 'UTC' },
       qualityStatus: 'PASS', stockBalance, evidenceIds: ['fixture-evidence'],
     };

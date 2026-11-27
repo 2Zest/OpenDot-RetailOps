@@ -115,6 +115,58 @@ describe('RETAIL-01 pure status guards', () => {
     })).toBe(true);
   });
 
+  it('rejects contradictory approval and precheck evidence', () => {
+    const revokedWithPassingPrecheck = {
+      approval: 'REVOKED' as const,
+      precheck: passingPrecheck,
+    };
+    const expiredWithPassingPrecheck = {
+      approval: 'EXPIRED' as const,
+      precheck: passingPrecheck,
+    };
+    const approvedWithRevokedPrecheck = {
+      approval: 'APPROVED' as const,
+      precheck: { ...passingPrecheck, approval: 'REVOKED' as const },
+    };
+    const executionEvidenceDuringPrecheck = {
+      precheck: passingPrecheck,
+      execution: 'UNKNOWN' as const,
+    };
+
+    expect(canTransitionDraft('PRECHECK', 'EXECUTING', { approval: 'APPROVED', precheck: passingPrecheck })).toBe(true);
+    expect(canTransitionDraft('PRECHECK', 'EXECUTING', revokedWithPassingPrecheck)).toBe(false);
+    expect(canTransitionDraft('PRECHECK', 'EXECUTING', expiredWithPassingPrecheck)).toBe(false);
+    expect(canTransitionDraft('PRECHECK', 'EXECUTING', approvedWithRevokedPrecheck)).toBe(false);
+    expect(canTransitionDraft('PRECHECK', 'EXECUTING', executionEvidenceDuringPrecheck)).toBe(false);
+    expect(canTransitionOperation('PRECHECK', 'EXECUTING', { approval: 'APPROVED', precheck: passingPrecheck })).toBe(true);
+    expect(canTransitionOperation('PRECHECK', 'EXECUTING', revokedWithPassingPrecheck)).toBe(false);
+    expect(canTransitionOperation('PRECHECK', 'EXECUTING', expiredWithPassingPrecheck)).toBe(false);
+    expect(canTransitionOperation('PRECHECK', 'EXECUTING', approvedWithRevokedPrecheck)).toBe(false);
+    expect(canTransitionOperation('PRECHECK', 'EXECUTING', executionEvidenceDuringPrecheck)).toBe(false);
+  });
+
+  it('keeps uncertain PRECHECK outcomes distinct from confirmed no-effect cancellation', () => {
+    expect(canTransitionDraft('PRECHECK', 'UNCERTAIN')).toBe(false);
+    expect(canTransitionDraft('PRECHECK', 'UNCERTAIN', { precheckOutcome: 'UNKNOWN' })).toBe(true);
+    expect(canTransitionDraft('PRECHECK', 'CANCELLED')).toBe(false);
+    expect(canTransitionDraft('PRECHECK', 'CANCELLED', { precheckOutcome: 'NO_EFFECT' })).toBe(true);
+    expect(canTransitionDraft('PRECHECK', 'CANCELLED', { precheckOutcome: 'UNKNOWN' })).toBe(false);
+    expect(canTransitionDraft('PRECHECK', 'FAILED', {
+      precheck: { ...passingPrecheck, hardRules: 'FAIL' },
+      precheckOutcome: 'UNKNOWN',
+    })).toBe(false);
+
+    expect(canTransitionOperation('PRECHECK', 'UNCERTAIN')).toBe(false);
+    expect(canTransitionOperation('PRECHECK', 'UNCERTAIN', { precheckOutcome: 'UNKNOWN' })).toBe(true);
+    expect(canTransitionOperation('PRECHECK', 'CANCELLED')).toBe(false);
+    expect(canTransitionOperation('PRECHECK', 'CANCELLED', { precheckOutcome: 'NO_EFFECT' })).toBe(true);
+    expect(canTransitionOperation('PRECHECK', 'CANCELLED', { precheckOutcome: 'UNKNOWN' })).toBe(false);
+    expect(canTransitionOperation('PRECHECK', 'FAILED', {
+      precheck: { ...passingPrecheck, authorization: 'DENIED' },
+      precheckOutcome: 'UNKNOWN',
+    })).toBe(false);
+  });
+
   it('distinguishes timeout with known no effect from an uncertain side effect', () => {
     expect(canTransitionDraft('EXECUTING', 'FAILED', { execution: 'TIMEOUT_NO_EFFECT' })).toBe(true);
     expect(canTransitionDraft('EXECUTING', 'UNCERTAIN', { execution: 'TIMEOUT_NO_EFFECT' })).toBe(false);

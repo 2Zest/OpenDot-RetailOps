@@ -1,6 +1,6 @@
 # RETAIL-01（GitHub Issue #19）节点验收回执
 
-状态：N0–N5 PASS（含独立 Review 修订）；PR #86 已开放等待下一轮独立 Review；未合并，Issue 尚未 DONE。各节点事实按时间追加，不覆盖失败记录。
+状态：N0–N5 PASS（含独立 Review 修订）；当前候选领域合同 `0.3.0`（npm 包版本仍为 `0.1.0`）；PR #86 Open、未合并，等待独立 Review；Issue 尚未 DONE。各节点事实按时间追加，不覆盖失败记录。
 
 ## N0：预检、依赖和文件范围冻结
 
@@ -73,7 +73,7 @@
 - 阻塞/未验证：没有跨对象持久化一致性、运行时授权、真实审批或真实副作用能力；它们不在 #19 范围。
 - 节点结论：PASS；三层对齐见下方矩阵。
 
-## N3：合同版本规则
+## N3：合同版本规则（初始实现历史快照，合同 `0.1.0`）
 
 - 目标：明确合同版本、消费者兼容策略及未知版本行为。
 - 实际动作：六类 Schema 共用必填字面版本 `0.1.0`；缺失/未知版本拒绝；不 coercion、不补字段、不自动迁移；任何字段语义、接受范围或状态转换改变都需显式新版本；0.x 消费者必须固定精确版本；本包不带多版本 adapter。
@@ -137,7 +137,7 @@
 | D03 批次、效期与质量 | 日期与带 offset 的时刻使用不同显式形式；必须传入明确时区/offset 与 `asOf`；无法判断或恰处边界返回 `UNRESOLVED` | D03 指定批次字段、到货/生产/到期语义、临期窗口和质量检查由 RETAIL-01（GitHub Issue #19）/RETAIL-03 的责任节点结合业务/食品安全规则冻结；仅执行已批准的过期/质量异常不可售原则 | 未选择具体效期边界、临期窗口或质量阈值 |
 | D07 库存来源 | 输入必须引用 Evidence；来源限定为 `PUBLIC_HISTORICAL`、`DERIVED`、`SIMULATED`、`LIVE_DEVICE`；派生/仿真记录要求其来源元数据 | D07 指定初始库存、到货、批次的真实/仿真来源及盘点差异流程由 RETAIL-01（GitHub Issue #19）/RETAIL-03 负责；研究显示 FreshRetailNet 不含目标批次库存 | 无隐式来源；未选择 LIVE_DEVICE 接入、真实库存映射或仿真默认 |
 
-### N1 合同快照
+### N1 合同快照（初始实现历史快照，合同 `0.1.0`）
 
 - 六类对象统一携带必填 `contractVersion: "0.1.0"`；未知或缺失版本拒绝。该版本只标识本独立包的工程合同，不含业务默认。
 - `Quantity` 采用十进制字符串 `value` 与必填 `unitCode`；所有库存分区必须同单位，`physicalOnHand = unavailable + availableToSell + reserved` 使用精确十进制算术。合同将三个数量解释为互斥分区，schema 校验非负、同单位和算术守恒；它不能从汇总数推导实物行是否重复，调用方必须提供互斥统计。单位转换和舍入不属于本合同。
@@ -148,7 +148,7 @@
 - Operation 只覆盖 V0 折价候选与损耗处置意图；不实现 V1 预占/释放、补货/订单完成或执行服务。
 - D01/D02/D03/D07 的证据、推荐、影响及责任节点已集中列于上表。若独立 Review 判定某个业务参数必须由 #19 固定而不能保持必填或延期，将暂停该参数相关实现并等待用户决定。
 
-### N3 兼容规则
+### N3 兼容规则（初始实现历史快照，合同 `0.1.0`）
 
 - 消费者固定精确合同版本 `0.1.0`；Schema 不执行 coercion、字段补齐、别名映射或自动迁移。版本缺失或不等于当前版本均拒绝。
 - 任何改变字段语义、schema 接受/拒绝范围或状态迁移的变更必须使用新的显式合同版本。`0.x` 阶段不承诺 minor 版本间自动兼容；调用方须固定明确版本。
@@ -177,7 +177,7 @@
 | timeout 与确定性无副作用失败未区分 | 增加 `TIMEOUT_NO_EFFECT` 和 `TIMEOUT_UNKNOWN`：前者允许确定性 FAILED/CANCELLED，后者才允许 UNCERTAIN；通用 UNKNOWN 也保持 UNCERTAIN。风险审查 timeout 仍进入 RISK_TIMEOUT。 |
 | Zod 子字段失败后库存 refine 仍触发 BigInt 错误 | `stockBalanceSchema` 在跨字段计算前分别 `safeParse` 所有数量字段；十进制求和 helper 先核验输入格式，坏值作为 schema 失败返回，不进入 BigInt 转换。候选售价约束也不对非法数值执行 BigInt 转换。 |
 
-### N3：合同版本
+### N3：合同版本（第一轮 Review 历史快照，合同 `0.2.0`）
 
 - 原 PR 未合并；原 `0.1.0` 尚无正式消费者。Review 收紧 schema 接受范围并增加状态值，按原 N3 “任何接受/拒绝范围或状态语义变化使用新显式版本”规则，将 `CONTRACT_VERSION` 从 `0.1.0` 提升为 `0.2.0`。原版本现被拒绝，测试已覆盖；无版本自动迁移或 adapter。
 - npm 包发布版本仍为 `0.1.0`，与领域合同版本分别表达包版本和数据合同版本；未改依赖或 lockfile。
@@ -196,8 +196,19 @@
 
 - WSL `gh 2.106.0` 从 `/home/szz_user/.local/bin/gh` 执行；`gh auth status` 确认 `2Zest` 已登录且有 `project` scope（不记录任何凭据）。Project #2 状态成功改为 Review，并通过 `gh project item-list` 回读为 `Review`。
 - Issue #19 正文中的 `IN_PROGRESS` 已改为 N0 历史快照，顶部状态维持 Open/REVIEW；Project #2 与 Issue 状态统一为 Review（Issue 与 Project 均已回读）。
-- 复用 PR #86，目标仍为 `develop/retailops`；本次修订推送后记录最终 HEAD 于 GitHub 回读与交付报告。保持 Open、未合并、Issue 不关闭、不标 DONE。
+- 复用 PR #86，目标仍为 `develop/retailops`；该轮推送后 PR 保持 Open/未合并，Issue 未关闭且未标 DONE。第二轮修订的当前状态记录于本回执末尾并经 GitHub 回读。
 - 下游 #20、#24、#35 未启动；#7 Docker 阻塞和真实 Runtime 门槛保持不变。
+
+## 第二轮独立 Review 修订（2026-11-27）
+
+- 审查基线：`619cc7391c17ee12876ce4308c0bf97f8a76c3ce`。本轮只修改 Draft/Operation Guard、状态合同回归测试、RETAIL-01 执行计划及本验收回执；未改总体计划、Architecture、DAG、依赖或下游文件。
+- 审批证据一致性：独立审批结果与 `precheck.approval` 同时提供时必须相符；`APPROVED` 对应 `VALID`，`REVOKED`/`EXPIRED` 对应相同状态，`REJECTED` 不可与预检状态并用。矛盾或跨阶段的预检/执行/对账证据被 Guard 拒绝；撤销/过期与有效预检并存不能进入 `EXECUTING`。
+- PRECHECK 结果合同：新增 `precheckOutcome`，仅含 `NO_EFFECT` 和 `UNKNOWN`。前者才允许取消；后者只能进入 `UNCERTAIN`，不能归类为普通失败或取消。执行服务、副作用实现与对账服务均未新增；UNCERTAIN 继续要求显式 reconciliation 才能解除。
+- N3 版本处理：新增 `precheckOutcome` 字段及 PRECHECK 状态转换，属于输入/状态语义变更，故将当前 `CONTRACT_VERSION` 从 `0.2.0` 提升至 `0.3.0`。初始 `0.1.0` 和上一轮 `0.2.0` 保留为历史版本快照，但当前 schema 均拒绝；不做兼容映射或自动迁移。npm 包发布版本仍为 `0.1.0`。
+- 测试先行：新增两组回归用例后，修复前 `npm test` 退出码 1，原 24 项通过、新增两组失败，分别捕获矛盾审批/预检被放行和 PRECHECK 无 UNCERTAIN/NO_EFFECT 区分。应用 `0.3.0` 后曾有一轮完整测试因既有 fixture 仍使用旧 `0.2.0` 而失败（7 项）；更新 fixture 并增加旧版拒绝断言后最终全量复测通过，原 24 项未删除或弱化。
+- 最终验收：WSL2 Ubuntu 24.04、Node `v24.22.3`、npm `11.19.1`；`npm run build` 退出码 0；`npm run typecheck` 退出码 0；`npm test` 退出码 0，3 个文件、26/26 项通过；`npm run docs:check` 退出码 0，254 份 Markdown；`git diff --check` 与 `git diff --cached --check` 退出码均为 0。
+- 最终文件范围共 8 项：`apps/retailops/src/domain/{decision/draft.ts,inventory/operation.ts,shared/primitives.ts}`、`apps/retailops/test/contract/domain-schemas.test.ts`、`apps/retailops/test/unit/{domain-values.test.ts,state-guards.test.ts}`、本执行计划和本回执。未改包清单/锁文件、宿主、API、数据库、Runtime 或业务服务。
+- PR #86 继续以 `develop/retailops` 为目标并保持 Open/未合并；Issue #19 保持 Open/REVIEW；Project #2 保持 Review。未启动下游任务或改变 #7 的 BLOCKED 状态。
 
 ### 修订验收三层语义对齐
 
@@ -205,4 +216,4 @@
 |---|---|---|
 | 总体计划 / 已批准 PRD、Architecture、ADR | 库存质量 fail-closed、授权与硬规则、审批撤销/过期、uncertain 对账、来源分层保留；无运行时和副作用实现 | PASS |
 | Issue #19 / 原 Plan / Review 修订任务 | 修订严格限于 RETAIL-01 领域合同及负向测试；D01/D02/D03/D07 未设新默认，合同版本遵守 N3 | PASS |
-| N2–N5 验收标准 | 修订前有失败复现；最终 build/typecheck/24 tests 通过，文档、差异、文件范围和 GitHub 状态完成回读 | PASS（待本段最终命令结果补录） |
+| N2–N5 验收标准 | 前轮修订 build/typecheck/24 项测试通过；第二轮独立 Review 的失败复现、合同版本与最终检查见本回执末尾 | PASS |

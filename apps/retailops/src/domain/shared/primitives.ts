@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const CONTRACT_VERSION = '0.2.0' as const;
+export const CONTRACT_VERSION = '0.3.0' as const;
 export const contractVersionSchema = z.literal(CONTRACT_VERSION);
 
 export const opaqueReferenceSchema = z
@@ -41,6 +41,18 @@ export const precheckEvidenceSchema = z.object({
 }).strict();
 
 export type PrecheckEvidence = z.infer<typeof precheckEvidenceSchema>;
+
+export const precheckOutcomeSchema = z.enum(['NO_EFFECT', 'UNKNOWN']);
+
+export function approvalEvidenceIsConsistent(
+  approval: 'APPROVED' | 'REJECTED' | 'REVOKED' | 'EXPIRED' | undefined,
+  precheckApproval: PrecheckEvidence['approval'] | undefined,
+): boolean {
+  if (approval === undefined || precheckApproval === undefined) return true;
+  if (approval === 'APPROVED') return precheckApproval === 'VALID';
+  if (approval === 'REJECTED') return false;
+  return approval === precheckApproval;
+}
 
 export const executionOutcomeSchema = z.enum([
   'CONFIRMED',

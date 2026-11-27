@@ -63,8 +63,8 @@
 - Product 必须引用计量单位与 Evidence；Batch 包含 Product 键、效期、质量状态与库存分区；库存分区严格校验 `physical = unavailable + availableToSell + reserved`。`PASS/FAIL/UNKNOWN` 仅表示质量结论状态，`UNKNOWN` 不可售；不添加检测阈值。
 - `PUBLIC_HISTORICAL`、`DERIVED`、`SIMULATED`、`LIVE_DEVICE` 为来源分类。Evidence 必须有快照、记录定位和观测时刻；派生来源必须有非空父 Evidence 与方法版本；仿真来源必须有显式 scenario/seed/generator；当前无 LIVE_DEVICE 接入。历史数据不转换为实物单位。
 - Policy 仅包含身份、revision、来源和输入引用；不在 RETAIL-01 写折价/临期/毛利政策默认值。Draft 绑定输入快照、Policy revision、Evidence 和候选 Operation，但不计算 digest。状态 guard 只判断允许的纯转换，不做审批或执行。
-- Operation 仅描述 V0 的折价候选或损耗处置意图；不实现 V1 reservation/release/order-completion，也不执行副作用。`UNCERTAIN` 只能在显式对账证据存在时离开。状态 guard 不是授权或执行入口。
-- 六类 schema 均要求 `contractVersion: "0.1.0"`；缺失或未知版本拒绝。0.x 消费者固定精确版本；不自动迁移/补字段。兼容规则详见 N3。
+- Operation 仅描述 V0 的折价候选或损耗处置意图；不实现 V1 reservation/release/order-completion，也不执行副作用。`PRECHECK` 阶段有明确 `NO_EFFECT` 才能取消，结果 `UNKNOWN` 转入 `UNCERTAIN`；执行阶段沿用同样的确定无副作用/结果未知区分。`UNCERTAIN` 只能在显式对账证据存在时离开。审批、预检和执行回执不一致或跨阶段复用时，Guard 拒绝迁移。状态 guard 不是授权或执行入口。
+- 当前候选合同版本为 `0.3.0`。初始 `0.1.0` 与上一轮 Review `0.2.0` 均为历史快照，当前 schema 拒绝这两个版本；缺失或未知版本同样拒绝。任何输入/状态语义变化按 N3 使用新的显式合同版本；0.x 消费者固定精确版本，不自动迁移/补字段。
 
 待决事项集中放在本 Issue 回执中，覆盖 D01、D02、D03、D07 的责任范围。基本 Schema 采用显式参数和不透明引用即可表达已批准原则；未知值不会被默认化。若后续评审认定某业务规则必须在本 Issue 固定，停止该规则对应节点并等待用户决定，不以普通实现选择替代审批。
 

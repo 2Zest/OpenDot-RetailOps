@@ -3,8 +3,10 @@ import {
   contractVersionSchema,
   executionOutcomeSchema,
   opaqueReferenceSchema,
+  approvalEvidenceIsConsistent,
   passesPrecheck,
   precheckEvidenceSchema,
+  precheckOutcomeSchema,
   reconciliationOutcomeSchema,
 } from '../shared/primitives.js';
 
@@ -61,6 +63,7 @@ const draftTransitionEvidenceSchema = z.object({
   riskReview: z.enum(['PASS', 'REJECTED', 'FAILED', 'TIMEOUT']).optional(),
   approval: z.enum(['APPROVED', 'REJECTED', 'REVOKED', 'EXPIRED']).optional(),
   precheck: precheckEvidenceSchema.optional(),
+  precheckOutcome: precheckOutcomeSchema.optional(),
   execution: executionOutcomeSchema.optional(),
   reconciliation: reconciliationOutcomeSchema.optional(),
 }).strict();
@@ -72,7 +75,7 @@ const draftTransitions = {
   RISK_REVIEW: ['AWAITING_MANAGER', 'RISK_REJECTED', 'RISK_FAILED', 'RISK_TIMEOUT', 'CANCELLED', 'STALE'],
   AWAITING_MANAGER: ['APPROVED', 'APPROVAL_REJECTED', 'APPROVAL_EXPIRED', 'CANCELLED', 'STALE'],
   APPROVED: ['PRECHECK', 'APPROVAL_REVOKED', 'APPROVAL_EXPIRED', 'CANCELLED', 'STALE'],
-  PRECHECK: ['EXECUTING', 'FAILED', 'CANCELLED', 'STALE', 'APPROVAL_REVOKED', 'APPROVAL_EXPIRED'],
+  PRECHECK: ['EXECUTING', 'FAILED', 'CANCELLED', 'STALE', 'APPROVAL_REVOKED', 'APPROVAL_EXPIRED', 'UNCERTAIN'],
   EXECUTING: ['COMPLETED', 'FAILED', 'CANCELLED', 'UNCERTAIN'],
   COMPLETED: [],
   RISK_REJECTED: [],
@@ -98,6 +101,17 @@ export function canTransitionDraft(current: unknown, next: unknown, evidence: un
   const transitionEvidence = parsedEvidence.data;
   if (!draftTransitions[currentStatus].some((allowed) => allowed === nextStatus)) return false;
 
+  if (!approvalEvidenceIsConsistent(transitionEvidence.approval, transitionEvidence.precheck?.approval)) return false;
+  if (transitionEvidence.riskReview !== undefined && currentStatus !== 'RISK_REVIEW') return false;
+  if (transitionEvidence.approval !== undefined
+    && !['AWAITING_MANAGER', 'APPROVED', 'PRECHECK'].includes(currentStatus)) return false;
+  if ((transitionEvidence.precheck !== undefined || transitionEvidence.precheckOutcome !== undefined)
+    && currentStatus !== 'PRECHECK') return false;
+  if (transitionEvidence.execution !== undefined && currentStatus !== 'EXECUTING') return false;
+  if (transitionEvidence.reconciliation !== undefined && currentStatus !== 'UNCERTAIN') return false;
+  if (currentStatus === 'PRECHECK' && transitionEvidence.precheckOutcome === 'UNKNOWN' && nextStatus !== 'UNCERTAIN') return false;
+  if (currentStatus === 'PRECHECK' && transitionEvidence.precheckOutcome === 'NO_EFFECT' && nextStatus === 'UNCERTAIN') return false;
+
   if (currentStatus === 'DRAFTED' && nextStatus === 'RISK_REVIEW') return true;
   if (currentStatus === 'RISK_REVIEW' && nextStatus === 'AWAITING_MANAGER') return transitionEvidence.riskReview === 'PASS';
   if (currentStatus === 'RISK_REVIEW' && nextStatus === 'RISK_REJECTED') return transitionEvidence.riskReview === 'REJECTED';
@@ -112,6 +126,7 @@ export function canTransitionDraft(current: unknown, next: unknown, evidence: un
 
   if (currentStatus === 'PRECHECK' && nextStatus === 'EXECUTING') return passesPrecheck(transitionEvidence.precheck);
   if (currentStatus === 'PRECHECK' && nextStatus === 'FAILED') {
+    if (transitionEvidence.precheckOutcome === 'UNKNOWN') return false;
     return transitionEvidence.precheck?.hardRules === 'FAIL'
       || transitionEvidence.precheck?.authorization === 'DENIED'
       || transitionEvidence.precheck?.idempotencyKey === 'MISSING';
@@ -121,8 +136,10 @@ export function canTransitionDraft(current: unknown, next: unknown, evidence: un
   if (currentStatus === 'PRECHECK' && nextStatus === 'STALE') {
     return transitionEvidence.precheck?.draftSnapshot === 'STALE' || transitionEvidence.precheck?.policy === 'STALE';
   }
+  if (currentStatus === 'PRECHECK' && nextStatus === 'UNCERTAIN') return transitionEvidence.precheckOutcome === 'UNKNOWN';
+  if (currentStatus === 'PRECHECK' && nextStatus === 'CANCELLED') return transitionEvidence.precheckOutcome === 'NO_EFFECT';
 
-  if (nextStatus === 'CANCELLED' && currentStatus !== 'EXECUTING') return true;
+  if (nextStatus === 'CANCELLED' && currentStatus !== 'EXECUTING' && currentStatus !== 'PRECHECK') return true;
   if (nextStatus === 'STALE') return true;
 
   if (currentStatus === 'EXECUTING' && nextStatus === 'COMPLETED') return transitionEvidence.execution === 'CONFIRMED';
