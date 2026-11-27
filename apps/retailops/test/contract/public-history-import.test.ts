@@ -1,16 +1,26 @@
 import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
-import { importPublicHistory } from '../../src/application/use-cases/import-public-history.js';
+import { validatePublicHistorySnapshot } from '../../src/application/use-cases/import-public-history.js';
 import { SqlitePublicHistoryRepository } from '../../src/adapters/persistence/sqlite/public-history-repository.js';
 import { openRetailOpsDatabase } from '../../src/adapters/persistence/sqlite/database.js';
+import type { PublicHistoryRepository } from '../../src/application/ports/public-history-repository.js';
 
 const databases: ReturnType<typeof openRetailOpsDatabase>[] = [];
 afterEach(() => {
   for (const database of databases.splice(0)) database.close();
 });
 
-describe('public history import contract', () => {
-  it('verifies exact snapshot bytes, persists idempotently, and returns source manifest with query results', () => {
+function importSyntheticFixtureOnly(input: Parameters<typeof validatePublicHistorySnapshot>[0], repository: PublicHistoryRepository) {
+  const validated = validatePublicHistorySnapshot(input);
+  if (validated.status === 'REJECTED') return validated;
+  return {
+    status: 'IMPORTED' as const,
+    persistence: repository.importSnapshot(validated.manifest, validated.records, input.snapshotJsonl),
+  };
+}
+
+describe('synthetic public history parser and repository contract', () => {
+  it('validates a synthetic fixture, persists it idempotently, and returns its source manifest with query results', () => {
     const database = openRetailOpsDatabase(':memory:');
     databases.push(database);
     const repository = new SqlitePublicHistoryRepository(database);
@@ -43,10 +53,10 @@ describe('public history import contract', () => {
       snapshotJsonlSha256: createHash('sha256').update(snapshotJsonl).digest('hex'),
     };
 
-    expect(importPublicHistory({ manifest, snapshotJsonl }, repository)).toMatchObject({
+    expect(importSyntheticFixtureOnly({ manifest, snapshotJsonl }, repository)).toMatchObject({
       status: 'IMPORTED', persistence: { insertedRecords: 1, unchangedRecords: 0 },
     });
-    expect(importPublicHistory({ manifest, snapshotJsonl }, repository)).toMatchObject({
+    expect(importSyntheticFixtureOnly({ manifest, snapshotJsonl }, repository)).toMatchObject({
       status: 'IMPORTED', persistence: { insertedRecords: 0, unchangedRecords: 1 },
     });
     expect(repository.find({

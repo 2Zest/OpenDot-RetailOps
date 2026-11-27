@@ -109,3 +109,47 @@ Use Case 对无效 manifest、空输入、UTF-8/JSONL 格式错误、摘要不�
 - PR 文件范围为上表列出的 17 个获准路径；无 Parquet、JSONL、临时 SQLite 或其他数据文件。实现交付时 Worktree clean。
 - 本次仅更新本回执中的 N5 交付记录，不改源码、测试、计划或数据。推送本回执后 PR HEAD 会随文档提交更新，具体最新 HEAD 以 GitHub 回读为准。
 - N5 验收结论：PASS（交付阶段）；独立 Review 尚待完成。当前不关闭 Issue、不标记 DONE、不解锁下游任务。
+
+## 最终针对性 Review 修订（2026-11-27）
+
+本节追加记录，不覆盖上述历史验收快照。修改范围仅限正式来源认证、v2 migration ledger guard、固定样本可复现导入命令及对应回归测试。
+
+### 来源真实性边界
+
+正式 `importPublicHistory` 必须匹配本轮验收过的 JSONL SHA-256、split 行数、store_id=0、74 个 SKU、固定 SKU 集及日期窗口。train SHA 为 `4b1f0c5922d54b991eca9cef3b7a5cb98f1878097cd320fbe6f2af44b6a5e005`；eval SHA 为 `0934c95835208fdd32938ba3e4b69b7c4389d6eca5f4560e0b648866c3bb47d2`；74 个有序 SKU ID 集 SHA 为 `1797d24e2e407ce6ab82531549a5508e6ea257c5cd0b9853af2d2e606796834b`。调用方同步变更 JSONL 与 manifest 摘要的负向回归仅能得到 `UNAPPROVED_PUBLIC_SNAPSHOT`，仓储调用次数为 0。
+
+结构解析器仅验证 JSONL 与通用 manifest 合同。合成 fixture 单测通过测试文件内 `importSyntheticFixtureOnly` 调用解析器及 fake/SQLite test repository；该函数不在生产代码中，且不调用正式来源认证入口。实际公开样本通过新增固定来源导入脚本覆盖。
+
+### v2 migration ledger
+
+先添加“ledger 只有 v1、但预先存在 v2 public-history 表”的失败回归；修复前迁移实际错误地完成并登记 v2，红测复现成功。修复后 runner 按每个 schema 版本独立判断：未登记版本若已有该版本任何受管表即拒绝，已登记版本仍以其实际表结构、唯一键、外键和数据完整性为准。空库、v1→v2、重复迁移、合成历史迁移和失败回滚保持原路径。
+
+### 可复现固定数据 smoke
+
+新增 `scripts/retail-02/import-fixed-snapshot.mjs`。执行方式：先构建包，再指定本轮固定 extraction 目录运行；脚本读取 extraction/download manifests 和 train/eval JSONL，调用已构建的正式导入入口，生成全新的系统临时 SQLite，并对每条 Repository 查询结果与原始 JSONL 逐条比较。预期结果为 train 6,660、eval 518、合计 7,178 行，同一 74 SKU，日期覆盖 2024-03-28 至 2024-07-02。不会改写已有临时数据库，也不会将数据或 DB 纳入 Git。
+
+### 本轮实际验证
+
+| 检查 | 实际结果 |
+|---|---|
+| 红测：新增 v2 ledger 异常测试（修复前） | 失败，预期的异常未抛出，缺陷复现 |
+| 定向迁移/导入测试（首轮修复后） | 3 个测试文件中 25/26 通过；新增断言的错误消息正则过窄，未匹配正确拒绝信息，随后修正断言文本 |
+| 定向迁移/导入测试（修正后） | 退出 0；3 个文件、26/26 通过 |
+| `npm --prefix apps/retailops run build`（WSL Node 24.22.3） | 退出 0 |
+| `npm --prefix apps/retailops run typecheck`（WSL Node 24.22.3） | 退出 0 |
+| `npm --prefix apps/retailops test`（WSL Node 24.22.3） | 退出 0；13 个测试文件、109/109 通过，包含原有 107 项及新增两个回归 |
+| `node scripts/retail-02/import-fixed-snapshot.mjs --snapshot-dir data/retail-02/freshretailnet-c374e85975c82816c495acfa904cc55ab14a47d3-2026-11-27-01` | 退出 0；使用 dist、临时 DB；train 6,660/6,660、eval 518/518、总计 7,178/7,178 逐行相同，均为 store 0、74 SKU，日期 2024-03-28 至 2024-07-02 |
+| `npm run docs:check`（WSL Node 24，真实 Worktree Git 环境） | 退出 0；273 份仓库 Markdown 通过 |
+| `git diff --check` / `git diff --cached --check` | 均退出 0；最终 8 个文件范围已暂存审计 |
+
+首次 dist smoke 曾按查询顺序与 JSONL 顺序逐索引比较失败；SQLite Repository 明确按 date/productId 排序。脚本改为按自然键进行全量比对后复跑退出 0，7,178 行逐条匹配。该失败未改变数据或数据库，也未作为通过证据。
+
+### 三层一致性
+
+| 对齐层 | 结论 |
+|---|---|
+| 总体计划 / PRD：来源可追溯，真实公开快照不得伪造 | PASS：正式导入由固定原始字节摘要和覆盖元数据绑定；模拟和归一化单位语义保持不变 |
+| Issue #21 / Plan：固定 revision，可重复导入并查询 | PASS：迁移异常账本拒绝新增；固定来源脚本允许独立重建并检验查询 |
+| N2/N3 节点标准：异常输入拒绝、真实样本逐条一致 | PASS：正式认证负测、migration 异常红绿、dist 中固定 train/eval 7,178 行逐条比对全绿 |
+
+本轮追加文件：`apps/retailops/src/application/use-cases/import-public-history.ts`、`apps/retailops/src/adapters/persistence/sqlite/migration-runner.ts`、对应两个测试文件和合成 SQLite 合同测试、`scripts/retail-02/import-fixed-snapshot.mjs`、本执行计划及本回执。无 migration 新版、依赖变更、原始数据、SQLite DB 或 #26 文件修改。

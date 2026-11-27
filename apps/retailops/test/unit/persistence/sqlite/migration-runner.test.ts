@@ -250,6 +250,22 @@ describe('RetailOps SQLite migrations', () => {
     }
   });
 
+  it('rejects v2 tables that exist without a v2 migration ledger entry', () => {
+    const database = new Database(':memory:');
+    try {
+      initialRetailOpsMigration.up(database);
+      database.exec('CREATE TABLE retailops_schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, applied_at TEXT NOT NULL)');
+      database.prepare('INSERT INTO retailops_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)')
+        .run(1, 'initial-retailops-contract-storage', '2026-11-27T00:00:00.000Z');
+      publicHistoryMigration.up(database);
+
+      expect(() => migrateRetailOpsDatabase(database)).toThrow(/without migration version 2 ledger entry.*public_history_/i);
+      expect(database.prepare('SELECT version FROM retailops_schema_migrations ORDER BY version').all()).toEqual([{ version: 1 }]);
+    } finally {
+      database.close();
+    }
+  });
+
   it('validates v1 schema without requiring v2 tables before applying v2', () => {
     const database = new Database(':memory:');
     const originalUp = publicHistoryMigration.up;

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { importPublicHistory } from '../../src/application/use-cases/import-public-history.js';
+import { importPublicHistory, validatePublicHistorySnapshot } from '../../src/application/use-cases/import-public-history.js';
 import type { PublicHistoryRepository } from '../../src/application/ports/public-history-repository.js';
 
 const row = (productId: number, dt: string, saleAmount = 0.5) => ({
@@ -47,11 +47,20 @@ function fakeRepository(): { readonly repository: PublicHistoryRepository; reado
   return { repository, imports };
 }
 
-describe('importPublicHistory', () => {
-  it('hashes exact LF-terminated JSONL bytes before allowing persistence', () => {
+function importSyntheticFixtureOnly(input: Parameters<typeof validatePublicHistorySnapshot>[0], repository: PublicHistoryRepository) {
+  const validated = validatePublicHistorySnapshot(input);
+  if (validated.status === 'REJECTED') return validated;
+  return {
+    status: 'IMPORTED' as const,
+    persistence: repository.importSnapshot(validated.manifest, validated.records, input.snapshotJsonl),
+  };
+}
+
+describe('public history source validation', () => {
+  it('hashes exact LF-terminated JSONL bytes before allowing persistence in a synthetic-only test helper', () => {
     const bytes = bytesFor([row(4, '2024-03-28'), row(6, '2024-03-28', 0.25)]);
     const target = fakeRepository();
-    const result = importPublicHistory({
+    const result = importSyntheticFixtureOnly({
       manifest: manifestFor(bytes, 2, 2, '2024-03-28', '2024-03-28'),
       snapshotJsonl: bytes,
     }, target.repository);
@@ -59,24 +68,23 @@ describe('importPublicHistory', () => {
     expect(target.imports).toHaveLength(1);
   });
 
-  it('rejects a changed snapshot, non-LF framing, malformed row, and invalid source fields without persistence', () => {
+  it('rejects a changed snapshot, non-LF framing, malformed row, and invalid source fields', () => {
     const validBytes = bytesFor([row(4, '2024-03-28')]);
     const target = fakeRepository();
     const changed = new TextEncoder().encode(new TextDecoder().decode(validBytes) + ' ');
-    expect(importPublicHistory({ manifest: manifestFor(validBytes, 1, 1, '2024-03-28', '2024-03-28'), snapshotJsonl: changed }, target.repository))
+    expect(validatePublicHistorySnapshot({ manifest: manifestFor(validBytes, 1, 1, '2024-03-28', '2024-03-28'), snapshotJsonl: changed }))
       .toMatchObject({ status: 'REJECTED', issues: expect.arrayContaining([expect.objectContaining({ code: 'SNAPSHOT_HASH_MISMATCH' })]) });
-    expect(importPublicHistory({ manifest: manifestFor(validBytes, 1, 1, '2024-03-28', '2024-03-28'), snapshotJsonl: new TextEncoder().encode(new TextDecoder().decode(validBytes).replaceAll('\n', '\r\n')) }, target.repository))
+    expect(validatePublicHistorySnapshot({ manifest: manifestFor(validBytes, 1, 1, '2024-03-28', '2024-03-28'), snapshotJsonl: new TextEncoder().encode(new TextDecoder().decode(validBytes).replaceAll('\n', '\r\n')) }))
       .toMatchObject({ status: 'REJECTED', issues: expect.arrayContaining([expect.objectContaining({ code: 'INVALID_JSONL_FRAMING' })]) });
     const malformed = bytesFor([{ ...row(4, '2024-03-28'), hours_sale: [0] }]);
-    expect(importPublicHistory({ manifest: manifestFor(malformed, 1, 1, '2024-03-28', '2024-03-28'), snapshotJsonl: malformed }, target.repository))
+    expect(validatePublicHistorySnapshot({ manifest: manifestFor(malformed, 1, 1, '2024-03-28', '2024-03-28'), snapshotJsonl: malformed }))
       .toMatchObject({ status: 'REJECTED', issues: expect.arrayContaining([expect.objectContaining({ code: 'INVALID_SOURCE_ROW' })]) });
-    expect(target.imports).toHaveLength(0);
   });
 
   it('reports duplicate natural keys and coverage mismatches rather than silently importing', () => {
     const bytes = bytesFor([row(4, '2024-03-28'), row(4, '2024-03-28')]);
     const target = fakeRepository();
-    const result = importPublicHistory({ manifest: manifestFor(bytes, 2, 1, '2024-03-28', '2024-03-28'), snapshotJsonl: bytes }, target.repository);
+    const result = validatePublicHistorySnapshot({ manifest: manifestFor(bytes, 2, 1, '2024-03-28', '2024-03-28'), snapshotJsonl: bytes });
     expect(result).toMatchObject({ status: 'REJECTED', issues: expect.arrayContaining([expect.objectContaining({ code: 'DUPLICATE_INPUT_KEY' })]) });
     expect(target.imports).toHaveLength(0);
   });
@@ -85,24 +93,39 @@ describe('importPublicHistory', () => {
     const target = fakeRepository();
     const valid = bytesFor([row(4, '2024-03-28')]);
     const withBom = new Uint8Array([0xef, 0xbb, 0xbf, ...valid]);
-    expect(importPublicHistory({
+    expect(validatePublicHistorySnapshot({
       manifest: manifestFor(withBom, 1, 1, '2024-03-28', '2024-03-28'), snapshotJsonl: withBom,
-    }, target.repository)).toMatchObject({
+    })).toMatchObject({
       status: 'REJECTED', issues: expect.arrayContaining([expect.objectContaining({ code: 'INVALID_JSONL_FRAMING' })]),
     });
 
     const reorderedColumns = bytesFor([Object.fromEntries(Object.entries(row(4, '2024-03-28')).reverse())]);
-    expect(importPublicHistory({
+    expect(validatePublicHistorySnapshot({
       manifest: manifestFor(reorderedColumns, 1, 1, '2024-03-28', '2024-03-28'), snapshotJsonl: reorderedColumns,
-    }, target.repository)).toMatchObject({
+    })).toMatchObject({
       status: 'REJECTED', issues: expect.arrayContaining([expect.objectContaining({ code: 'INVALID_SOURCE_COLUMNS' })]),
     });
 
     const unsortedRows = bytesFor([row(6, '2024-03-28'), row(4, '2024-03-28')]);
-    expect(importPublicHistory({
+    expect(validatePublicHistorySnapshot({
       manifest: manifestFor(unsortedRows, 2, 2, '2024-03-28', '2024-03-28'), snapshotJsonl: unsortedRows,
-    }, target.repository)).toMatchObject({
+    })).toMatchObject({
       status: 'REJECTED', issues: expect.arrayContaining([expect.objectContaining({ code: 'INVALID_JSONL_ORDER' })]),
+    });
+    expect(target.imports).toHaveLength(0);
+  });
+
+  it('rejects JSONL and manifest changed together on the formal import route', () => {
+    const bytes = bytesFor([row(4, '2024-03-28')]);
+    const target = fakeRepository();
+    const result = importPublicHistory({
+      manifest: manifestFor(bytes, 1, 1, '2024-03-28', '2024-03-28'),
+      snapshotJsonl: bytes,
+    }, target.repository);
+
+    expect(result).toMatchObject({
+      status: 'REJECTED',
+      issues: expect.arrayContaining([expect.objectContaining({ code: 'UNAPPROVED_PUBLIC_SNAPSHOT' })]),
     });
     expect(target.imports).toHaveLength(0);
   });

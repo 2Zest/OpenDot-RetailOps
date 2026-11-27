@@ -251,11 +251,14 @@ function assertDatabaseMatchesLedger(database: Database.Database): void {
 }
 
 function assertNoUnversionedRetailSchema(database: Database.Database, ledger: readonly LedgerRow[]): void {
-  if (ledger.some((row) => row.version === 1)) return;
-  const existingTables = [...Object.keys(v1RequiredColumns), ...Object.keys(v2RequiredColumns)]
-    .filter((table) => table !== 'retailops_schema_migrations' && tableExists(database, table));
-  if (existingTables.length > 0) {
-    throw new Error("RetailOps schema tables exist without the matching migration ledger: " + existingTables.join(', '));
+  const appliedVersions = new Set(ledger.map((row) => row.version));
+  for (const [version, requiredColumns] of [[1, v1RequiredColumns], [2, v2RequiredColumns]] as const) {
+    if (appliedVersions.has(version)) continue;
+    const existingTables = Object.keys(requiredColumns)
+      .filter((table) => table !== 'retailops_schema_migrations' && tableExists(database, table));
+    if (existingTables.length > 0) {
+      throw new Error("RetailOps schema tables exist without migration version " + version + " ledger entry: " + existingTables.join(', '));
+    }
   }
 }
 

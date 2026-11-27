@@ -31,6 +31,7 @@ Worktree `D:/workSpace/codeAgent/OpenDot-RetailOps-02`，分支 `feat/retail-02`
 | `apps/retailops/src/adapters/persistence/sqlite/migrations/0002_public_history.ts` | 若仍需新增表，由 #21 唯一创建 |
 | `apps/retailops/src/adapters/persistence/sqlite/migration-runner.ts` | 共享注册入口，本轮唯一修改者为 #21，仅登记 v2 并校验 schema |
 | `scripts/retail-02/fetch-fixed-snapshot.py` | 新增来源获取脚本，#21 独占；Python 标准库下载固定 commit Parquet、核对 LFS OID；以仓库外临时 DuckDB CLI 解码 |
+| `scripts/retail-02/import-fixed-snapshot.mjs` | 从固定 extraction/download manifest 和 JSONL 构建临时 SQLite，并逐条核对查询结果；不包含数据或 DB |
 | `apps/retailops/test/unit/domain/history/fresh-retailnet-record.test.ts`、`test/unit/import-public-history.test.ts`、`test/unit/persistence/sqlite/public-history-repository.test.ts`、`test/contract/public-history-import.test.ts` | #21 独占新增测试 |
 | `apps/retailops/src/domain/index.ts`、`application/ports/retail-repositories.ts`、根/包配置、宿主、已合并合同、#26 路径 | 只读 |
 
@@ -58,6 +59,19 @@ Domain 只定义 FreshRetailNet 来源记录与字段语义；Application 端口
 - 总体计划/PRD：公开历史可追溯，归一化销量不伪造成现实单位。
 - Issue/Plan：可重复导入、异常可见、历史查询，不做预测。
 - 节点标准：来源/单位保留，幂等、异常报告和抽样相等均需实测；未复核不得 PASS。
+
+## Review 补充：正式来源认证与可复现导入
+
+正式 `importPublicHistory` 入口只接受已验收快照摘要：train JSONL `4b1f0c5922d54b991eca9cef3b7a5cb98f1878097cd320fbe6f2af44b6a5e005`（6,660 行，store 0，74 SKU，2024-03-28 至 2024-06-25）；eval JSONL `0934c95835208fdd32938ba3e4b69b7c4389d6eca5f4560e0b648866c3bb47d2`（518 行，store 0，同一 74 SKU，2024-06-26 至 2024-07-02）。74 个排序 SKU ID 的 JSON SHA-256 为 `1797d24e2e407ce6ab82531549a5508e6ea257c5cd0b9853af2d2e606796834b`。调用方同时更换文件与 manifest 摘要仍不能通过正式导入。合成单测只调用结构校验器和测试内 `importSyntheticFixtureOnly`，不调用正式导入入口；该 helper 不进入产品代码。
+
+固定快照导入复现命令（WSL Node 24）：
+
+```sh
+npm --prefix apps/retailops run build
+node scripts/retail-02/import-fixed-snapshot.mjs --snapshot-dir data/retail-02/<fixed-run-directory>
+```
+
+脚本创建新的系统临时目录和 SQLite DB，拒绝未通过固定来源/覆盖/摘要校验的数据，验证 train/eval 共 7,178 条查询记录逐条等同 JSONL，再输出 DB 路径和摘要；不覆盖既有 DB，不提交数据文件。
 
 
 ## 主控批准的补充范围（2026-11-27）

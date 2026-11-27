@@ -33,10 +33,37 @@ export type ImportPublicHistoryResult =
   | { readonly status: 'IMPORTED'; readonly persistence: PublicHistoryImportResult }
   | { readonly status: 'REJECTED'; readonly issues: readonly ImportPublicHistoryIssue[] };
 
-export function importPublicHistory(
-  input: ImportPublicHistoryInput,
-  repository: PublicHistoryRepository,
-): ImportPublicHistoryResult {
+export type ValidatePublicHistorySnapshotResult =
+  | { readonly status: 'VALIDATED'; readonly manifest: FreshRetailNetImportManifest; readonly records: readonly FreshRetailNetRecord[] }
+  | { readonly status: 'REJECTED'; readonly issues: readonly ImportPublicHistoryIssue[] };
+
+const acceptedSnapshotMetadata = {
+  train: {
+    sha256: '4b1f0c5922d54b991eca9cef3b7a5cb98f1878097cd320fbe6f2af44b6a5e005',
+    rowCount: 6_660,
+    selectedStoreId: 0,
+    selectedSkuCount: 74,
+    skuSetSha256: '1797d24e2e407ce6ab82531549a5508e6ea257c5cd0b9853af2d2e606796834b',
+    firstDate: '2024-03-28',
+    lastDate: '2024-06-25',
+  },
+  eval: {
+    sha256: '0934c95835208fdd32938ba3e4b69b7c4389d6eca5f4560e0b648866c3bb47d2',
+    rowCount: 518,
+    selectedStoreId: 0,
+    selectedSkuCount: 74,
+    skuSetSha256: '1797d24e2e407ce6ab82531549a5508e6ea257c5cd0b9853af2d2e606796834b',
+    firstDate: '2024-06-26',
+    lastDate: '2024-07-02',
+  },
+} as const;
+
+/**
+ * Validates JSONL structure and its manifest without asserting that the bytes
+ * came from the accepted public snapshot. Synthetic contract tests may use
+ * this parser, but only importPublicHistory is the trusted import route.
+ */
+export function validatePublicHistorySnapshot(input: ImportPublicHistoryInput): ValidatePublicHistorySnapshotResult {
   const issues: ImportPublicHistoryIssue[] = [];
   const manifestResult = freshRetailNetImportManifestSchema.safeParse(input.manifest);
   if (!manifestResult.success) {
@@ -151,5 +178,39 @@ export function importPublicHistory(
   }
 
   if (issues.length > 0 || !manifestResult.success) return { status: 'REJECTED', issues };
-  return { status: 'IMPORTED', persistence: repository.importSnapshot(manifestResult.data, records, input.snapshotJsonl) };
+  return { status: 'VALIDATED', manifest: manifestResult.data, records };
+}
+
+export function importPublicHistory(
+  input: ImportPublicHistoryInput,
+  repository: PublicHistoryRepository,
+): ImportPublicHistoryResult {
+  const validated = validatePublicHistorySnapshot(input);
+  if (validated.status === 'REJECTED') return validated;
+
+  const expected = acceptedSnapshotMetadata[validated.manifest.sourceSplit];
+  const skuIds = [...new Set(validated.records.map((record) => record.source.product_id))].sort((left, right) => left - right);
+  const skuSetSha256 = createHash('sha256').update(JSON.stringify(skuIds), 'utf8').digest('hex');
+  const manifest = validated.manifest;
+  if (manifest.snapshotJsonlSha256 !== expected.sha256
+    || manifest.rowCount !== expected.rowCount
+    || manifest.selectedStoreId !== expected.selectedStoreId
+    || manifest.selectedSkuCount !== expected.selectedSkuCount
+    || manifest.firstDate !== expected.firstDate
+    || manifest.lastDate !== expected.lastDate
+    || skuSetSha256 !== expected.skuSetSha256) {
+    return {
+      status: 'REJECTED',
+      issues: [{
+        index: null,
+        code: 'UNAPPROVED_PUBLIC_SNAPSHOT',
+        message: 'Formal import requires the accepted fixed-revision split, exact JSONL digest, store, SKU set, row count, and date range',
+      }],
+    };
+  }
+
+  return {
+    status: 'IMPORTED',
+    persistence: repository.importSnapshot(manifest, validated.records, input.snapshotJsonl),
+  };
 }
