@@ -31,3 +31,24 @@ N3 新增合同回归包含：输入/结果技术维度保护（4096 位字符�
 尚未验证项与风险：docs:check、git diff --check、最终精确文件范围和远端 PR 状态属于 N5，尚未执行。候选需求充分性由调用方显式声明 ADEQUATE；UNCERTAIN 拒绝，不设置统计阈值。
 决定：N4 PASS，继续 N5 文档/差异验收及独立 PR 交付。
 审核者及时间：执行 Agent，2026-11-27；主控/独立审查待 PR。
+
+## PR #88 最终针对性修订复测
+
+先行红测（WSL Ubuntu / Node v24.22.3 / npm 11.19.1）：新增回归第一次执行时，定向两文件共 24 项，19 通过、5 失败，失败分别复现 quantity scale 未覆盖 demand 引发未捕获 RangeError、合法 292 位计算输出超出旧 260 位 schema 上限、重复 inputOrdinal 被接受、伪造 CALCULATED 输出绕过 loss/expiry/margin 约束、DATE_ONLY 时区跨日 snapshot 被错误接受。实施修复后曾有一次最大精度 fixture 断言状态失败；核对后发现 fixture 的正数 loss 大于售后余量，修正为零数量但保留 18 位精度的 fixture 输入，此失败不是实现偏差。
+
+| 实际命令 | 退出码 | 结果 |
+|---|---:|---|
+| `npm test -- test/unit/decision/markdown-calculation.test.ts test/contract/decision/markdown-calculation.test.ts` | 0 | 2 个定向测试文件，24/24 通过，覆盖数量统一 scale、292 位最大合法金额乘数量、146 位 fractional ending、timezone offset、唯一 inputOrdinal、伪造 quality/expiry/loss/price-floor/margin 成功输出拒绝、非法精度 safeParse 不抛异常。 |
+| `npm run build` | 0 | `tsc -p tsconfig.json` 通过。 |
+| `npm run typecheck` | 0 | `tsc -p tsconfig.test.json --noEmit` 通过。 |
+| `npm test` | 0 | 5 个测试文件，50/50 通过；原有测试与断言保留。 |
+
+环境：WSL Ubuntu 24.04，Node v24.22.3，npm 11.19.1。没有真实数据、模型、Runtime、数据库或业务副作用。
+
+| 对齐层 | 本轮事实 | 判定 |
+|---|---|---|
+| PRD / 总体计划 | 模拟结果仍来源可追溯、无损耗 KPI 或真实因果主张；审批仍 REQUIRED、执行权限 NONE。 | PASS |
+| Issue / Execution Plan | 仅修订 #24 自有计算模块及测试，未改基础领域合同、共享依赖、#20 文件或 DAG。 | PASS |
+| 节点验收 | 红测真实捕获五类缺陷；修复后定向 24/24、build、typecheck、全包 50/50 均通过。 | PASS |
+
+未解决事项：无代码或测试阻塞；等待主控复核及 PR #88 独立 Review。N5 文档检查、差异检查和 GitHub 状态回读记于 N5 追加记录。

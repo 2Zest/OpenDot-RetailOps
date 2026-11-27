@@ -45,3 +45,15 @@ Issue / Plan 版本 / 节点 ID：GitHub Issue #24、RETAIL-05P-PLAN、细化 Ex
 尚未验证项与风险：N5 文档检查、差异检查、最终文件范围审查和 PR 交付尚待完成；测试数据全部为合成 fixture，不是业务/模型效果证据。
 决定：N3 与 N4 通过，继续 N5 静态验收与交付。
 审核者及时间：执行 Agent，2026-11-27；独立主控审查待 PR。
+
+## PR #88 最终针对性修订（追加记录，不覆盖上述历史结果）
+
+独立 Review 复核发现：原 260 位输出上限未计入金额与数量共同放大到统一 scale 的零位扩展。该数值仅代表上一版候选实现；当前技术界限为输入 Money/Quantity 均最多 128 位、scale 最多 18；归一化整数分别最多 146 位；精确乘积最多 292 位。因此 `MAX_OUTPUT_DIGITS = 2 * (MAX_DIGITS + MAX_SCALE) = 292`，输出金额 scale 最大 36。统一数量 scale 后，输出 Quantity 最多 146 位、scale 最大 18。所有限制均为解析/资源边界，不是业务阈值。
+
+- `checkQuantityConservation` 的统一 scale 现包含 opening、simulated demand、sold、remaining、loss 与 ending；覆盖 `opening=10, demand=10.5, loss=0` 及 `1.2 / 1.25 / 0`。
+- DATE_ONLY snapshot 与历史来源边界按其明确业务时区，将 capturedAt instant 转成该时区日历日；不再截取 ISO 字符串前十位。回归覆盖 Asia/Kolkata、America/Los_Angeles、跨日与等价 `+05:30` offset 时间戳。
+- 结果快照保留完整 batch 和 asOf，以及折价列表 policy/source 元数据。Result schema 校验输入快照、batch、asOf、opening、policy revision 和来源绑定；`inputOrdinal` 必须构成 0..n-1 的唯一全排列。
+- Result schema 从保留的原始输入重新判定售卖资格、质量、效期、库存、币种、单位、折扣上下限、售价底线、毛利和损耗边界，并校验候选原因数组；CALCULATED 必须通过全部硬规则、数量守恒且有非空 endingQty。schema refine 仅在已验证数值界限内执行 BigInt，不使用 catch-all 屏蔽异常。
+- 所有新增回归仍是合成 fixture；没有改 v0.3.0 基础合同、政策阈值、业务默认值、KPI、因果声明或下游功能。
+
+本轮新增测试的首轮红测见 N4 追加记录；修订后定向 24/24 通过，完整包 50/50 通过。

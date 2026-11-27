@@ -62,6 +62,63 @@ function fixture(overrides: Record<string, unknown> = {}) {
 }
 
 describe('RETAIL-05P deterministic markdown candidate rules', () => {
+  it('uses one quantity scale across opening, demand, sales, remainder, loss, and ending quantities', () => {
+    const openingTenDemandFraction = fixture({
+      discountList: { ...fixture().discountList, candidates: [
+        { discountAmount: money('50'), demandQty: quantity('10.5'), lossQty: quantity('0'), demandAssessment: 'ADEQUATE', demandSource: countSource(), lossSource: countSource() },
+      ] },
+    });
+    expect(() => calculateMarkdownCandidates(openingTenDemandFraction)).not.toThrow();
+    expect(calculateMarkdownCandidates(openingTenDemandFraction).candidates[0]?.metrics).toMatchObject({
+      openingQty: quantity('10'), simulatedDemandQty: quantity('10.5'), simulatedSoldQty: quantity('10'),
+      remainingAfterSalesQty: quantity('0'), reportedLossQty: quantity('0'), endingQty: quantity('0'),
+      precision: { quantityScale: 1 },
+    });
+
+    const smallFractional = fixture({
+      batch: {
+        ...fixture().batch,
+        stockBalance: { physicalOnHand: quantity('1.2'), unavailable: quantity('0'), availableToSell: quantity('1.2'), reserved: quantity('0') },
+      },
+      discountList: { ...fixture().discountList, candidates: [
+        { discountAmount: money('50'), demandQty: quantity('1.25'), lossQty: quantity('0'), demandAssessment: 'ADEQUATE', demandSource: countSource(), lossSource: countSource() },
+      ] },
+    });
+    expect(() => calculateMarkdownCandidates(smallFractional)).not.toThrow();
+    expect(calculateMarkdownCandidates(smallFractional).candidates[0]?.metrics).toMatchObject({
+      openingQty: quantity('1.2'), simulatedDemandQty: quantity('1.25'), simulatedSoldQty: quantity('1.2'),
+      remainingAfterSalesQty: quantity('0'), reportedLossQty: quantity('0'), endingQty: quantity('0'),
+      precision: { quantityScale: 2 },
+    });
+  });
+
+  it('calculates the maximum legal money-by-quantity precision without exceeding the bounded output schema', () => {
+    const huge = '9'.repeat(128);
+    const maxScaleMoney = (minorUnits: string) => ({ minorUnits, currencyCode: 'CNY', minorUnitScale: 18 });
+    const maxPrecision = fixture({
+      batch: {
+        ...fixture().batch,
+        stockBalance: { physicalOnHand: quantity(huge), unavailable: quantity('0'), availableToSell: quantity(huge), reserved: quantity('0') },
+      },
+      basePrice: { value: { minorUnits: huge, currencyCode: 'CNY', minorUnitScale: 0 }, source: pricingSource },
+      unitCost: { value: money('1'), source: costSource },
+      discountPolicy: { policyId: 'fixture-policy', policyRevision: 'fixture-r1', maximumDiscount: maxScaleMoney(huge), minimumPrice: maxScaleMoney('0'), source: policySource },
+      marginConstraint: { kind: 'MIN_CONTRIBUTION_PER_UNIT', minimumContribution: { value: maxScaleMoney('0'), source: policySource } },
+      discountList: { ...fixture().discountList, candidates: [
+        { discountAmount: money('1'), demandQty: quantity(huge), lossQty: quantity('0.000000000000000000'), demandAssessment: 'ADEQUATE', demandSource: countSource(), lossSource: countSource() },
+        { discountAmount: money('2'), demandQty: quantity('0'), lossQty: quantity('0.000000000000000001'), demandAssessment: 'ADEQUATE', demandSource: countSource(), lossSource: countSource() },
+      ] },
+    });
+    expect(() => calculateMarkdownCandidates(maxPrecision)).not.toThrow();
+    const result = calculateMarkdownCandidates(maxPrecision);
+    expect(result.status).toBe('CALCULATED');
+    expect(result.candidates[0]?.metrics?.precision).toEqual({ inputMoneyScale: 18, quantityScale: 18, rounding: 'NONE_EXACT' });
+    expect(result.candidates[0]?.metrics?.revenue.minorUnits).toHaveLength(292);
+    const fractionalEnding = result.candidates[1]?.metrics?.endingQty?.value ?? '';
+    expect(fractionalEnding.split('.')[0]).toHaveLength(128);
+    expect(fractionalEnding.split('.')[1]).toHaveLength(18);
+  });
+
   it('generates explicit candidates in stable discount order without granting execution authority', () => {
     const result = calculateMarkdownCandidates(fixture());
     expect(result.status).toBe('CALCULATED');

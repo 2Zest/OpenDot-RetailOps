@@ -8,16 +8,18 @@ import {
 import { policySchema } from '../policy/policy.js';
 
 // Technical bounds limit BigInt parsing, exponent expansion and schema traversal.
-// 128 input digits x 128 quantity digits yields at most 256 output digits; result
-// precision is at most 18 money places + 18 quantity places. These are resource
-// limits, not business thresholds.
+// atScale can add up to 18 zeroes to each 128-digit input. The maximum exact
+// amount-by-quantity product is therefore (128 + 18) + (128 + 18) = 292 digits.
+// Output precision is at most 18 money places + 18 quantity places. These are
+// resource limits, not business thresholds.
 const MAX_DIGITS = 128;
 const MAX_SCALE = 18;
 const MAX_CANDIDATES = 128;
 const MAX_REFS = 256;
 const MAX_NODES = 4096;
 const MAX_TEXT = 262144;
-const MAX_OUTPUT_DIGITS = 260;
+const MAX_OUTPUT_DIGITS = 2 * (MAX_DIGITS + MAX_SCALE);
+const MAX_OUTPUT_QUANTITY_DIGITS = MAX_DIGITS + MAX_SCALE;
 const MAX_OUTPUT_SCALE = 36;
 
 export const MARKDOWN_FORMULA_VERSION = 'retailops.markdown-calculation/0.1.0-proposal' as const;
@@ -169,8 +171,11 @@ const inputInnerSchema = z.object({
     || compareTemporal(observed.end, input.asOf) > 0 || compareTemporal(simulated.start, input.asOf) <= 0) {
     context.addIssue({ code: 'custom', path: ['scenario'], message: 'Historical observations end by asOf; simulated period starts after asOf' });
   }
-  if (input.asOf.basis === 'DATE_ONLY' && snapshot.capturedAt.slice(0, 10) > input.asOf.value) {
-    context.addIssue({ code: 'custom', path: ['inputSnapshot', 'capturedAt'], message: 'Snapshot cannot be newer than asOf' });
+  if (input.asOf.basis === 'DATE_ONLY') {
+    const capturedDate = instantDateInTimeZone(snapshot.capturedAt, input.asOf.timeZone);
+    if (capturedDate === null || capturedDate > input.asOf.value) {
+      context.addIssue({ code: 'custom', path: ['inputSnapshot', 'capturedAt'], message: 'Snapshot cannot be newer than asOf in its business timezone' });
+    }
   }
   if (input.asOf.basis === 'INSTANT' && compareInstants(snapshot.capturedAt, input.asOf.value) > 0) {
     context.addIssue({ code: 'custom', path: ['inputSnapshot', 'capturedAt'], message: 'Snapshot cannot be newer than asOf' });
@@ -198,8 +203,11 @@ const inputInnerSchema = z.object({
       || compareTemporal(observed.start, observedAt) > 0
       || compareTemporal(observedAt, observed.end) > 0
       || compareTemporal(observedAt, input.asOf) > 0;
+    const capturedDate = observedAt.basis === 'DATE_ONLY'
+      ? instantDateInTimeZone(snapshot.capturedAt, observedAt.timeZone)
+      : null;
     const newerThanSnapshot = observedAt.basis === 'DATE_ONLY'
-      ? observedAt.value > snapshot.capturedAt.slice(0, 10)
+      ? capturedDate === null || observedAt.value > capturedDate
       : compareInstants(observedAt.value, snapshot.capturedAt) > 0;
     if (outsideWindow || newerThanSnapshot) {
       context.addIssue({ code: 'custom', path: entry.path, message: 'Historical source must be within the observed window and no newer than asOf/input snapshot' });
@@ -256,7 +264,7 @@ const candidateResultSchema = z.object({
   reasonCodes: z.array(markdownCalculationReasonSchema), metrics: metricsSchema.nullable(),
 }).strict();
 const resultSnapshotSchema = z.object({
-  inputSnapshot: inputSnapshotSchema, scenario: scenarioSchema, policy: policySchema,
+  inputSnapshot: inputSnapshotSchema, scenario: scenarioSchema, policy: policySchema, batch: batchSchema, asOf: asOfSchema,
   batchId: opaqueReferenceSchema, basePrice: sourcedMoneySchema, unitCost: sourcedMoneySchema,
   openingQty: boundedQuantitySchema,
   discountPolicy: z.object({
@@ -264,8 +272,11 @@ const resultSnapshotSchema = z.object({
     maximumDiscount: nonNegativeMoneySchema, minimumPrice: nonNegativeMoneySchema, source: calculationSourceSchema,
   }).strict(),
   marginConstraint: markdownMarginConstraintSchema, discountListVersion: opaqueReferenceSchema,
+  discountListPolicyId: opaqueReferenceSchema, discountListPolicyRevision: opaqueReferenceSchema,
+  discountListSource: calculationSourceSchema,
   candidateInputs: z.array(candidateInputSchema).min(1).max(MAX_CANDIDATES),
 }).strict();
+type ResultSnapshot = z.infer<typeof resultSnapshotSchema>;
 const resultInnerSchema = z.object({
   contractVersion: contractVersionSchema, formulaVersion: formulaVersionSchema,
   status: z.enum(['CALCULATED', 'REJECTED', 'NOT_COMPUTABLE']),
@@ -294,6 +305,23 @@ const resultInnerSchema = z.object({
     context.addIssue({ code: 'custom', path: ['status'], message: 'Computed output requires snapshot and candidates' });
     return;
   }
+  const outputSnapshot = result.inputSnapshot;
+  const reconstructedInput = markdownCalculationInputSchema.safeParse({
+    contractVersion: result.contractVersion, formulaVersion: result.formulaVersion,
+    batch: outputSnapshot.batch, asOf: outputSnapshot.asOf, scenario: outputSnapshot.scenario,
+    policy: outputSnapshot.policy, inputSnapshot: outputSnapshot.inputSnapshot,
+    basePrice: outputSnapshot.basePrice, unitCost: outputSnapshot.unitCost,
+    discountPolicy: outputSnapshot.discountPolicy, marginConstraint: outputSnapshot.marginConstraint,
+    discountList: {
+      version: outputSnapshot.discountListVersion, policyId: outputSnapshot.discountListPolicyId,
+      policyRevision: outputSnapshot.discountListPolicyRevision, source: outputSnapshot.discountListSource,
+      candidates: outputSnapshot.candidateInputs,
+    },
+  });
+  if (!reconstructedInput.success) {
+    context.addIssue({ code: 'custom', path: ['inputSnapshot'], message: 'Result must retain a complete, independently valid source input snapshot' });
+    return;
+  }
   const snapshotMoney = [
     result.inputSnapshot.basePrice.value,
     result.inputSnapshot.unitCost.value,
@@ -305,6 +333,61 @@ const resultInnerSchema = z.object({
   ];
   if (!snapshotMoney.every((item) => isSafeMoney(item, MAX_DIGITS, MAX_SCALE))) {
     context.addIssue({ code: 'custom', path: ['inputSnapshot'], message: 'Source money is outside safe BigInt dimensions' });
+    return;
+  }
+  const sourceSnapshot = result.inputSnapshot.inputSnapshot;
+  const batchQuantities = [
+    result.inputSnapshot.batch.stockBalance.physicalOnHand,
+    result.inputSnapshot.batch.stockBalance.unavailable,
+    result.inputSnapshot.batch.stockBalance.availableToSell,
+    result.inputSnapshot.batch.stockBalance.reserved,
+  ];
+  if (!batchQuantities.every((item) => safeQuantity(item.value))
+    || !safeQuantity(result.inputSnapshot.openingQty.value)) {
+    context.addIssue({ code: 'custom', path: ['inputSnapshot', 'batch'], message: 'Source batch quantities exceed safe input dimensions' });
+    return;
+  }
+  const batch = result.inputSnapshot.batch;
+  const sourceIdentityMatches = sameBasis(sourceSnapshot.asOf, result.inputSnapshot.asOf)
+    && temporalValue(sourceSnapshot.asOf) === temporalValue(result.inputSnapshot.asOf)
+    && sourceSnapshot.scenarioId === result.inputSnapshot.scenario.id
+    && sourceSnapshot.scenarioVersion === result.inputSnapshot.scenario.version
+    && sourceSnapshot.batchId === batch.id && result.inputSnapshot.batchId === batch.id
+    && sameStringSet(sourceSnapshot.batchEvidenceIds, batch.evidenceIds)
+    && sourceSnapshot.policyId === result.inputSnapshot.policy.id
+    && sourceSnapshot.policyRevision === result.inputSnapshot.policy.revision
+    && sameStringSet(sourceSnapshot.policyEvidenceIds, result.inputSnapshot.policy.evidenceIds)
+    && quantityEqual(result.inputSnapshot.openingQty, batch.stockBalance.availableToSell)
+    && result.inputSnapshot.discountPolicy.policyId === result.inputSnapshot.policy.id
+    && result.inputSnapshot.discountPolicy.policyRevision === result.inputSnapshot.policy.revision
+    && policySourceMatches(result.inputSnapshot.discountPolicy.source, result.inputSnapshot.policy)
+    && result.inputSnapshot.discountListPolicyId === result.inputSnapshot.policy.id
+    && result.inputSnapshot.discountListPolicyRevision === result.inputSnapshot.policy.revision
+    && policySourceMatches(result.inputSnapshot.discountListSource, result.inputSnapshot.policy)
+    && (result.inputSnapshot.marginConstraint.kind === 'MIN_CONTRIBUTION_PER_UNIT'
+      ? policySourceMatches(result.inputSnapshot.marginConstraint.minimumContribution.source, result.inputSnapshot.policy)
+      : policySourceMatches(result.inputSnapshot.marginConstraint.source, result.inputSnapshot.policy))
+    && result.inputSnapshot.scenario.source.dataMeaning === 'SCENARIO'
+    && result.inputSnapshot.scenario.source.scenarioId === result.inputSnapshot.scenario.id
+    && result.inputSnapshot.scenario.source.scenarioVersion === result.inputSnapshot.scenario.version
+    && sourceSnapshot.source.dataMeaning === 'BATCH_SNAPSHOT'
+    && result.inputSnapshot.basePrice.source.dataMeaning === 'UNIT_PRICE'
+    && result.inputSnapshot.unitCost.source.dataMeaning === 'UNIT_COST'
+    && result.inputSnapshot.basePrice.source.unitCode === batch.stockBalance.availableToSell.unitCode
+    && result.inputSnapshot.unitCost.source.unitCode === batch.stockBalance.availableToSell.unitCode
+    && result.inputSnapshot.candidateInputs.every((item) =>
+      item.demandSource.dataMeaning === 'UNIT_COUNT'
+      && item.lossSource.dataMeaning === 'UNIT_COUNT'
+      && item.demandSource.unitCode === item.demandQty.unitCode
+      && item.lossSource.unitCode === item.lossQty.unitCode
+      && item.demandSource.scenarioId === outputSnapshot.scenario.id
+      && item.demandSource.scenarioVersion === outputSnapshot.scenario.version
+      && item.lossSource.scenarioId === outputSnapshot.scenario.id
+      && item.lossSource.scenarioVersion === outputSnapshot.scenario.version
+      && item.demandSource.sourceKind !== 'PUBLIC_HISTORICAL'
+      && item.lossSource.sourceKind !== 'PUBLIC_HISTORICAL');
+  if (!sourceIdentityMatches) {
+    context.addIssue({ code: 'custom', path: ['inputSnapshot'], message: 'Calculation result must preserve internally consistent batch, time, scenario, and policy inputs' });
     return;
   }
   const anyCalculated = result.candidates.some((candidate) => candidate.status === 'CALCULATED');
@@ -321,6 +404,12 @@ const resultInnerSchema = z.object({
   }
   if (result.inputSnapshot.candidateInputs.length !== result.candidates.length) {
     context.addIssue({ code: 'custom', path: ['inputSnapshot', 'candidateInputs'], message: 'Every output candidate must retain its source-bearing input' });
+  }
+  const ordinals = result.candidates.map((candidate) => candidate.inputOrdinal);
+  if (new Set(ordinals).size !== ordinals.length
+    || ordinals.length !== result.inputSnapshot.candidateInputs.length
+    || !Array.from({ length: ordinals.length }, (_, ordinal) => ordinals.includes(ordinal)).every(Boolean)) {
+    context.addIssue({ code: 'custom', path: ['candidates'], message: 'Input ordinals must form a unique one-to-one mapping to candidate inputs' });
   }
   const inputMoneyScale = Math.max(...[
     result.inputSnapshot.basePrice.value.minorUnitScale, result.inputSnapshot.unitCost.value.minorUnitScale,
@@ -343,6 +432,22 @@ const resultInnerSchema = z.object({
     }
     if (candidate.metrics !== null) {
       checkMetricArithmetic(candidate.metrics, candidate, result.inputSnapshot.openingQty, input, result.inputSnapshot.unitCost.value, inputMoneyScale, index, context);
+    }
+    const expectedReasons = expectedCandidateHardRuleReasons(result.inputSnapshot, input);
+    if (!sameOrderedStrings(candidate.reasonCodes, expectedReasons)) {
+      context.addIssue({ code: 'custom', path: ['candidates', index, 'reasonCodes'], message: 'Candidate reasons must match the deterministic rules evaluated from the retained inputs' });
+    }
+    const sameCurrency = allSnapshotMoney(outputSnapshot)
+      .every((item) => item.currencyCode === outputSnapshot.basePrice.value.currencyCode);
+    const unitOk = input.demandQty.unitCode === batch.stockBalance.availableToSell.unitCode
+      && input.lossQty.unitCode === batch.stockBalance.availableToSell.unitCode;
+    const shouldHaveMetrics = sameCurrency && candidate.proposedPrice !== null && unitOk && input.demandAssessment === 'ADEQUATE';
+    if ((candidate.metrics !== null) !== shouldHaveMetrics) {
+      context.addIssue({ code: 'custom', path: ['candidates', index, 'metrics'], message: 'Metrics presence must match the explicit calculation inputs' });
+    }
+    if (candidate.status === 'CALCULATED'
+      && (expectedReasons.length !== 0 || candidate.metrics === null || candidate.metrics.endingQty === null)) {
+      context.addIssue({ code: 'custom', path: ['candidates', index], message: 'A calculated candidate must pass every hard rule and have a feasible loss-adjusted ending quantity' });
     }
   }
   const aggregate = uniqueReasons(result.candidates.flatMap((candidate) => candidate.reasonCodes));
@@ -472,11 +577,13 @@ function resultSchemaParse(
     contractVersion: '0.3.0', formulaVersion: MARKDOWN_FORMULA_VERSION, status,
     businessApproval: 'REQUIRED', executionAuthority: 'NONE', reasonCodes, candidates,
     inputSnapshot: {
-      inputSnapshot: input.inputSnapshot, scenario: input.scenario, policy: input.policy, batchId: input.batch.id,
+      inputSnapshot: input.inputSnapshot, scenario: input.scenario, policy: input.policy, batch: input.batch, asOf: input.asOf, batchId: input.batch.id,
       basePrice: input.basePrice, unitCost: input.unitCost,
       openingQty: input.batch.stockBalance.availableToSell,
       discountPolicy: input.discountPolicy, marginConstraint: input.marginConstraint,
-      discountListVersion: input.discountList.version, candidateInputs: input.discountList.candidates,
+      discountListVersion: input.discountList.version, discountListPolicyId: input.discountList.policyId,
+      discountListPolicyRevision: input.discountList.policyRevision, discountListSource: input.discountList.source,
+      candidateInputs: input.discountList.candidates,
     },
     assumptions: [
       'DEMAND_AND_LOSS_ARE_CALLER_SUPPLIED_SCENARIO_VALUES', 'NO_PRICE_ELASTICITY_INFERENCE',
@@ -551,7 +658,8 @@ function preflight(value: unknown, context: z.RefinementCtx, output = false): vo
     if (typeof record.minorUnitScale === 'number' && (!Number.isSafeInteger(record.minorUnitScale) || record.minorUnitScale < 0 || record.minorUnitScale > scaleLimit)) return fail([...path, 'minorUnitScale'], 'Money exceeds technical scale limit');
     if (typeof record.unitCode === 'string' && typeof record.value === 'string' && decimalPattern.test(record.value)) {
       const parts = decimalParts(record.value);
-      if (parts.whole.length + parts.fraction.length > MAX_DIGITS || parts.fraction.length > MAX_SCALE) return fail([...path, 'value'], 'Quantity exceeds technical dimensions');
+      const quantityDigitLimit = output ? MAX_OUTPUT_QUANTITY_DIGITS : MAX_DIGITS;
+      if (parts.whole.length + parts.fraction.length > quantityDigitLimit || parts.fraction.length > MAX_SCALE) return fail([...path, 'value'], 'Quantity exceeds technical dimensions');
     }
     Object.entries(record).forEach(([key, child]) => visit(child, [...path, key], depth + 1));
     active.delete(record);
@@ -565,6 +673,78 @@ function allMoney(input: MarkdownCalculationInput): z.infer<typeof moneySchema>[
     input.basePrice.value, input.unitCost.value, input.discountPolicy.maximumDiscount, input.discountPolicy.minimumPrice,
     ...margin, ...input.discountList.candidates.map((candidate) => candidate.discountAmount),
   ];
+}
+function allSnapshotMoney(snapshot: ResultSnapshot): z.infer<typeof moneySchema>[] {
+  const margin = snapshot.marginConstraint.kind === 'MIN_CONTRIBUTION_PER_UNIT'
+    ? [snapshot.marginConstraint.minimumContribution.value] : [];
+  return [
+    snapshot.basePrice.value, snapshot.unitCost.value, snapshot.discountPolicy.maximumDiscount,
+    snapshot.discountPolicy.minimumPrice, ...margin, ...snapshot.candidateInputs.map((candidate) => candidate.discountAmount),
+  ];
+}
+function policySourceMatches(source: CalculationSource, policy: z.infer<typeof policySchema>): boolean {
+  return source.dataMeaning === 'POLICY_RULE'
+    && source.policyId === policy.id && source.policyRevision === policy.revision;
+}
+function quantityEqual(left: z.infer<typeof quantitySchema>, right: z.infer<typeof quantitySchema>): boolean {
+  if (left.unitCode !== right.unitCode || !safeQuantity(left.value) || !safeQuantity(right.value)) return false;
+  const scale = Math.max(decimalScale(left.value), decimalScale(right.value));
+  return decimalToScaledInteger(left.value, scale) === decimalToScaledInteger(right.value, scale);
+}
+function sameOrderedStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+function expectedCandidateHardRuleReasons(snapshot: ResultSnapshot, candidate: z.infer<typeof candidateInputSchema>): MarkdownCalculationReason[] {
+  const moneyInputs = allSnapshotMoney(snapshot);
+  const moneyScale = Math.max(...moneyInputs.map((item) => item.minorUnitScale));
+  const currencyOk = moneyInputs.every((item) => item.currencyCode === snapshot.basePrice.value.currencyCode);
+  const sellability = assessSellability({
+    expiry: snapshot.batch.expiry, asOf: snapshot.asOf, qualityStatus: snapshot.batch.qualityStatus,
+  });
+  const openingValue = snapshot.batch.stockBalance.availableToSell.value;
+  const quantityScale = Math.max(
+    decimalScale(openingValue), decimalScale(candidate.demandQty.value), decimalScale(candidate.lossQty.value),
+  );
+  const opening = decimalToScaledInteger(openingValue, quantityScale);
+  const demand = decimalToScaledInteger(candidate.demandQty.value, quantityScale);
+  const loss = decimalToScaledInteger(candidate.lossQty.value, quantityScale);
+  const sold = opening < demand ? opening : demand;
+  const remainder = opening - sold;
+  const discount = atScale(candidate.discountAmount, moneyScale);
+  const maximumDiscount = atScale(snapshot.discountPolicy.maximumDiscount, moneyScale);
+  const minimumPrice = atScale(snapshot.discountPolicy.minimumPrice, moneyScale);
+  const priceMinor = atScale(snapshot.basePrice.value, moneyScale) - discount;
+  const proposedPrice = candidatePrice(snapshot.basePrice.value, candidate.discountAmount);
+  const unit = snapshot.batch.stockBalance.availableToSell.unitCode;
+  const unitOk = candidate.demandQty.unitCode === unit && candidate.lossQty.unitCode === unit;
+  const normalizedDiscounts = snapshot.candidateInputs.map((item) =>
+    item.discountAmount.currencyCode + ':' + atScale(item.discountAmount, moneyScale).toString());
+  const duplicate = new Set(normalizedDiscounts).size !== normalizedDiscounts.length;
+  const reasons: MarkdownCalculationReason[] = [];
+  if (snapshot.batch.qualityStatus !== 'PASS') reasons.push('QUALITY_NOT_PASS');
+  if (sellability.status === 'BLOCKED') reasons.push('SELLABILITY_BLOCKED');
+  if (sellability.status === 'UNRESOLVED') reasons.push('SELLABILITY_UNRESOLVED');
+  if (opening <= 0n) reasons.push('ZERO_SELLABLE_STOCK');
+  if (!currencyOk) reasons.push('CURRENCY_MISMATCH');
+  if (duplicate) reasons.push('DUPLICATE_DISCOUNT');
+  if (!unitOk) reasons.push('UNIT_MISMATCH');
+  if (candidate.demandAssessment === 'UNCERTAIN') reasons.push('DEMAND_UNCERTAIN');
+  if (discount <= 0n) reasons.push('DISCOUNT_NOT_POSITIVE');
+  if (discount > maximumDiscount) reasons.push('DISCOUNT_ABOVE_MAXIMUM');
+  if (priceMinor < 0n) reasons.push('NEGATIVE_CANDIDATE_PRICE');
+  else if (priceMinor < minimumPrice) reasons.push('BELOW_MINIMUM_PRICE');
+  if (loss > remainder) reasons.push('LOSS_EXCEEDS_REMAINDER');
+  const contributionPerUnit = priceMinor - atScale(snapshot.unitCost.value, moneyScale);
+  if (snapshot.marginConstraint.kind === 'MIN_CONTRIBUTION_PER_UNIT') {
+    if (contributionPerUnit < atScale(snapshot.marginConstraint.minimumContribution.value, moneyScale)) reasons.push('MARGIN_BELOW_MINIMUM');
+  } else if (sold === 0n || priceMinor === 0n) {
+    reasons.push('MARGIN_UNDEFINED_REVENUE_ZERO');
+  } else if (contributionPerUnit * BigInt(snapshot.marginConstraint.denominator)
+    < priceMinor * BigInt(snapshot.marginConstraint.numerator)) {
+    reasons.push('MARGIN_BELOW_MINIMUM');
+  }
+  if (proposedPrice === null && reasons.length === 0) reasons.push('CURRENCY_MISMATCH');
+  return uniqueReasons(reasons);
 }
 function hasDuplicateDiscounts(input: MarkdownCalculationInput): boolean {
   const discounts = input.discountList.candidates.map((candidate) => candidate.discountAmount);
@@ -616,6 +796,27 @@ function compareTemporal(left: z.infer<typeof asOfSchema>, right: z.infer<typeof
   if (left.basis === 'INSTANT' && right.basis === 'INSTANT') return compareInstants(left.value, right.value);
   return 1;
 }
+function instantDateInTimeZone(instant: string, timeZone: string): string | null {
+  const epochMilliseconds = Date.parse(instant);
+  if (!Number.isFinite(epochMilliseconds)) return null;
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat('en-US-u-ca-gregory-nu-latn', {
+      timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date(epochMilliseconds));
+  } catch (error) {
+    if (error instanceof RangeError) return null;
+    throw error;
+  }
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value;
+  const year = Number(value('year'));
+  const month = Number(value('month'));
+  const day = Number(value('day'));
+  if (!Number.isInteger(year) || year < 1 || year > 9999
+    || !Number.isInteger(month) || month < 1 || month > 12
+    || !Number.isInteger(day) || day < 1 || day > 31) return null;
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
 function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && new Set(left).size === new Set(right).size && left.every((value) => right.includes(value));
 }
@@ -626,7 +827,7 @@ function checkQuantityConservation(metrics: z.infer<typeof metricsSchema>, index
   }
   const all = [metrics.simulatedDemandQty, metrics.simulatedSoldQty, metrics.remainingAfterSalesQty, metrics.reportedLossQty];
   const quantities = [metrics.openingQty, ...all, ...(metrics.endingQty === null ? [] : [metrics.endingQty])];
-  if (!quantities.every((item) => item !== null && typeof item === 'object' && safeQuantity(item.value))) {
+  if (!quantities.every((item) => item !== null && typeof item === 'object' && safeQuantity(item.value, true))) {
     context.addIssue({ code: 'custom', path: ['candidates', index, 'metrics'], message: 'Output quantity is outside safe decimal dimensions' });
     return;
   }
@@ -635,7 +836,7 @@ function checkQuantityConservation(metrics: z.infer<typeof metricsSchema>, index
     context.addIssue({ code: 'custom', path: ['candidates', index, 'metrics'], message: 'All quantity metrics must use one unit' });
     return;
   }
-  const values = [metrics.openingQty.value, metrics.simulatedSoldQty.value, metrics.remainingAfterSalesQty.value, metrics.reportedLossQty.value];
+  const values = [metrics.openingQty.value, metrics.simulatedDemandQty.value, metrics.simulatedSoldQty.value, metrics.remainingAfterSalesQty.value, metrics.reportedLossQty.value];
   const scale = Math.max(...values.map(decimalScale));
   const opening = decimalToScaledInteger(metrics.openingQty.value, scale);
   const demand = decimalToScaledInteger(metrics.simulatedDemandQty.value, scale);
@@ -683,12 +884,12 @@ function checkMetricArithmetic(
     metrics.remainingAfterSalesQty, metrics.reportedLossQty,
     ...(metrics.endingQty === null ? [] : [metrics.endingQty]),
   ];
-  if (!outputQuantities.every((item) => item !== null && typeof item === 'object' && safeQuantity(item.value))) {
+  if (!outputQuantities.every((item) => item !== null && typeof item === 'object' && safeQuantity(item.value, true))) {
     context.addIssue({ code: 'custom', path: ['candidates', index, 'metrics'], message: 'Output quantity is outside safe decimal dimensions' });
     return;
   }
   const rawQuantities = [openingQty.value, sourceInput.demandQty.value, sourceInput.lossQty.value];
-  if (!rawQuantities.every(safeQuantity)) {
+  if (!rawQuantities.every((value) => safeQuantity(value))) {
     context.addIssue({ code: 'custom', path: ['candidates', index, 'metrics'], message: 'Input quantity is outside safe decimal dimensions' });
     return;
   }
@@ -730,10 +931,11 @@ function checkMetricArithmetic(
     context.addIssue({ code: 'custom', path: ['candidates', index, 'metrics'], message: 'Metric amounts must exactly follow the versioned formulas and quantity inputs' });
   }
 }
-function safeQuantity(value: string): boolean {
+function safeQuantity(value: string, output = false): boolean {
   if (typeof value !== 'string' || !decimalPattern.test(value)) return false;
   const parts = decimalParts(value);
-  return parts.whole.length + parts.fraction.length <= MAX_DIGITS && parts.fraction.length <= MAX_SCALE;
+  return parts.whole.length + parts.fraction.length <= (output ? MAX_OUTPUT_QUANTITY_DIGITS : MAX_DIGITS)
+    && parts.fraction.length <= MAX_SCALE;
 }
 function isSafeMoney(value: unknown, maxDigits: number, maxScale: number): value is z.infer<typeof moneySchema> {
   if (value === null || typeof value !== 'object') return false;

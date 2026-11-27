@@ -85,6 +85,143 @@ describe('RETAIL-05P candidate schemas', () => {
       expect(() => markdownCalculationResultSchema.safeParse(invalidResult)).not.toThrow();
       expect(markdownCalculationResultSchema.safeParse(invalidResult).success).toBe(false);
     }
+    const invalidPrecision = {
+      ...result,
+      candidates: [{ ...candidate, metrics: { ...candidate.metrics!, simulatedDemandQty: { value: '1.0000000000000000000', unitCode: 'EA' } } }],
+    };
+    expect(() => markdownCalculationResultSchema.safeParse(invalidPrecision)).not.toThrow();
+    expect(markdownCalculationResultSchema.safeParse(invalidPrecision).success).toBe(false);
+  });
+
+  it('requires input ordinals to form a unique one-to-one mapping', () => {
+    const originalCandidate = validInput.discountList.candidates[0]!;
+    const duplicateDiscounts = {
+      ...validInput,
+      discountList: { ...validInput.discountList, candidates: [originalCandidate, originalCandidate] },
+    };
+    const result = calculateMarkdownCandidates(duplicateDiscounts);
+    expect(result.candidates).toHaveLength(2);
+    const forged = { ...result, candidates: result.candidates.map((candidate) => ({ ...candidate, inputOrdinal: 0 })) };
+    expect(() => markdownCalculationResultSchema.safeParse(forged)).not.toThrow();
+    expect(markdownCalculationResultSchema.safeParse(forged).success).toBe(false);
+  });
+
+  it('recomputes sellability, loss, and policy hard rules before accepting CALCULATED output', () => {
+    const baseCandidate = validInput.discountList.candidates[0]!;
+    const lossViolation = {
+      ...validInput,
+      discountList: { ...validInput.discountList, candidates: [{ ...baseCandidate, lossQty: quantity }] },
+    };
+    const expired = {
+      ...validInput,
+      batch: { ...validInput.batch, expiry: { basis: 'DATE_ONLY', value: '2026-11-20', timeZone: 'UTC' } },
+    };
+    const belowMargin = {
+      ...validInput,
+      marginConstraint: { kind: 'MIN_CONTRIBUTION_PER_UNIT', minimumContribution: { value: money('200'), source: policySource } },
+    };
+    const belowPriceFloor = {
+      ...validInput,
+      discountPolicy: { ...validInput.discountPolicy, minimumPrice: money('690') },
+    };
+    const unknownQuality = {
+      ...validInput,
+      batch: {
+        ...validInput.batch, qualityStatus: 'UNKNOWN',
+        stockBalance: {
+          physicalOnHand: { value: '0', unitCode: 'EA' }, unavailable: { value: '0', unitCode: 'EA' },
+          availableToSell: { value: '0', unitCode: 'EA' }, reserved: { value: '0', unitCode: 'EA' },
+        },
+      },
+    };
+    for (const invalid of [lossViolation, expired, belowMargin, belowPriceFloor, unknownQuality]) {
+      const rejected = calculateMarkdownCandidates(invalid);
+      expect(rejected.candidates[0]?.status).toBe('REJECTED');
+      const candidate = rejected.candidates[0]!;
+      const forged = {
+        ...rejected, status: 'CALCULATED', reasonCodes: [],
+        candidates: [{ ...candidate, status: 'CALCULATED', hardRulesPassed: true, reasonCodes: [] }],
+      };
+      expect(() => markdownCalculationResultSchema.safeParse(forged)).not.toThrow();
+      expect(markdownCalculationResultSchema.safeParse(forged).success).toBe(false);
+    }
+
+    const successful = calculateMarkdownCandidates(validInput);
+    const tamperedBatch = {
+      ...successful,
+      inputSnapshot: {
+        ...successful.inputSnapshot!,
+        batch: { ...successful.inputSnapshot!.batch, expiry: { basis: 'DATE_ONLY', value: '2026-11-20', timeZone: 'UTC' } },
+      },
+    };
+    expect(() => markdownCalculationResultSchema.safeParse(tamperedBatch)).not.toThrow();
+    expect(markdownCalculationResultSchema.safeParse(tamperedBatch).success).toBe(false);
+  });
+
+  it('compares DATE_ONLY snapshot and historical boundaries in their explicit business timezone', () => {
+    const kolkata = 'Asia/Kolkata';
+    const futureLocalSnapshot = {
+      ...validInput,
+      asOf: { basis: 'DATE_ONLY', value: '2026-11-26', timeZone: kolkata },
+      batch: { ...validInput.batch, expiry: { basis: 'DATE_ONLY', value: '2026-12-31', timeZone: kolkata } },
+      scenario: {
+        ...validInput.scenario,
+        observedWindow: {
+          start: { basis: 'DATE_ONLY', value: '2026-11-01', timeZone: kolkata },
+          end: { basis: 'DATE_ONLY', value: '2026-11-26', timeZone: kolkata },
+        },
+        simulationWindow: {
+          start: { basis: 'DATE_ONLY', value: '2026-11-27', timeZone: kolkata },
+          end: { basis: 'DATE_ONLY', value: '2026-12-30', timeZone: kolkata },
+        },
+      },
+      inputSnapshot: {
+        ...validInput.inputSnapshot, capturedAt: '2026-11-26T20:00:00-08:00',
+        asOf: { basis: 'DATE_ONLY', value: '2026-11-26', timeZone: kolkata },
+      },
+    };
+    expect(markdownCalculationInputSchema.safeParse(futureLocalSnapshot).success).toBe(false);
+    const sameBusinessDayOffset = {
+      ...futureLocalSnapshot,
+      inputSnapshot: { ...futureLocalSnapshot.inputSnapshot, capturedAt: '2026-11-26T18:30:00+05:30' },
+    };
+    const sameBusinessDayUtc = {
+      ...futureLocalSnapshot,
+      inputSnapshot: { ...futureLocalSnapshot.inputSnapshot, capturedAt: '2026-11-26T13:00:00Z' },
+    };
+    expect(markdownCalculationInputSchema.safeParse(sameBusinessDayOffset).success).toBe(true);
+    expect(markdownCalculationInputSchema.safeParse(sameBusinessDayUtc).success).toBe(true);
+
+    const losAngeles = 'America/Los_Angeles';
+    const historicalAfterSnapshot = {
+      ...validInput,
+      asOf: { basis: 'DATE_ONLY', value: '2026-11-27', timeZone: losAngeles },
+      batch: { ...validInput.batch, expiry: { basis: 'DATE_ONLY', value: '2026-12-31', timeZone: losAngeles } },
+      scenario: {
+        ...validInput.scenario,
+        observedWindow: {
+          start: { basis: 'DATE_ONLY', value: '2026-11-01', timeZone: losAngeles },
+          end: { basis: 'DATE_ONLY', value: '2026-11-27', timeZone: losAngeles },
+        },
+        simulationWindow: {
+          start: { basis: 'DATE_ONLY', value: '2026-11-28', timeZone: losAngeles },
+          end: { basis: 'DATE_ONLY', value: '2026-12-30', timeZone: losAngeles },
+        },
+      },
+      inputSnapshot: {
+        ...validInput.inputSnapshot, capturedAt: '2026-11-26T21:00:00-05:00',
+        asOf: { basis: 'DATE_ONLY', value: '2026-11-27', timeZone: losAngeles },
+      },
+      basePrice: {
+        ...validInput.basePrice,
+        source: {
+          sourceKind: 'PUBLIC_HISTORICAL', dataMeaning: 'UNIT_PRICE', reference: 'fixture-historical-price',
+          evidenceIds: ['fixture-historical-price-evidence'], unitCode: 'EA',
+          observedAt: { basis: 'DATE_ONLY', value: '2026-11-27', timeZone: losAngeles },
+        },
+      },
+    };
+    expect(markdownCalculationInputSchema.safeParse(historicalAfterSnapshot).success).toBe(false);
   });
 
   it('rejects output whose quantity or exact money metrics disagree with their bound inputs', () => {

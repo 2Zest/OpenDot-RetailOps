@@ -33,3 +33,17 @@ Issue / Plan 版本 / 节点 ID：GitHub Issue #24、RETAIL-05P-PLAN、细化 Ex
 尚未验证项与风险：候选模拟和 fixture 不代表真实经营效果；PR #88 尚未独立审查或合并。
 决定：N5 PASS；PR #88 保持 Open，Issue 保持 Open/REVIEW、Project 为 Review；停止等待独立 Review。
 审核者及时间：执行 Agent，2026-11-27；主控/独立 Review 待 PR。
+
+## PR #88 最终针对性修订交付复核
+
+本轮只增加 N3 的计算/schema 安全修订、对应测试和验收补充；保留原 45 项测试/断言，当前完整包为 50 项。
+
+| 实际命令 | 退出码 | 结果 |
+|---|---:|---|
+| `npm run docs:check`（WSL Ubuntu 24.04，Node v24.22.3 / npm 11.19.1；GIT_DIR/GIT_WORK_TREE 指向本 Worktree） | 0 | 262 份仓库 Markdown 检查通过。 |
+| `git diff --check` | 0 | 本轮全部改动无空白错误。 |
+| `git status --short` / 文件范围检查 | 0 | 本轮修改限于 `apps/retailops/src/domain/decision/markdown-calculation.ts`、`apps/retailops/test/unit/decision/markdown-calculation.test.ts`、`apps/retailops/test/contract/decision/markdown-calculation.test.ts`、本 N3/N4/N5 回执。未修改 #20、基础领域合同、依赖、总体计划或 DAG。 |
+
+N5 的 GitHub 状态将在修订提交推送后按实际远端 HEAD 更新：仅更新现有 PR #88，不新建 PR；Issue #24 保持 OPEN/REVIEW，Project #2 保持 Review；不合并、不标 DONE、不启动下游。
+
+三层检查：总体计划/场景仍保持模拟不等于真实因果、硬规则优先（PASS）；Issue #24/Plan 范围限纯计算 schema 与测试（PASS）；N5 的 docs/diff/路径范围检查通过（PASS）。本次修订不改变 N1 公式、阈值或业务参数。
