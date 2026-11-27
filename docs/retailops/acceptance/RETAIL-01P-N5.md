@@ -23,6 +23,7 @@
 - 本轮修改范围（均为 #20 唯一 owner 路径）：apps/retailops/src/adapters/persistence/sqlite/{database,draft-repository,evidence-repository,migration-runner,operation-repository,policy-repository}.ts、migrations/0001_initial.ts；回归文件 apps/retailops/test/unit/persistence/sqlite/{migration-runner,repositories}.test.ts 及明确标注的合成旧库 fixture。Acceptance N1–N5 仅追加本轮事实；未改领域合同、根依赖、宿主、Home DB、根迁移入口或 #24 路径。临时 dist smoke 文件已删除，node_modules、dist、DB 未进入差异。
 - 验收结果：WSL Node 24 下 npm run build 退出码 0；npm run typecheck 退出码 0；npm test 退出码 0，7 files / 55 tests passed；定向 repositories/migration 测试退出码 0，24/24；dist migration smoke 退出码 0；精确命令、初始失败及修复见 N1/N4。
 - 依赖告警：本轮 npm audit --json 报 1 high、2 moderate、0 critical。Zod 4.4.3 为 production 直接依赖，GHSA-mrhx-c7xc-m3w5（过大数组导致内存耗尽；无 HTTP/API 入口，但外部数据可达性未验证）。Vitest 4.1.8 与其间接 @vitest/mocker 4.1.8 为 development 依赖，涉及 GHSA-82fw-gwwq-j7x9（未认证 mocker WebSocket 路径文件读取）和 GHSA-qxg6-89mg-rqv8（未认证 mock 注册代码注入）；需相关服务暴露/可达，当前是否暴露未验证。manifest/lock 对比 origin/develop/retailops 证明三者为既有基线；本轮不执行 audit fix、不更换版本。详细包路径和边界见 N4。
+- 上述 advisory 修复边界仅供后续依赖维护：Zod 4.6.6、Vitest/@vitest/mocker 4.1.11（GHSA-82fw-gwwq-j7x9）及 @vitest/mocker 4.1.12（GHSA-qxg6-89mg-rqv8）；本任务未升级依赖。
 - 本轮新增回执落盘后，npm run docs:check 与 git diff --check 将以 WSL worktree 的 GIT_DIR=/mnt/d/workSpace/codeAgent/OpenDot-RetailOps.git/worktrees/OpenDot-RetailOps-01p、GIT_WORK_TREE=/mnt/d/workSpace/codeAgent/OpenDot-RetailOps-01p、GIT_OPTIONAL_LOCKS=0、core.autocrlf=true 复跑，结果追加如下。
 
 - 文档检查最终结果：在上述 WSL worktree 环境执行 npm run docs:check，退出码 0，261 个仓库 Markdown 文件通过。

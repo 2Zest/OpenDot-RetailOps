@@ -29,8 +29,8 @@
 
 | 包及依赖路径 | 范围 | Advisory 与影响条件 | 基线/处置 |
 |---|---|---|---|
-| zod@4.4.3 → node_modules/zod（直接） | production | GHSA-mrhx-c7xc-m3w5，受影响 <4.6.6；某些超大数组校验可耗尽内存。专属包无 HTTP/API 入口，但外部不可信输入是否可达未经运行验证。 | origin/develop/retailops 已有同版本 manifest/lock，属基线；未升级或运行 npm audit fix。 |
-| vitest@4.1.8 → node_modules/vitest（直接） | development | GHSA-82fw-gwwq-j7x9，受影响 >=2.1.0 <4.1.11；mocker redirect 未认证 WebSocket 可导致任意文件读取。需相关开发服务网络可达；当前包脚本执行本地 vitest run，服务暴露条件未验证。 | 已存在于基线；未升级或运行 npm audit fix。 |
-| @vitest/mocker@4.1.8 → vitest → node_modules/@vitest/mocker（间接） | development | GHSA-82fw-gwwq-j7x9 同上；GHSA-qxg6-89mg-rqv8，受影响 >=2.1.0-beta.7 <4.1.12，未认证手工 mock 注册 WebSocket 路径可触发代码注入；网络可达性未验证。 | 已存在于基线；未升级或运行 npm audit fix。 |
+| zod@4.4.3 → node_modules/zod（直接） | production | GHSA-mrhx-c7xc-m3w5，受影响 <4.6.6（advisory 修复版本 4.6.6）；某些超大数组校验可耗尽内存。专属包无 HTTP/API 入口，但外部不可信输入是否可达未经运行验证。 | origin/develop/retailops 已有同版本 manifest/lock，属基线；未升级或运行 npm audit fix。 |
+| vitest@4.1.8 → node_modules/vitest（直接） | development | GHSA-82fw-gwwq-j7x9，受影响 >=2.1.0 <4.1.11（Vitest 修复版本 4.1.11）；mocker redirect 未认证 WebSocket 可导致任意文件读取。需相关开发服务网络可达；当前包脚本执行本地 vitest run，服务暴露条件未验证。 | 已存在于基线；未升级或运行 npm audit fix。 |
+| @vitest/mocker@4.1.8 → vitest → node_modules/@vitest/mocker（间接） | development | GHSA-82fw-gwwq-j7x9 同上（修复版本 4.1.11）；GHSA-qxg6-89mg-rqv8，受影响 >=2.1.0-beta.7 <4.1.12（修复版本 4.1.12），未认证手工 mock 注册 WebSocket 路径可触发代码注入；网络可达性未验证。 | 已存在于基线；未升级或运行 npm audit fix。 |
 
 - 依赖基线对比：origin/develop/retailops 的 RetailOps manifest 与 lock 已含 Zod 4.4.3、Vitest 4.1.8、@vitest/mocker 4.1.8；本轮新增 SQLite 版本 12.11.1 未出现在 audit findings。无需本任务擅自升级依赖。
