@@ -21,13 +21,14 @@ describe('RetailOps SQLite database boundary', () => {
     const database = openRetailOpsDatabase(join(directory, 'test.sqlite'));
 
     expect(database.pragma('foreign_keys', { simple: true })).toBe(1);
-    expect(database.prepare('SELECT MAX(version) AS version FROM retailops_schema_migrations').get()).toEqual({ version: 2 });
+    expect(database.prepare('SELECT MAX(version) AS version FROM retailops_schema_migrations').get()).toEqual({ version: 3 });
     expect(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'products'").all()).toHaveLength(1);
 
     migrateRetailOpsDatabase(database);
     migrateRetailOpsDatabase(database);
 
-    expect(database.prepare('SELECT version FROM retailops_schema_migrations ORDER BY version').all()).toEqual([{ version: 1 }, { version: 2 }]);
+    expect(database.prepare('SELECT version FROM retailops_schema_migrations ORDER BY version').all())
+      .toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
     database.close();
   });
 
