@@ -1,6 +1,6 @@
 # RETAIL-05P（GitHub Issue #24）执行 Plan
 
-状态：N0 已整理，等待主控核验；N1–N5 未开始。此细化 Plan 保留原 RETAIL-05P-PLAN 的节点语义，不修改总体计划或 DAG。
+状态：N0 已由主控核验通过；N1 公式候选已提交主控核验；N2–N5 未开始。此细化 Plan 保留原 RETAIL-05P-PLAN 的节点语义，不修改总体计划或 DAG。
 
 ## 基线、授权与上游
 
@@ -23,7 +23,8 @@
 
 | 路径 | 权限 / 唯一 owner | 用途与限制 |
 |---|---|---|
-| docs/retailops/plans/RETAIL-05P-EXECUTION-PLAN.md | 新增；#24 | 本细化 Plan |
+| docs/retailops/plans/RETAIL-05P-EXECUTION-PLAN.md | #24 修改 | 本细化 Plan；记录 N0 核验决定及 N1 设计文档 |
+| docs/retailops/plans/RETAIL-05P-N1-FORMULA-DECISIONS.md | 新增；#24 | N1 候选公式、精度/口径、手算 fixture 与集中待决清单，不是生产合同 |
 | docs/retailops/acceptance/RETAIL-05P-N0.md、RETAIL-05P-N1.md … N5.md | 新增；#24 | 各节点回执，保留失败历史 |
 | apps/retailops/src/domain/decision/markdown-calculation.ts | 新增；#24 | 纯领域函数和本任务输入/候选/解释结果 schema；不导入 DB/应用/Runtime |
 | apps/retailops/src/domain/index.ts | 修改；#24 独占 | 仅导出本模块公开合同；不得改其它领域导出 |
@@ -48,7 +49,7 @@ N0 从 DECISIONS-PENDING.md 核验到：D04 已批准折价须受确定性政策
 
 | 节点 | 工作 | 验收标准 / 证据 |
 |---|---|---|
-| N1 公式/假设 | 对照批准 PRD、RETAIL-05P Issue 和已批准合同，确定可实现的候选规则；写明收入、贡献利润、损耗的变量、单位、来源、公式版本、精度/舍入前置。建立可手算 fixture。发现必要参数未批准则暂停并请求决定。 | 公式/假设表与手算结果；每个参数有来源或明确标为 fixture；无默认生产阈值；主控核验后才继续。 |
+| N1 公式/假设 | 对照批准 PRD、RETAIL-05P Issue 和已批准合同，形成候选规则；写明收入、贡献利润、损耗的变量、单位、来源、公式版本、精度/舍入前置。建立可手算 fixture 并在 docs/retailops/plans/RETAIL-05P-N1-FORMULA-DECISIONS.md 汇总主控待决项。必要口径未批准前不得冻结生产公式或进入 N2。 | 公式/假设表与手算结果；每个参数有来源或明确标为 fixture；无默认生产阈值；主控核验后才继续。 |
 | N2 候选与硬规则 | 实现候选生成和可售/质量/效期/库存/显式策略边界校验。候选不满足任一硬规则时不能变为 executable/accepted；错误原因稳定且具体。 | 单元测试证明通过/拒绝及每条原因；质量非 PASS、过期/边界未解析、零库存/缺输入都不能产生可执行候选。 |
 | N3 可解释输出 | 返回收入、贡献利润、损耗的结构化结果，以及公式版本、输入引用、来源、单位、参数/假设、硬规则结果和拒绝原因。 | 结果 schema 可验证；来源完整；缺失或不确定输入不伪造结果。 |
 | N4 定向回归 | 执行 Issue 全部案例和原领域合同测试；保留原有测试断言。 | 覆盖手算常规案例、多候选、折扣边界、舍入/精度、过期、质量异常、毛利、零库存/缺失、需求不确定、无可行解、确定性。Build/typecheck/test 与原合同均记录真实结果。 |

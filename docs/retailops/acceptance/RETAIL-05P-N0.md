@@ -33,3 +33,7 @@
 - 复跑命令：设置 GIT_DIR=/mnt/d/workSpace/codeAgent/OpenDot-RetailOps.git/worktrees/OpenDot-RetailOps-05p、GIT_WORK_TREE=/mnt/d/workSpace/codeAgent/OpenDot-RetailOps-05p、GIT_OPTIONAL_LOCKS=0、core.autocrlf=true 后执行 npm run docs:check；退出码 0，256 份仓库 Markdown 检查通过。
 - git diff --check：退出码 0，无空白错误。
 - 初次失败和修正后的真实结果均保留；没有运行 build/typecheck/test，也没有算法测试。
+
+## 主控 N0 审查决定（2026-11-27）
+
+主控已实际审查 GitHub Issue #19/#24、PR #86/#83 合并证据、RETAIL-05P-EXECUTION-PLAN、N0 回执、分支/差异及 D02/D04/D05/D06。RETAIL-01 / GitHub Issue #19 合并收尾完成；#24 N0 通过，批准进入 N1。#24 与 #20 无写路径冲突，可以并行。Issue #24 保持 Open / IN_PROGRESS，Project #2 保持 In Progress。批准的是 N1 公式设计与候选，不代表批准任何未决生产参数，也不允许在主控核验 N1 前进入 N2。
