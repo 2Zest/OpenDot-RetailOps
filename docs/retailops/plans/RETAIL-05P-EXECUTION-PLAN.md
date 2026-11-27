@@ -25,7 +25,7 @@
 |---|---|---|
 | docs/retailops/plans/RETAIL-05P-EXECUTION-PLAN.md | #24 修改 | 本细化 Plan；记录 N0 核验决定及 N1 设计文档 |
 | docs/retailops/plans/RETAIL-05P-N1-FORMULA-DECISIONS.md | 新增；#24 | N1 候选公式、精度/口径、手算 fixture 与集中待决清单，不是生产合同 |
-| docs/retailops/acceptance/RETAIL-05P-N0.md、RETAIL-05P-N1.md … N5.md | 新增；#24 | 各节点回执，保留失败历史 |
+| docs/retailops/acceptance/RETAIL-05P-N0.md、docs/retailops/acceptance/RETAIL-05P-N1.md、docs/retailops/acceptance/RETAIL-05P-N2.md、docs/retailops/acceptance/RETAIL-05P-N3.md、docs/retailops/acceptance/RETAIL-05P-N4.md、docs/retailops/acceptance/RETAIL-05P-N5.md | 新增；#24 | 各节点回执，保留失败历史 |
 | apps/retailops/src/domain/decision/markdown-calculation.ts | 新增；#24 | 纯领域函数和本任务输入/候选/解释结果 schema；不导入 DB/应用/Runtime |
 | apps/retailops/src/domain/index.ts | 修改；#24 独占 | 仅导出本模块公开合同；不得改其它领域导出 |
 | apps/retailops/test/unit/decision/markdown-calculation.test.ts | 新增；#24 | 测算规则单元测试 |
