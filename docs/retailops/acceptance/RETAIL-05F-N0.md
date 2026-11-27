@@ -50,3 +50,11 @@
 - 真实标签字段是否足以支持小时可用性外推，若在固定来源文档/合同中不能确认则该候选保持 BLOCKED，不猜测 0/1 的语义。
 - 本任务的测试覆盖 cohort 不确定为真实门店或代表性 SKU；仅供算法方法的可复核离线评估。
 - N0 决定：本回执与细化计划已形成；执行文档检查和暂存差异检查均退出码 0。一次 WSL `git diff --check` 因 Windows Worktree `.git` 指针解析问题把仓库文件误报为 CRLF 尾随空格，不作为通过证据；已改用 Windows Git 检查本轮暂存差异。推送同一分支并同步 Issue/Project 为 IN_PROGRESS 后，停止等待主控核验；未获核验前不得进入 N1。
+
+## N0 推送与状态回读（2026-11-27）
+
+- 计划与本回执首个提交：`36a9cfe8c0bb856356e5b4e2d22a94ae323bcb14`，已推送至 `origin/feat/retail-05f`，未创建 PR。
+- 本次回执状态记录提交时分支 HEAD：`36a9cfe8c0bb856356e5b4e2d22a94ae323bcb14`；只有本计划与 N0 回执两个路径。
+- GitHub Issue #23 回读：OPEN、标签 `IN_PROGRESS`、已分配 `2Zest`；Issue 正文当前状态及 N0 交付链接已更新。
+- GitHub Project #2 条目 `PVTI_lAHODjlUWM4BtKkTzhLw5Do` 回读为 `In Progress`。
+- N0 状态同步成功后仍须主控核验；当前暂停点是“等待主控核验”，N1 及固定数据获取均未启动。
