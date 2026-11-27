@@ -71,3 +71,8 @@ RETAIL 编号：RETAIL-03；GitHub Issue #22
 - 节点验收：红测确实捕获旧缺陷，修复后定向和全量检查退出码为 0；输出 Schema 对精度和汇总进行结构化拒绝。**PASS**。
 
 Issue #22 和 Project #2 保持 REVIEW；PR #91 保持 OPEN 等待最终独立 Review；未合并、未标 DONE、未启动下游。Issue #7 继续 BLOCKED。
+
+### 推送后的 HEAD 回读
+
+- 修订提交 / PR #91 最新 HEAD：`accb01e41a01c72cbe65eb0cd5403b2e421f1f56`，已推送至 `feat/retail-03`，无强推。
+- PR：[RETAIL-03：单 SKU 经营仿真器](https://github.com/2Zest/OpenDot-RetailOps/pull/91)，实际回读为 OPEN，目标 `develop/retailops`，PR head 与上述 SHA 一致。
