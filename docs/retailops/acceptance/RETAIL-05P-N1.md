@@ -32,3 +32,13 @@
 - 偏差：无范围偏差。公式和接口为候选，等待主控确认后才成为 N2 实施依据。
 - 复测：修正 WSL GIT_DIR/GIT_WORK_TREE 参数后 docs:check 通过（258 Markdown）；git diff --check 通过。
 - 节点结论：N1 设计交付可供核验；停止于 N1，等待主控审查，不进入 N2。
+
+## N1 主控复核决定（2026-11-27）
+
+主控完成 N1 复核并批准候选设计，授权进入 N2。批准决定及适用边界：
+
+1. 每个候选显式提供带来源的 Q_demand 与 Q_loss，并使用有版本、带来源的折价候选列表；缺少任一必需输入时 fail closed。
+2. Contribution = Revenue − 直接商品成本；Q_loss 单独报告；unitCost × Q_loss 仅为非 KPI 成本暴露，不是 RETAIL-12/RETAIL-19 的最终损耗 KPI。
+3. 使用 BigInt 精确计算；结果 Money scale = 输入金额 scale + 数量小数位，禁止舍入。毛利规则必须是带来源的显式参数；候选毛利率 = Contribution / Revenue，Revenue=0 时不可判定并 fail closed。
+
+本次决定不批准任何数值默认值，不冻结 RETAIL-12/RETAIL-19 KPI，不修改 v0.3.0 领域合同。N2 仅实施候选 Schema 与确定性规则；不进入 N3，不实现解释报告/Agent/执行。Issue #24 保持 Open / IN_PROGRESS，Project #2 保持 In Progress。

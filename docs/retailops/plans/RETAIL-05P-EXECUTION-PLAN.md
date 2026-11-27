@@ -1,6 +1,6 @@
 # RETAIL-05P（GitHub Issue #24）执行 Plan
 
-状态：N0 已由主控核验通过；N1 公式候选已提交主控核验；N2–N5 未开始。此细化 Plan 保留原 RETAIL-05P-PLAN 的节点语义，不修改总体计划或 DAG。
+状态：N0、N1 均已由主控核验通过；N2 候选 Schema 与确定性规则实现中；N3–N5 未开始。此细化 Plan 保留原 RETAIL-05P-PLAN 的节点语义，不修改总体计划或 DAG。
 
 ## 基线、授权与上游
 
