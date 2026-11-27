@@ -1,10 +1,11 @@
 import type Database from 'better-sqlite3';
 import { initialRetailOpsMigration } from './migrations/0001_initial.js';
+import { publicHistoryMigration } from './migrations/0002_public_history.js';
 
-const migrations = [initialRetailOpsMigration] as const;
+const migrations = [initialRetailOpsMigration, publicHistoryMigration] as const;
 const syntheticLegacyVersionName = 'synthetic-v0-record-envelope';
 
-const requiredColumns: Readonly<Record<string, readonly string[]>> = {
+const v1RequiredColumns: Readonly<Record<string, readonly string[]>> = {
   retailops_schema_migrations: ['version', 'name', 'applied_at'],
   evidence: ['id', 'contract_version', 'source_kind', 'snapshot_id', 'observed_at', 'payload'],
   evidence_parent_references: ['evidence_id', 'parent_evidence_id', 'position'],
@@ -23,7 +24,7 @@ const requiredColumns: Readonly<Record<string, readonly string[]>> = {
   draft_operations: ['draft_id', 'operation_id', 'position'],
 };
 
-const requiredUniqueKeys: Readonly<Record<string, readonly (readonly string[])[]>> = {
+const v1RequiredUniqueKeys: Readonly<Record<string, readonly (readonly string[])[]>> = {
   retailops_schema_migrations: [['version'], ['name']],
   evidence: [['id']],
   evidence_parent_references: [['evidence_id', 'parent_evidence_id'], ['evidence_id', 'position']],
@@ -43,7 +44,7 @@ const requiredUniqueKeys: Readonly<Record<string, readonly (readonly string[])[]
 };
 
 type ExpectedForeignKey = { table: string; from: string; targetTable: string; to: string; group?: string };
-const requiredForeignKeys: readonly ExpectedForeignKey[] = [
+const v1RequiredForeignKeys: readonly ExpectedForeignKey[] = [
   { table: 'evidence_parent_references', from: 'evidence_id', targetTable: 'evidence', to: 'id' },
   { table: 'evidence_parent_references', from: 'parent_evidence_id', targetTable: 'evidence', to: 'id' },
   { table: 'product_evidence', from: 'product_id', targetTable: 'products', to: 'id' },
@@ -69,6 +70,36 @@ const requiredForeignKeys: readonly ExpectedForeignKey[] = [
   { table: 'operation_evidence', from: 'evidence_id', targetTable: 'evidence', to: 'id' },
   { table: 'draft_operations', from: 'draft_id', targetTable: 'drafts', to: 'id' },
   { table: 'draft_operations', from: 'operation_id', targetTable: 'operations', to: 'id' },
+];
+
+const v2RequiredColumns: Readonly<Record<string, readonly string[]>> = {
+  public_history_imports: [
+    'id', 'dataset', 'dataset_revision', 'license', 'source_split', 'source_path', 'source_bytes',
+    'source_lfs_object_sha256', 'source_response_body_sha256', 'source_local_file_sha256', 'row_count',
+    'selected_store_id', 'selected_sku_count', 'first_date', 'last_date', 'snapshot_jsonl_sha256', 'payload',
+  ],
+  public_history_records: [
+    'dataset', 'dataset_revision', 'source_split', 'store_id', 'product_id', 'dt', 'record_sha256', 'payload',
+  ],
+  public_history_import_rows: [
+    'import_id', 'dataset', 'dataset_revision', 'source_split', 'store_id', 'product_id', 'dt',
+  ],
+};
+
+const v2RequiredUniqueKeys: Readonly<Record<string, readonly (readonly string[])[]>> = {
+  public_history_imports: [['id']],
+  public_history_records: [['dataset', 'dataset_revision', 'source_split', 'store_id', 'product_id', 'dt']],
+  public_history_import_rows: [['import_id', 'dataset', 'dataset_revision', 'source_split', 'store_id', 'product_id', 'dt']],
+};
+
+const v2RequiredForeignKeys: readonly ExpectedForeignKey[] = [
+  { table: 'public_history_import_rows', from: 'import_id', targetTable: 'public_history_imports', to: 'id' },
+  { table: 'public_history_import_rows', group: 'history-record', from: 'dataset', targetTable: 'public_history_records', to: 'dataset' },
+  { table: 'public_history_import_rows', group: 'history-record', from: 'dataset_revision', targetTable: 'public_history_records', to: 'dataset_revision' },
+  { table: 'public_history_import_rows', group: 'history-record', from: 'source_split', targetTable: 'public_history_records', to: 'source_split' },
+  { table: 'public_history_import_rows', group: 'history-record', from: 'store_id', targetTable: 'public_history_records', to: 'store_id' },
+  { table: 'public_history_import_rows', group: 'history-record', from: 'product_id', targetTable: 'public_history_records', to: 'product_id' },
+  { table: 'public_history_import_rows', group: 'history-record', from: 'dt', targetTable: 'public_history_records', to: 'dt' },
 ];
 
 type LedgerRow = { version: number; name: string };
@@ -113,7 +144,7 @@ function assertLedger(database: Database.Database): LedgerRow[] {
   return rows;
 }
 
-function assertSchemaColumns(database: Database.Database): void {
+function assertSchemaColumns(database: Database.Database, requiredColumns: Readonly<Record<string, readonly string[]>>): void {
   for (const [table, expectedColumns] of Object.entries(requiredColumns)) {
     if (!tableExists(database, table)) throw new Error("RetailOps schema is missing required table " + table);
     const actualColumns = database.pragma("table_info(" + table + ")") as { name: string }[];
@@ -124,7 +155,7 @@ function assertSchemaColumns(database: Database.Database): void {
   }
 }
 
-function assertUniqueKeys(database: Database.Database): void {
+function assertUniqueKeys(database: Database.Database, requiredUniqueKeys: Readonly<Record<string, readonly (readonly string[])[]>>): void {
   for (const [table, expectedKeys] of Object.entries(requiredUniqueKeys)) {
     const tableInfo = database.pragma("table_info(" + table + ")") as { name: string; pk: number }[];
     const actualKeys: string[][] = [];
@@ -150,7 +181,7 @@ function assertUniqueKeys(database: Database.Database): void {
   }
 }
 
-function assertForeignKeyDefinitions(database: Database.Database): void {
+function assertForeignKeyDefinitions(database: Database.Database, requiredForeignKeys: readonly ExpectedForeignKey[]): void {
   const tables = [...new Set(requiredForeignKeys.map((foreignKey) => foreignKey.table))];
   for (const table of tables) {
     const foreignKeys = database.pragma("foreign_key_list(" + table + ")") as {
@@ -206,16 +237,22 @@ function assertDatabaseMatchesLedger(database: Database.Database): void {
   const rows = assertLedger(database);
   const latest = rows.reduce((maximum, row) => Math.max(maximum, row.version), 0);
   if (latest >= 1) {
-    assertSchemaColumns(database);
-    assertUniqueKeys(database);
-    assertForeignKeyDefinitions(database);
+    assertSchemaColumns(database, v1RequiredColumns);
+    assertUniqueKeys(database, v1RequiredUniqueKeys);
+    assertForeignKeyDefinitions(database, v1RequiredForeignKeys);
+    assertForeignKeyIntegrity(database);
+  }
+  if (latest >= 2) {
+    assertSchemaColumns(database, v2RequiredColumns);
+    assertUniqueKeys(database, v2RequiredUniqueKeys);
+    assertForeignKeyDefinitions(database, v2RequiredForeignKeys);
     assertForeignKeyIntegrity(database);
   }
 }
 
 function assertNoUnversionedRetailSchema(database: Database.Database, ledger: readonly LedgerRow[]): void {
   if (ledger.some((row) => row.version === 1)) return;
-  const existingTables = Object.keys(requiredColumns)
+  const existingTables = [...Object.keys(v1RequiredColumns), ...Object.keys(v2RequiredColumns)]
     .filter((table) => table !== 'retailops_schema_migrations' && tableExists(database, table));
   if (existingTables.length > 0) {
     throw new Error("RetailOps schema tables exist without the matching migration ledger: " + existingTables.join(', '));

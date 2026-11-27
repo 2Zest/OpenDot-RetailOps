@@ -15,7 +15,7 @@
 
 ## 环境、包和边界
 
-Worktree `D:/workSpace/codeAgent/OpenDot-RetailOps-02`，分支 `feat/retail-02`，基线 HEAD 如上，初始干净。WSL Ubuntu；Node v24.22.3、npm 11.19.1；gh CLI 用户 2Zest。复用 @opendot/retailops v0.1.0、合同 0.3.0、Zod 4.4.3、better-sqlite3 12.11.1、@types/better-sqlite3 7.6.13。无依赖新增；不改 package/lock/tsconfig/build/test config。SQLite 仅用临时测试 DB。
+Worktree `D:/workSpace/codeAgent/OpenDot-RetailOps-02`，分支 `feat/retail-02`，基线 HEAD 如上，初始干净。WSL Ubuntu；Node v24.22.3、npm 11.19.1；gh CLI 用户 2Zest。复用 @opendot/retailops v0.1.0、合同 0.3.0、Zod 4.4.3、better-sqlite3 12.11.1、@types/better-sqlite3 7.6.13。无依赖新增；不改 package/lock/tsconfig/build/test config。SQLite 仅用临时测试 DB。导入应用接收原始 UTF-8 JSONL `Uint8Array`，以 `SHA-256(raw bytes)` 校验 manifest 的 `snapshotJsonlSha256`，要求无 BOM/CRLF/空行、最终 LF、原始列序以及按 `product_id, dt` 排序。
 
 ## 精确文件所有权
 
@@ -44,8 +44,8 @@ Domain 只定义 FreshRetailNet 来源记录与字段语义；Application 端口
 
 | 节点 | 实施与验收 |
 |---|---|
-| N0 | 基线、上游、来源、owner、命令冻结；本轮已整理，等待主控核验 |
-| N1 | 原始映射、manifest、字段类型/来源/split/单位保真 |
+| N0 | 基线、上游、来源、owner、命令冻结；主控已核验通过并放行 N1–N5 |
+| N1 | 固定 revision 原始映射、manifest、字段类型/来源/split/单位保真；固定 JSONL 为 UTF-8、原始列序、product_id/dt 升序、每行一个对象、LF 终止；应用入口对完整文件字节重算 SHA-256 |
 | N2 | 幂等键、缺字段/空值/越界/异常行报告、重复检查、事务回滚 |
 | N3 | 按 revision/split/store/SKU/date 查询；抽样 DB 与来源逐行/哈希比较 |
 | N4 | 完整包回归和 T01/T02：build、typecheck、test、docs、diff；不删旧断言 |
