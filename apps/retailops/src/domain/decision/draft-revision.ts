@@ -179,4 +179,3 @@ export const draftRevisionEventSchema = z.discriminatedUnion('kind', [
   draftRevisionStatusEventSchema,
 ]);
 export type DraftRevisionEvent = z.infer<typeof draftRevisionEventSchema>;
-
