@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { batchSchema } from '../inventory/batch.js';
 import { operationSchema } from '../inventory/operation.js';
@@ -6,6 +7,49 @@ import { contractVersionSchema, opaqueReferenceSchema, quantitySchema } from '..
 import { draftStatusSchema } from './draft.js';
 
 export const DRAFT_REVISION_CANONICALIZATION_VERSION = 'retail-draft-canonical-json-v1' as const;
+
+function compareCodePoints(left: string, right: string): number {
+  const a = Array.from(left, (character) => character.codePointAt(0) ?? 0);
+  const b = Array.from(right, (character) => character.codePointAt(0) ?? 0);
+  const length = Math.min(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = (a[index] ?? 0) - (b[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return a.length - b.length;
+}
+
+/** Canonical JSON v1: recursively code-point-sort object keys and preserve all array order. */
+export function canonicalizeDraftRevisionValue(value: unknown): string {
+  if (value === null) return 'null';
+  if (typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
+  if (typeof value === 'number') {
+    if (!Number.isSafeInteger(value)) throw new TypeError('Canonical draft values may contain only safe integers');
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) return '[' + value.map(canonicalizeDraftRevisionValue).join(',') + ']';
+  if (typeof value === 'object') {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new TypeError('Canonical draft values must be plain JSON objects');
+    }
+    const record = value as Record<string, unknown>;
+    return '{' + Object.keys(record).sort(compareCodePoints).map((key) => {
+      const entry = record[key];
+      if (entry === undefined) throw new TypeError('Canonical draft values cannot contain undefined');
+      return JSON.stringify(key) + ':' + canonicalizeDraftRevisionValue(entry);
+    }).join(',') + '}';
+  }
+  throw new TypeError('Canonical draft values must be JSON data');
+}
+
+export function canonicalSha256(value: unknown): string {
+  return 'sha256:' + createHash('sha256').update(canonicalizeDraftRevisionValue(value), 'utf8').digest('hex');
+}
+
+export function calculateDraftRevisionDigest(contractVersion: string, content: unknown): string {
+  return canonicalSha256({ canonicalizationVersion: DRAFT_REVISION_CANONICALIZATION_VERSION, contractVersion, content });
+}
 
 const sha256DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/, 'Expected a lowercase SHA-256 digest');
 const nonNegativePriceSchema = operationSchema.options[0].shape.proposedPrice;
@@ -119,7 +163,7 @@ export const draftRevisionTraceSchema = z.object({
   toolCallIds: z.array(opaqueReferenceSchema),
 }).strict();
 
-export const draftRevisionSchema = z.object({
+const draftRevisionBaseSchema = z.object({
   kind: z.literal('DRAFT_REVISION_CREATED'),
   contractVersion: contractVersionSchema,
   draftId: opaqueReferenceSchema,
@@ -130,7 +174,12 @@ export const draftRevisionSchema = z.object({
   initialStatus: z.literal('DRAFTED'),
   eventId: opaqueReferenceSchema,
   trace: draftRevisionTraceSchema,
-}).strict().superRefine((revision, context) => {
+}).strict();
+
+export const draftRevisionSeedSchema = draftRevisionBaseSchema.omit({ revision: true });
+export type DraftRevisionSeed = z.infer<typeof draftRevisionSeedSchema>;
+
+export const draftRevisionSchema = draftRevisionBaseSchema.superRefine((revision, context) => {
   const addMismatch = (path: (string | number)[], message: string) => context.addIssue({
     code: 'custom',
     path,

@@ -67,3 +67,28 @@
 - N4 的 SQLite adapter、事务原子性/回滚、重开恢复、revision SQLite 查询和 persistence integration 未开始，当前标为 BLOCKED/PARTIAL：#21 尚未合并且主控尚未移交共享 migration lock。
 - 当前安全停止点：可以安全提交/push 本回执及独立领域/Application/port 文件；不得新增 migration、改 runner、注册共享入口或创建 PR。待 #21 实际合并、刷新 `develop/retailops`、主控确认 ledger 并转交锁后，才继续 SQLite adapter、持久化测试、N4/N5。
 - Issue #26 和 Project #2 保持 IN_PROGRESS；#22 保持 READY 未认领；#7 保持 BLOCKED。未运行真实模型、Harness、MCP、Durable 或业务副作用。
+
+## SQLite adapter 准备追加记录（2026-11-27）
+
+根据本轮授权新增独立 `SqliteDraftRevisionRepository` 及 SQLite adapter 单测，但不创建 migration、不修改 `migration-runner.ts`。测试仅在显式创建的隔离 SQLite test schema 上运行；不代表正式应用 schema、迁移集成或持久化节点验收已通过。
+
+adapter 所需正式 schema 合同：
+
+- `draft_revisions`：`PRIMARY KEY(draft_id, revision)`；记录 `contract_version`、`canonicalization_version`、`canonical_digest`、`initial_status` 和不可变 revision payload；正式 migration 必须拒绝 UPDATE/DELETE。
+- `draft_revision_events`：全局 `UNIQUE(event_id)`、递增 `sequence`、`draft_id/revision`、事件类型和 payload；外键关联 revision。
+
+`appendRevision` 在一个同步事务内读取当前最大 revision、分配下一版、插入冻结快照并追加创建事件。`appendStatusEvent` 在事务内重新读取状态事件链、核对 `fromStatus`，并用无可信证据的 `canTransitionDraft` guard 校验目标状态后追加。不能通过仓储直接进入 APPROVED 或 EXECUTING。相同事件幂等、eventId 冲突拒绝；读取 revision 时重算 canonical digest，修改后的冻结 payload 会作为损坏数据拒绝。Adapter 没有覆盖更新方法。
+
+为满足“首次成功后源数据变化仍按同一事件幂等”，Application Service 现在在访问当前 Draft/Product/Batch/Evidence/Policy 前先按 eventId + Draft ID + trace 查找已完成事件；相同命令返回原 revision，eventId 语义冲突仍拒绝。
+
+| 测试/命令 | 实际结果 |
+|---|---|
+| 首次完整 build + typecheck + test | build 退出 0；typecheck 退出 0；test 退出 1，108 项中 107 项通过。旧冲突测试把“源记录更新”作为 eventId 语义冲突，与本轮明确批准的新幂等语义冲突；测试改为验证 trace 改变时拒绝，并保留独立的源数据变化幂等回归 |
+| `npm --prefix apps/retailops run build`（WSL Node 24.22.3） | 退出 0 |
+| `npm --prefix apps/retailops run typecheck`（WSL Node 24.22.3） | 退出 0 |
+| `npm --prefix apps/retailops test`（WSL Node 24.22.3） | 退出 0；12 个测试文件、108/108 通过，其中新 SQLite adapter 文件 6 项通过 |
+| `npm run docs:check`（WSL Node 24、实际 Worktree Git 环境） | 退出 0；272 份仓库 Markdown 通过 |
+| `git diff --check` / `git diff --cached --check` | 均退出 0；最终暂存范围为 8 个 #26 独占文件 |
+| SQLite 适配器测试证据 | 唯一 revision key、全局 eventId、冻结记录 UPDATE/DELETE 拒绝、摘要回读、追加失败事务回滚、审批/执行越权拒绝、关闭重开后 trace/state/revision 保留均通过；全部使用人工测试 schema，无正式 migration |
+
+新增/更新文件：`src/domain/decision/draft-revision.ts`（共享 canonical digest 算法和 revision seed schema）、`src/application/ports/draft-revision-repository.ts`、`src/application/use-cases/freeze-draft-revision.ts`、新增 `src/adapters/persistence/sqlite/draft-revision-repository.ts`、更新 `test/unit/freeze-draft-revision.test.ts`、新增 `test/unit/persistence/sqlite/draft-revision-repository.test.ts`、本执行计划及本回执。migration 与 runner 保持未修改。#21 尚未合并及迁移锁尚未移交，因此 N4 正式 SQLite 持久化验收仍为 BLOCKED；不创建 #26 PR，不改变 Issue/Project 状态。

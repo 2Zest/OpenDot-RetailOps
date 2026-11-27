@@ -76,3 +76,11 @@ Vitest 已配置 Node 环境并发现 `test/unit/**/*.test.ts`、`test/contract/
 根据已批准的摘要合同，冻结 Revision 内容显式保存 Product/Batch 合同快照、Operation 参数快照、input snapshot、Evidence 内容摘要与 Policy 完整版本。应用服务在计算摘要前重新校验来源合同版本及跨引用：Operation draftId/Product/Batch 与 Draft/input snapshot 一致，Batch 归属所列 Product，Evidence 属于同一 input snapshot，Policy ID/revision 和其 Evidence 属于同一快照。Schema 再校验这些引用关系；违反关系或 #19 Operation 非负售价约束的快照拒绝保存。
 
 Canonicalization v1 的对象键 comparator 按 Unicode code point 排序，数组保留合同顺序，精确金额/数量字符串不规范化。状态转换仍只调用 `canTransitionDraft`；Application command 不接受 Agent 自报风险、审批、预检或执行证据。N1–N3 的实际结果与完整检查见 `../acceptance/RETAIL-07-N1-N3.md`。SQLite revision 持久化仍暂停，未将内存替身结果表述为持久化验收。
+
+## SQLite Adapter 准备与共享迁移锁边界
+
+`SqliteDraftRevisionRepository` 只依赖两张由迁移提供的表，不会自行建表：`draft_revisions` 以 `(draft_id, revision)` 为主键，存储合同版本、canonicalization 版本、digest、初始状态及冻结事件 payload，并要求迁移创建拒绝 UPDATE/DELETE 的不可变触发器；`draft_revision_events` 以全局唯一 `event_id` 和递增 `sequence` 保存创建/状态事件，并以 `(draft_id, revision)` 外键关联冻结 revision。N0 已分配 `draft-revision-repository.ts` 和 `test/unit/persistence/sqlite/draft-revision-repository.test.ts` 给 #26；#26 不拥有 migration 文件或 migration-runner。
+
+Adapter 在单一同步事务中分配下一 revision、写冻结内容和创建事件；状态事件在同一写事务读取当前事件链、核对 `fromStatus` 并运行 `canTransitionDraft(current, to, {})` 后追加。未提供可信状态证据时不能经仓储进入 APPROVED、PRECHECK、EXECUTING 等状态。重复 eventId + 同语义返回原事件，冲突拒绝。读回时重新校验 schema、规范化列和 canonical digest；内容只有 INSERT 路径，仓储不提供覆盖更新。
+
+迁移锁未移交期间，SQLite adapter 测试仅在显式手工建立的内存 test schema 上验证，不打开已迁移应用数据库、不新增 schema 文件、也不代表正式迁移集成通过。待 #21 合并且主控移交锁后，必须根据实际 ledger 建立迁移，并在真实迁移数据库上复验 unique keys、FK、内容不可变和重开恢复。

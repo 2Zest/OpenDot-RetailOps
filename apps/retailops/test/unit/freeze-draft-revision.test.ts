@@ -4,6 +4,7 @@ import type { DraftRevisionRepository } from '../../src/application/ports/draft-
 import type {
   DraftRevision,
   DraftRevisionEvent,
+  DraftRevisionSeed,
   DraftRevisionStatusEvent,
 } from '../../src/domain/decision/draft-revision.js';
 import type { DraftStatus } from '../../src/domain/decision/draft.js';
@@ -120,14 +121,21 @@ class MemoryDraftRevisionRepository implements DraftRevisionRepository {
     return latestStatus?.toStatus ?? snapshot.initialStatus;
   }
 
-  appendEvent(event: DraftRevisionEvent): DraftRevisionEvent {
-    if (this.findEventById(event.eventId) !== undefined) throw new Error('duplicate event id');
-    if (event.kind === 'DRAFT_REVISION_CREATED'
-      && this.findRevisionByDraftIdAndNumber(event.draftId, event.revision) !== undefined) {
-      throw new Error('duplicate revision');
-    }
+  appendRevision(seed: DraftRevisionSeed): DraftRevision {
+    const revision = (this.findLatestRevision(seed.draftId)?.revision ?? 0) + 1;
+    const event: DraftRevision = { ...seed, revision };
     this.events.push(event);
     return event;
+  }
+
+  appendStatusEvent(event: DraftRevisionStatusEvent): DraftRevisionStatusEvent {
+    if (this.findEventById(event.eventId) !== undefined) throw new Error('duplicate event id');
+    this.events.push(event);
+    return event;
+  }
+
+  seedEventForTest(event: DraftRevisionEvent): void {
+    this.events.push(event);
   }
 }
 
@@ -230,7 +238,21 @@ describe('freeze draft revision application service', () => {
     const first = service.freeze(command('event-01'));
     expect(service.freeze(command('event-01'))).toEqual(first);
     records.operations.set('operation-01', makeOperation({ proposedPrice: { minorUnits: '1', currencyCode: 'CNY', minorUnitScale: 2 } }));
-    expectCode(() => service.freeze(command('event-01')), 'IDEMPOTENCY_CONFLICT');
+    expect(service.freeze(command('event-01'))).toEqual(first);
+    expectCode(() => service.freeze({
+      ...command('event-01'),
+      trace: { taskId: 'different-task', agentRunId: 'run-01', toolCallIds: ['tool-01'] },
+    }), 'IDEMPOTENCY_CONFLICT');
+    expect(repository.events).toHaveLength(1);
+  });
+
+  it('replays a successful freeze event idempotently after source data changes', () => {
+    const { records, service, command, repository } = setup();
+    const request = command('create-after-source-change');
+    const first = service.freeze(request);
+    records.products.set('product-01', makeProduct({ baseUnitCode: 'case' }));
+
+    expect(service.freeze(request)).toEqual(first);
     expect(repository.events).toHaveLength(1);
   });
 
@@ -315,7 +337,7 @@ describe('freeze draft revision application service', () => {
     for (const [fromStatus, toStatus] of missingEvidenceTransitions) {
       const { service, command, repository } = setup();
       const revision = service.freeze(command('create-01'));
-      repository.appendEvent({
+      repository.seedEventForTest({
         kind: 'DRAFT_STATUS_TRANSITIONED',
         draftId: revision.draftId,
         revision: revision.revision,

@@ -1,15 +1,18 @@
-import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { canTransitionDraft, draftSchema, draftStatusSchema } from '../../domain/decision/draft.js';
 import {
   DRAFT_REVISION_CANONICALIZATION_VERSION,
+  calculateDraftRevisionDigest,
+  canonicalSha256,
+  canonicalizeDraftRevisionValue,
   draftRevisionEventSchema,
-  draftRevisionSchema,
+  draftRevisionSeedSchema,
   draftRevisionTraceSchema,
   type DraftRevision,
   type DraftRevisionEvent,
   type DraftRevisionStatusEvent,
 } from '../../domain/decision/draft-revision.js';
+export { canonicalizeDraftRevisionValue } from '../../domain/decision/draft-revision.js';
 import { evidenceSchema } from '../../domain/evidence/evidence.js';
 import { batchSchema } from '../../domain/inventory/batch.js';
 import { productSchema } from '../../domain/product/product.js';
@@ -54,49 +57,6 @@ export class DraftRevisionServiceError extends Error {
   }
 }
 
-function compareCodePoints(left: string, right: string): number {
-  const a = Array.from(left, (character) => character.codePointAt(0) ?? 0);
-  const b = Array.from(right, (character) => character.codePointAt(0) ?? 0);
-  const length = Math.min(a.length, b.length);
-  for (let index = 0; index < length; index += 1) {
-    const difference = (a[index] ?? 0) - (b[index] ?? 0);
-    if (difference !== 0) return difference;
-  }
-  return a.length - b.length;
-}
-
-/** Canonical JSON v1: recursively code-point-sort object keys and preserve all array order. */
-export function canonicalizeDraftRevisionValue(value: unknown): string {
-  if (value === null) return 'null';
-  if (typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
-  if (typeof value === 'number') {
-    if (!Number.isSafeInteger(value)) throw new TypeError('Canonical draft values may contain only safe integers');
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    return '[' + value.map((entry) => canonicalizeDraftRevisionValue(entry)).join(',') + ']';
-  }
-  if (typeof value === 'object') {
-    const prototype = Object.getPrototypeOf(value);
-    if (prototype !== Object.prototype && prototype !== null) {
-      throw new TypeError('Canonical draft values must be plain JSON objects');
-    }
-    const record = value as Record<string, unknown>;
-    const keys = Object.keys(record).sort(compareCodePoints);
-    return '{' + keys.map((key) => {
-      const entry = record[key];
-      if (entry === undefined) throw new TypeError('Canonical draft values cannot contain undefined');
-      return JSON.stringify(key) + ':' + canonicalizeDraftRevisionValue(entry);
-    }).join(',') + '}';
-  }
-  throw new TypeError('Canonical draft values must be JSON data');
-}
-
-function sha256Canonical(value: unknown): string {
-  const canonical = canonicalizeDraftRevisionValue(value);
-  return 'sha256:' + createHash('sha256').update(canonical, 'utf8').digest('hex');
-}
-
 function invalidSource(label: string, detail: string): DraftRevisionServiceError {
   return new DraftRevisionServiceError('INVALID_SOURCE_CONTRACT', label + ': ' + detail);
 }
@@ -132,6 +92,14 @@ export class DraftRevisionApplicationService {
       throw new DraftRevisionServiceError('INVALID_COMMAND', commandResult.error.message);
     }
     const command = commandResult.data;
+
+    const priorEvent = this.revisions.findEventById(command.eventId);
+    if (priorEvent !== undefined) {
+      if (priorEvent.kind === 'DRAFT_REVISION_CREATED'
+        && priorEvent.draftId === command.draftId
+        && traceEquals(priorEvent.trace, command.trace)) return priorEvent;
+      throw new DraftRevisionServiceError('IDEMPOTENCY_CONFLICT', 'eventId was already used for a different event');
+    }
 
     const draftValue = this.sources.drafts.findById(command.draftId);
     if (draftValue === undefined) {
@@ -234,33 +202,15 @@ export class DraftRevisionApplicationService {
       operations: operations.map(toOperationSnapshot),
       evidenceDigests: evidence.map((item) => ({
         evidenceId: item.id,
-        canonicalDigest: sha256Canonical(item),
+        canonicalDigest: canonicalSha256(item),
       })),
       policy,
     };
-    const digestInput = {
-      canonicalizationVersion: DRAFT_REVISION_CANONICALIZATION_VERSION,
-      contractVersion: draft.contractVersion,
-      content,
-    };
-    const canonicalDigest = sha256Canonical(digestInput);
-
-    const existingEvent = this.revisions.findEventById(command.eventId);
-    if (existingEvent !== undefined) {
-      if (existingEvent.kind === 'DRAFT_REVISION_CREATED'
-        && existingEvent.draftId === draft.id
-        && existingEvent.canonicalDigest === canonicalDigest
-        && traceEquals(existingEvent.trace, command.trace)) return existingEvent;
-      throw new DraftRevisionServiceError('IDEMPOTENCY_CONFLICT', 'eventId was already used for a different event');
-    }
-
-    const latest = this.revisions.findLatestRevision(draft.id);
-    const revision = (latest?.revision ?? 0) + 1;
-    const eventResult = draftRevisionSchema.safeParse({
+    const canonicalDigest = calculateDraftRevisionDigest(draft.contractVersion, content);
+    const seedResult = draftRevisionSeedSchema.safeParse({
       kind: 'DRAFT_REVISION_CREATED',
       contractVersion: draft.contractVersion,
       draftId: draft.id,
-      revision,
       canonicalizationVersion: DRAFT_REVISION_CANONICALIZATION_VERSION,
       canonicalDigest,
       content,
@@ -268,9 +218,9 @@ export class DraftRevisionApplicationService {
       eventId: command.eventId,
       trace: command.trace,
     });
-    if (!eventResult.success) throw invalidSource('DraftRevision', eventResult.error.message);
+    if (!seedResult.success) throw invalidSource('DraftRevisionSeed', seedResult.error.message);
 
-    const appended = this.revisions.appendEvent(eventResult.data);
+    const appended = this.revisions.appendRevision(seedResult.data);
     const parsed = draftRevisionEventSchema.safeParse(appended);
     if (!parsed.success || parsed.data.kind !== 'DRAFT_REVISION_CREATED') {
       throw new DraftRevisionServiceError('STORAGE_CONFLICT', 'Repository returned an invalid revision event');
@@ -319,7 +269,7 @@ export class DraftRevisionApplicationService {
     if (!eventResult.success || eventResult.data.kind !== 'DRAFT_STATUS_TRANSITIONED') {
       throw invalidSource('DraftRevisionStatusEvent', eventResult.success ? 'unexpected event type' : eventResult.error.message);
     }
-    const appended = this.revisions.appendEvent(eventResult.data);
+    const appended = this.revisions.appendStatusEvent(eventResult.data);
     const parsed = draftRevisionEventSchema.safeParse(appended);
     if (!parsed.success || parsed.data.kind !== 'DRAFT_STATUS_TRANSITIONED') {
       throw new DraftRevisionServiceError('STORAGE_CONFLICT', 'Repository returned an invalid status event');
