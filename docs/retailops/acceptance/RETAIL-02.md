@@ -7,12 +7,12 @@
 - N2：来源合同、manifest、JSONL 导入校验及事务写入测试 PASS。
 - N3：SQLite v2 仓储、来源追溯查询及固定样本实际数据库比对 PASS。
 - N4：WSL Node 24 包级 build/typecheck/test、docs:check、staged diff check 与 17 文件范围审计均 PASS。
-- N5：尚未提交变更、推送或创建 PR；等待主控对本地完整差异及证据独立复核。
+- N5：实现已提交至 PR #89 并推送；PR 当前回读为 OPEN/CLEAN，等待独立 Review；Issue #21 为 OPEN/REVIEW，Project #2 为 Review。
 
 ## 基线与边界
 
 - GitHub Issue：#21 RETAIL-02；分支：`feat/retail-02`；Worktree：`D:/workSpace/codeAgent/OpenDot-RetailOps-02`。
-- 集成基线：`develop/retailops` `f3d1a7fc847f75cd0b4064aead0404ab4e23d67b`；工作分支 N0 提交 `44669981675f7e6afd7db27deb760e76acdb87e9`，本回执撰写时的新实现尚未提交。
+- 集成基线：`develop/retailops` `f3d1a7fc847f75cd0b4064aead0404ab4e23d67b`；N0 范围提交 `44669981675f7e6afd7db27deb760e76acdb87e9`；实现交付提交 `b7d81d39dbb10f82fa26abfdfa9ba4a3ace63a83`。
 - 上游：#20 PR #87 merge `048f3a7ef64a54986bfda1e839396b961969e46d`；#13 PR #79 merge `6a2ddc363f82ae9f9e66e296d2644efafb48565e`。
 - 包合同保持 0.3.0；未修改根/包依赖、锁文件、构建配置或测试发现配置。没有提交 Parquet、JSONL、SQLite 或其他数据文件。
 - 不实施需求预测、价格弹性、仿真、Agent Tool、API、业务执行或真实商超写接口。
@@ -93,9 +93,19 @@ Use Case 对无效 manifest、空输入、UTF-8/JSONL 格式错误、摘要不�
 
 ## 未验证事项与风险
 
-- 尚未提交或推送本轮实现；PR、PR HEAD、Issue/Project REVIEW 状态待主控审查本地差异后完成。
+- 实现已通过 PR #89 提交，正在等待独立 Review；本任务不标记 DONE。
 - 没有使用真实业务数据：FreshRetailNet 编码门店不代表现实门店；归一化观测不包含可还原实物单位、库存、价格或金额的系数。
 - npm 安装器报告的 audit advisory 未在本任务处理。
 - 测试数据库是临时隔离库；未修改 Home DB、宿主迁移入口或真实用户数据。
 
-**节点结论：** N0–N4 满足三层语义检查；N5 需完成差异检查、文件范围复核、提交与 PR 后再判 PASS。当前不标记 Issue DONE，不解锁下游任务。
+**节点结论：** N0–N5 的计划、实现和交付检查均通过；N5 PASS 仅表示已提交 PR 并完成状态同步，仍须等待独立 Review 与后续合并。Issue 当前保持 OPEN/REVIEW，不标记 DONE，不解锁下游任务。
+
+## N5 最终交付与状态回读（2026-11-27）
+
+- 实现交付提交：`b7d81d39dbb10f82fa26abfdfa9ba4a3ace63a83`，分支 `feat/retail-02`，已推送至 `origin/feat/retail-02`。
+- 独立 PR：[PR #89：公开历史数据导入](https://github.com/2Zest/OpenDot-RetailOps/pull/89)，目标分支 `develop/retailops`。交付提交回读时 PR 为 OPEN，`mergeStateStatus=CLEAN`；该 PR 仍等待独立 Review，未合并。
+- Issue #21 回读为 OPEN，标签 REVIEW，assignee `2Zest`；Issue 正文状态已同步。
+- GitHub Project #2 条目 `PVTI_lAHODjlUWM4BtKkTzhLw7Og` 回读为 Review。
+- PR 文件范围为上表列出的 17 个获准路径；无 Parquet、JSONL、临时 SQLite 或其他数据文件。实现交付时 Worktree clean。
+- 本次仅更新本回执中的 N5 交付记录，不改源码、测试、计划或数据。推送本回执后 PR HEAD 会随文档提交更新，具体最新 HEAD 以 GitHub 回读为准。
+- N5 验收结论：PASS（交付阶段）；独立 Review 尚待完成。当前不关闭 Issue、不标记 DONE、不解锁下游任务。
