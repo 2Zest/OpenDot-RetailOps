@@ -26,14 +26,13 @@
 | 路径 | 权限 / 唯一 owner | 用途与限制 |
 |---|---|---|
 | docs/retailops/plans/RETAIL-01P-EXECUTION-PLAN.md | 新增；#20 | 本细化 Plan |
-| docs/retailops/acceptance/RETAIL-01P-N0.md、RETAIL-01P-N1.md … N5.md | 新增；#20 | 节点回执；逐节点追加事实，不覆盖历史失败 |
+| docs/retailops/acceptance/RETAIL-01P-N0.md、docs/retailops/acceptance/RETAIL-01P-N1.md、docs/retailops/acceptance/RETAIL-01P-N2.md、docs/retailops/acceptance/RETAIL-01P-N3.md、docs/retailops/acceptance/RETAIL-01P-N4.md、docs/retailops/acceptance/RETAIL-01P-N5.md | 新增；#20 | 六个精确节点回执文件；逐节点追加事实，不覆盖历史失败 |
 | apps/retailops/src/application/ports/retail-repositories.ts | 新增；#20 | Product、Batch、Policy、Evidence、Draft、Operation 最小端口；不导入 SQLite |
 | apps/retailops/src/adapters/persistence/sqlite/database.ts | 新增；#20 | 打开/关闭专属 SQLite 连接、外键启用及边界 |
-| apps/retailops/src/adapters/persistence/sqlite/migrations/** | 新增；#20 | 版本化迁移及测试使用的旧 RetailOps schema fixture；迁移不接入根/Home DB |
-| apps/retailops/src/adapters/persistence/sqlite/*-repository.ts | 新增；#20 | 六项既有领域合同的持久化映射；不创建重复领域模型 |
-| apps/retailops/src/adapters/persistence/sqlite/schema.ts | 新增；#20 | 迁移 SQL/约束协调；只由 #20 修改 |
-| apps/retailops/test/unit/persistence/sqlite/** | 新增；#20 | SQLite schema、migration、transaction 单元测试 |
-| apps/retailops/test/contract/persistence/sqlite/** | 新增；#20 | Repository 与 v0.3.0 合同往返/约束测试 |
+| apps/retailops/src/adapters/persistence/sqlite/migration-runner.ts、apps/retailops/src/adapters/persistence/sqlite/migrations/0001_initial.sql、apps/retailops/test/fixtures/persistence/sqlite/legacy-retailops-v0.sql | 新增；#20 | 迁移 runner、首个 RetailOps schema 迁移、隔离的旧版 RetailOps 测试 fixture；不接入根/Home DB |
+| apps/retailops/src/adapters/persistence/sqlite/product-repository.ts、apps/retailops/src/adapters/persistence/sqlite/batch-repository.ts、apps/retailops/src/adapters/persistence/sqlite/policy-repository.ts、apps/retailops/src/adapters/persistence/sqlite/evidence-repository.ts、apps/retailops/src/adapters/persistence/sqlite/draft-repository.ts、apps/retailops/src/adapters/persistence/sqlite/operation-repository.ts | 新增；#20 | 六项既有领域合同的持久化映射；不创建重复领域模型 |
+| apps/retailops/test/unit/persistence/sqlite/database.test.ts、apps/retailops/test/unit/persistence/sqlite/migration-runner.test.ts、apps/retailops/test/unit/persistence/sqlite/repositories.test.ts | 新增；#20 | SQLite 连接、迁移和事务/约束单元测试 |
+| apps/retailops/test/contract/persistence/sqlite/repository-contract.test.ts | 新增；#20 | Repository 与 v0.3.0 合同往返/约束测试 |
 | apps/retailops/package.json、apps/retailops/package-lock.json | 暂列为 #20 唯一候选 owner；依赖决策门禁 | 仅在主控明确批准后，允许增加独立包的 SQLite driver 和类型；未批准前只读，不安装依赖、不改锁文件 |
 | apps/retailops/src/domain/**、现有 test/unit/**、test/contract/** | 只读；领域合同 owner | 只运行和引用；不改 v0.3.0 合同或弱化原测试 |
 | 根 package.json / package-lock.json / tsconfig.json，根 src/**、根迁移入口、apps/cloud-agent/**、shared/**，GitHub Issue/Plan/DAG 原文 | 只读；共享 owner / 主控 | 不修改、不注册到 Home DB 或宿主 |
