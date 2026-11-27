@@ -1,12 +1,12 @@
 # RETAIL-01P（GitHub Issue #20）执行 Plan
 
-状态：N0 已整理，等待主控核验；N1–N5 未开始。此文档细化原始 Plan，不替代或修改其 N0–N5 语义。
+状态：N0 已经主控核验通过；2026-11-27 用户批准 SQLite 精确依赖版本；N1–N5 正在执行。此文档细化原始 Plan，不替代或修改其 N0–N5 语义。
 
 ## 基线、授权与上游
 
 - 集成基线：develop/retailops 8ca176ff3f9e5990b6c2487e41be2953e682c192。
 - 当前 worktree：D:/workSpace/codeAgent/OpenDot-RetailOps-01p；分支：feat/retail-01p，由上述基线创建，工作树在 N0 预检时干净。
-- 授权：用户已认领 GitHub Issue #20；Issue 当前 Open / IN_PROGRESS，执行人为 2Zest。Project #2 状态已设置为 In Progress，需在本 Plan 提交后回读。
+- 授权：用户已认领 GitHub Issue #20；Issue 当前 Open / IN_PROGRESS，执行人为 2Zest。Project #2 状态回读为 In Progress。
 - 上游证据：
   - RETAIL-01（GitHub Issue #19）：PR #86 已合并，merge SHA 8ca176ff3f9e5990b6c2487e41be2953e682c192；合并合同版本 0.3.0，验收记录包含原领域合同测试。
   - RETAIL-00A-01（GitHub Issue #6）：PR #73 merge SHA b22ed421b22e6fa06b8fe9821e916ff48adf9524；Issue #6 已 Closed / DONE，Project #2 为 Done。
@@ -21,7 +21,7 @@
 
 ## 文件所有权与锁
 
-本任务在 N0 为 #20 冻结的候选写入范围如下。未列文件视为只读；新增代码严格限于 apps/retailops/**。主控核验通过且依赖决策获准后方可开始 N1。
+本任务在 N0 经主控核验通过的写入范围如下。未列文件视为只读；新增代码严格限于 apps/retailops/**。SQLite 依赖已由用户批准，N1–N5 可在该冻结范围内执行。
 
 | 路径 | 权限 / 唯一 owner | 用途与限制 |
 |---|---|---|
@@ -38,11 +38,11 @@
 | 根 package.json / package-lock.json / tsconfig.json，根 src/**、根迁移入口、apps/cloud-agent/**、shared/**，GitHub Issue/Plan/DAG 原文 | 只读；共享 owner / 主控 | 不修改、不注册到 Home DB 或宿主 |
 | 另一任务 #24 的领域算法、测试及回执文件 | 只读；#24 独占 | 与 #20 无可写路径交叉 |
 
-### 依赖决策门禁
+### 依赖决策与批准记录
 
-当前 apps/retailops 是独立包且已有自己的 package.json、package-lock.json；它尚未声明 SQLite driver。SQLite 适配器需要可在本包独立运行的 driver。根锁文件中可核实的候选是 better-sqlite3 12.11.1（根 manifest 范围 ^12.10.0）及 @types/better-sqlite3 7.6.13（根 manifest 范围 ^7.6.12）。这是技术兼容提案，不是依赖已批准或已安装。
+apps/retailops 是独立包并有专属 package.json/package-lock.json。SQLite 适配器需要可在本包独立运行的 driver。主控依据根锁文件核验后，用户于 2026-11-27 批准精确版本 better-sqlite3 12.11.1 与 @types/better-sqlite3 7.6.13，并授予 #20 独占修改该独立包 manifest 和 lockfile 的权限。此批准不涵盖改动根依赖。
 
-主控需确认是否批准将 driver 及类型加入独立 apps/retailops 包，并接受上表 #20 独占其 package.json/package-lock.json 的所有权。未得到明确核验前，N1 迁移实现、依赖安装及任何 manifest/lock 写入均暂停。不得改根依赖或复用宿主 node_modules 作为运行时依赖。
+不得更换已批准版本，不得改根依赖或复用宿主 node_modules 作为运行时依赖。必须在 WSL Node 24 中实际验证 native module 安装和加载；失败时记录原因并暂停受影响步骤，不通过全局配置或版本替换规避。
 
 ## N1–N5 具体执行与验收
 
@@ -58,14 +58,14 @@
 
 环境固定 WSL Ubuntu 24.04 / Node 24 / npm 11，使用 apps/retailops 专属 lockfile。N0 计划文档检查命令为根目录 npm run docs:check 和 git diff --check。N4 预期执行：
 
-- 在 apps/retailops：npm ci（仅依赖门禁批准后）、npm run build、npm run typecheck、npm test。
+- 在 apps/retailops：npm ci（已批准的 package-local 精确依赖）、npm run build、npm run typecheck、npm test。
 - 定向持久化：npm test -- test/unit/persistence/sqlite 和 npm test -- test/contract/persistence/sqlite（路径按实际测试文件调整并记录）。
 - 测试发现配置保持既有 test/unit/**/*.test.ts、test/contract/**/*.test.ts，不改 Vitest 配置。
 - N5 根目录 npm run docs:check、git diff --check，并核对仅本 Plan 允许路径有变化。
 
 ## 未决参数与暂停条件
 
-- SQLite driver 及类型依赖是否进入 RetailOps 独立包：等待本 N0 主控核验，未批准前不可实施。
+- SQLite driver 及类型依赖版本已批准（12.11.1 / 7.6.13）；仍须验证本机 Node 24 的真实安装和加载，不得更换版本或全局配置。
 - 实际字段/索引需由 v0.3.0 合同决定；不扩充领域业务字段，不发明真实数据。
 - “旧数据库”只以可追溯的历史 RetailOps schema fixture 表示；若验收实际要求升级 Home DB，则超出安全边界，应暂停并提变更请求。
 - 若独立包中无法无损表示现有合同精度、时间、证据/版本，停止并提交具体兼容方案；不得降级 schema 或浮点化。
@@ -75,4 +75,4 @@
 
 - PRD / 总体计划：持久化是可信业务事实存储；Runtime checkpoint、Memory、Home DB 不替代业务账本。
 - Issue #20 / 原 RETAIL-01P-PLAN：严格限数据库表、迁移、事务、Repository 与 N0–N5；本 Plan 细化源码路径和真实升级测试边界。
-- N0 节点标准：基线、上游、环境、文件 owner、依赖门槛、测试命令和未决项已列出；实际执行证据见独立 N0 回执。N1 仍等待主控核验。
+- N0 节点标准：基线、上游、环境、文件 owner、依赖门槛、测试命令和未决项已列出；N0 主控核验和依赖批准记录见独立 N0 回执；N1–N5 已获授权执行。
