@@ -1,6 +1,6 @@
 # RETAIL-05P（GitHub Issue #24）N2 节点回执
 
-- 当前状态：N2 候选输入/结果 Schema、折价候选生成和确定性硬规则已实现并通过定向测试；等待主控核验。N3 未开始。
+- 当前状态：N2 候选输入/结果 Schema、折价候选生成和确定性硬规则已实现并通过定向测试，主控核验 PASS；等待后续节点授权。N3 未开始且未获启动授权。
 - 节点目标：根据已批准 N1 候选口径，实现显式参数化候选与 fail-closed 资格/价格/库存/毛利规则，不赋予业务执行权限。
 - 日期：2026-11-27（Asia/Shanghai）。
 - Issue / 原 Plan：GitHub Issue #24 / RETAIL-05P-PLAN。
@@ -25,7 +25,9 @@
 - 绿测：WSL `Ubuntu` Node v24.22.3 / npm 11.19.1：`npm test -- test/unit/decision/markdown-calculation.test.ts test/contract/decision/markdown-calculation.test.ts`，退出码 0；2 个测试文件、12 项测试通过。
 - 类型检查：同一包内 `npm run typecheck`，退出码 0。
 - 文档检查：WSL Node v24.22.3，设置 `GIT_DIR`/`GIT_WORK_TREE`/`GIT_OPTIONAL_LOCKS=0` 后从仓库根目录执行 `npm run docs:check`，退出码 0；259 份 Markdown 检查通过。
-- 差异检查：Windows Git 执行 `git diff --check`，退出码 0；仅有既有 LF/CRLF 转换提示，无 whitespace error。
+- 文档检查首次尝试：未设置 WSL Git worktree 环境变量时 `npm run docs:check` 退出码 1，报 `fatal: not a git repository`，将 Windows `.git` worktree 指针错误解析为 `/mnt/d/.../D:/workSpace/...`。随后按 N0 记录的正确 `GIT_DIR`/`GIT_WORK_TREE` 环境重跑通过；未修改 Git 配置。
+- 差异检查：WSL 执行 `git -c core.autocrlf=true diff --check -- <本回执所列 8 个实际修改路径>`，退出码 0；Windows `git diff --check` 也退出码 0。未发生 whitespace error；Git 显示 LF/CRLF 转换提示。
+- 差异检查首次尝试：WSL 未指定 `core.autocrlf` 时把仓库 CRLF 工作树内容报告为大量行尾 whitespace；未修改文件。使用已批准工作树环境、`core.autocrlf=true` 和本任务路径范围复验后退出码 0。
 - 依赖：在 #20 重型检查结束后，`npm ci` 使用现有 RetailOps 专属 lockfile 完成，未修改 package/lock 文件；npm 输出 3 项审计告警（2 moderate、1 high），未执行自动升级。
 - 本节点未运行 `npm run build`、完整 `npm test`、数据库、模型、Runtime 或真实副作用；按 Plan 留至后续定向回归节点，未把 NOT_RUN 记作通过。
 
@@ -44,3 +46,15 @@
 - 完整收入/贡献/报损指标及解释字段仍属于 N3，不在本节点实现；不得据此宣称经营效果或损耗 KPI 已完成。
 - `npm run build` 与完整 `npm test` 未运行，留待 Plan 指定的后续回归节点；本 N2 范围内的定向测试、typecheck、`docs:check` 与 `git diff --check` 均已通过。
 - 决定：停留 N2，提交主控核验；N3 未开始。
+
+## 主控 N2 复核决定（2026-11-27）
+
+主控已实际核验 N2 提交 `ac64fe21a250c0886d4dd19833cad7642de52b93`，结论 PASS。复核包括代码、定向测试、精确文件范围和回执：
+
+| 对齐层 | 主控复核证据 | 判定 |
+|---|---|---|
+| PRD / 总体计划 | 确定性候选与硬规则留在纯领域模块；无 Agent/Runtime/业务副作用；候选计算与执行权限严格区分 | PASS |
+| Issue #24 / RETAIL-05P-EXECUTION-PLAN | 仅改 #24 获批的领域决策模块、导出、专属测试及计划/回执；未改 #20、共享依赖、合同、DAG 或总体计划；N1 显式来源与未决数值边界保持有效 | PASS |
+| N2 节点验收 | 红测 12 项失败证明新 API 缺失；实现后 12/12 定向测试通过，typecheck、docs:check、git diff --check 均通过；覆盖质量/效期/库存/价格/毛利/损耗及权限边界 | PASS |
+
+本次只核验 N2，不代表 N3 已授权。N3 未开始；在获得后续明确授权前不得实现解释指标或推进后续节点。Issue #24 保持 Open / IN_PROGRESS，GitHub Project #2 保持 In Progress。
