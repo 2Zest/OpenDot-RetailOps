@@ -1,6 +1,6 @@
 # RETAIL-05P（GitHub Issue #24）执行 Plan
 
-状态：N0、N1、N2 已由主控核验通过；经后续授权，N3 结构化结果与来源绑定、N4 定向及完整包回归已完成。N5 文档/差异/范围复核与 PR 交付进行中；Issue #24 暂保持 IN_PROGRESS，未合并、不标 DONE、不解锁下游。此细化 Plan 保留原 RETAIL-05P-PLAN 的节点语义，不修改总体计划或 DAG。
+状态：N0–N4 验收通过，N5 静态验收完成。PR #88（base develop/retailops）已创建并保持 OPEN 等待独立 Review；Issue #24 保持 OPEN/REVIEW，Project #2 为 Review。未合并、不标 DONE、不解锁下游。此细化 Plan 保留原 RETAIL-05P-PLAN 的节点语义，不修改总体计划或 DAG。
 
 ## 基线、授权与上游
 
