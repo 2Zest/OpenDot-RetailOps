@@ -74,5 +74,5 @@ Issue #22 和 Project #2 保持 REVIEW；PR #91 保持 OPEN 等待最终独立 R
 
 ### 推送后的 HEAD 回读
 
-- 修订提交 / PR #91 最新 HEAD：`accb01e41a01c72cbe65eb0cd5403b2e421f1f56`，已推送至 `feat/retail-03`，无强推。
-- PR：[RETAIL-03：单 SKU 经营仿真器](https://github.com/2Zest/OpenDot-RetailOps/pull/91)，实际回读为 OPEN，目标 `develop/retailops`，PR head 与上述 SHA 一致。
+- 核心代码修订提交：`accb01e41a01c72cbe65eb0cd5403b2e421f1f56`；首次补充回执提交：`efff19efd6d2e3154026ae5a7f71bc02e009d90c`。两次提交均已推送至 `feat/retail-03`，无强推；后续回执修订不改变上述提交的历史含义。PR 当前 HEAD 以最终 GitHub 回读为准。
+- PR：[RETAIL-03：单 SKU 经营仿真器](https://github.com/2Zest/OpenDot-RetailOps/pull/91)，该回执提交后实际回读为 OPEN，目标 `develop/retailops`，HEAD 为 `efff19efd6d2e3154026ae5a7f71bc02e009d90c`；本次回执勘误后的最新 HEAD 以 GitHub 回读为准。
