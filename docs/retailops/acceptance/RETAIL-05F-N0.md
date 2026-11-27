@@ -58,3 +58,11 @@
 - GitHub Issue #23 回读：OPEN、标签 `IN_PROGRESS`、已分配 `2Zest`；Issue 正文当前状态及 N0 交付链接已更新。
 - GitHub Project #2 条目 `PVTI_lAHODjlUWM4BtKkTzhLw5Do` 回读为 `In Progress`。
 - N0 状态同步成功后仍须主控核验；当前暂停点是“等待主控核验”，N1 及固定数据获取均未启动。
+
+## N0 主控核验与执行放行（2026-11-27）
+
+- 主控核验结论：通过。用户随后批准直接执行 N1–N5；以上“等待主控核验/N1 未开始”是首轮回执时的历史状态，现由本节记录解除，不覆盖历史事实。
+- N0 批准计划版本：`36a9cfe8c0bb856356e5b4e2d22a94ae323bcb14`。执行前实际 fetch `origin/develop/retailops`，确认最新 HEAD `2850f918bc22cbf1c44bc7ea7a560f991ba4cdfc`；任务分支 merge commit `3417d8a9b9f4b9207ad7d57e12765d4437c3084d`，父提交为原 N0 工作 HEAD `112d7e341c0f4418f6be7ac768c85d6c0103915a` 与集成 HEAD。无冲突，未覆盖任务分支内容。
+- 数据只读复用 #21 Worktree 已有固定快照，没有重新下载或复制大型数据。WSL Node `v24.22.3`、npm `11.19.1`。实际 `sha256sum` 回读 train JSONL 为 `4b1f0c5922d54b991eca9cef3b7a5cb98f1878097cd320fbe6f2af44b6a5e005`，eval JSONL 为 `0934c95835208fdd32938ba3e4b69b7c4389d6eca5f4560e0b648866c3bb47d2`，与已验收来源 manifest 一致。
+- 更新后的基线、实现规则与选择规则写入细化 Plan。N1–N5 的实测范围、命令和结果见 `docs/retailops/acceptance/RETAIL-05F.md`。
+- 本次放行未改变总体计划、场景、Issue 契约、DAG、数据单位或文件 owner；小时标签语义未确认时仅停止小时外推候选，不阻止朴素基线与无缺货日候选。
