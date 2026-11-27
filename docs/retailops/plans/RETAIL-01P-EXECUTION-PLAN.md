@@ -29,11 +29,11 @@
 | docs/retailops/acceptance/RETAIL-01P-N0.md、docs/retailops/acceptance/RETAIL-01P-N1.md、docs/retailops/acceptance/RETAIL-01P-N2.md、docs/retailops/acceptance/RETAIL-01P-N3.md、docs/retailops/acceptance/RETAIL-01P-N4.md、docs/retailops/acceptance/RETAIL-01P-N5.md | 新增；#20 | 六个精确节点回执文件；逐节点追加事实，不覆盖历史失败 |
 | apps/retailops/src/application/ports/retail-repositories.ts | 新增；#20 | Product、Batch、Policy、Evidence、Draft、Operation 最小端口；不导入 SQLite |
 | apps/retailops/src/adapters/persistence/sqlite/database.ts | 新增；#20 | 打开/关闭专属 SQLite 连接、外键启用及边界 |
-| apps/retailops/src/adapters/persistence/sqlite/migration-runner.ts、apps/retailops/src/adapters/persistence/sqlite/migrations/0001_initial.sql、apps/retailops/test/fixtures/persistence/sqlite/legacy-retailops-v0.sql | 新增；#20 | 迁移 runner、首个 RetailOps schema 迁移、隔离的旧版 RetailOps 测试 fixture；不接入根/Home DB |
+| apps/retailops/src/adapters/persistence/sqlite/migration-runner.ts、apps/retailops/src/adapters/persistence/sqlite/migrations/0001_initial.ts、apps/retailops/test/fixtures/persistence/sqlite/legacy-retailops-v0.sql | 新增；#20 | 迁移 runner、首个 RetailOps schema 迁移、隔离的旧版 RetailOps 测试 fixture；不接入根/Home DB |
 | apps/retailops/src/adapters/persistence/sqlite/product-repository.ts、apps/retailops/src/adapters/persistence/sqlite/batch-repository.ts、apps/retailops/src/adapters/persistence/sqlite/policy-repository.ts、apps/retailops/src/adapters/persistence/sqlite/evidence-repository.ts、apps/retailops/src/adapters/persistence/sqlite/draft-repository.ts、apps/retailops/src/adapters/persistence/sqlite/operation-repository.ts | 新增；#20 | 六项既有领域合同的持久化映射；不创建重复领域模型 |
 | apps/retailops/test/unit/persistence/sqlite/database.test.ts、apps/retailops/test/unit/persistence/sqlite/migration-runner.test.ts、apps/retailops/test/unit/persistence/sqlite/repositories.test.ts | 新增；#20 | SQLite 连接、迁移和事务/约束单元测试 |
 | apps/retailops/test/contract/persistence/sqlite/repository-contract.test.ts | 新增；#20 | Repository 与 v0.3.0 合同往返/约束测试 |
-| apps/retailops/package.json、apps/retailops/package-lock.json | 暂列为 #20 唯一候选 owner；依赖决策门禁 | 仅在主控明确批准后，允许增加独立包的 SQLite driver 和类型；未批准前只读，不安装依赖、不改锁文件 |
+| apps/retailops/package.json、apps/retailops/package-lock.json | #20 唯一 owner；用户已批准 | better-sqlite3 12.11.1 与 @types/better-sqlite3 7.6.13 精确版本；不得改根依赖或其他包 |
 | apps/retailops/src/domain/**、现有 test/unit/**、test/contract/** | 只读；领域合同 owner | 只运行和引用；不改 v0.3.0 合同或弱化原测试 |
 | 根 package.json / package-lock.json / tsconfig.json，根 src/**、根迁移入口、apps/cloud-agent/**、shared/**，GitHub Issue/Plan/DAG 原文 | 只读；共享 owner / 主控 | 不修改、不注册到 Home DB 或宿主 |
 | 另一任务 #24 的领域算法、测试及回执文件 | 只读；#24 独占 | 与 #20 无可写路径交叉 |
@@ -43,6 +43,10 @@
 apps/retailops 是独立包并有专属 package.json/package-lock.json。SQLite 适配器需要可在本包独立运行的 driver。主控依据根锁文件核验后，用户于 2026-11-27 批准精确版本 better-sqlite3 12.11.1 与 @types/better-sqlite3 7.6.13，并授予 #20 独占修改该独立包 manifest 和 lockfile 的权限。此批准不涵盖改动根依赖。
 
 不得更换已批准版本，不得改根依赖或复用宿主 node_modules 作为运行时依赖。必须在 WSL Node 24 中实际验证 native module 安装和加载；失败时记录原因并暂停受影响步骤，不通过全局配置或版本替换规避。
+
+## 迁移资源路径决定（N1 细化）
+
+为保证 npm run build 后 dist 仍能按 ESM import 访问带版本的迁移定义，同时避免复制资源脚本和修改 build 配置，主控批准将 N0 中的 migrations/0001_initial.sql 路径收敛为 migrations/0001_initial.ts。该 TypeScript 模块只导出迁移 SQL 常量并由 migration-runner.ts 导入；tsc 将其编译进 dist。合成历史库仍保留为 test/fixtures/persistence/sqlite/legacy-retailops-v0.sql。唯一 owner 均为 #20，不改变 schema 语义、不修改 build script 或测试发现范围。
 
 ## N1–N5 具体执行与验收
 
@@ -65,7 +69,7 @@ apps/retailops 是独立包并有专属 package.json/package-lock.json。SQLite 
 
 ## 未决参数与暂停条件
 
-- SQLite driver 及类型依赖版本已批准（12.11.1 / 7.6.13）；仍须验证本机 Node 24 的真实安装和加载，不得更换版本或全局配置。
+- SQLite driver 及类型依赖版本已批准（12.11.1 / 7.6.13）；WSL Node 24 的真实安装和加载已通过 N1 验证，不得更换版本或全局配置。
 - 实际字段/索引需由 v0.3.0 合同决定；不扩充领域业务字段，不发明真实数据。
 - “旧数据库”只以可追溯的历史 RetailOps schema fixture 表示；若验收实际要求升级 Home DB，则超出安全边界，应暂停并提变更请求。
 - 若独立包中无法无损表示现有合同精度、时间、证据/版本，停止并提交具体兼容方案；不得降级 schema 或浮点化。

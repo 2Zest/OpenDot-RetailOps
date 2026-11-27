@@ -42,4 +42,5 @@
 - 已获授权按 RETAIL-01P-EXECUTION-PLAN 推进 N1–N5，最终建立独立 PR 等待 Review；不触及根依赖、宿主或基础领域合同。
 - 此批准解除本回执旧版“等待 SQLite driver 决定”的门槛。首次 N0 记录仍作为历史事实保留；当前执行状态以本段及 Issue #20 最新状态为准。
 - WSL Node 24 下 native module 安装/加载、迁移资源在 dist 下可用、事务/损坏数据/精度往返均列为必须有真实证据的验收项；历史 schema 仅可用标注清楚的合成 RetailOps fixture 验证。
-- 本次追加主控决定后 WSL Node v24.22.3 / npm 11.19.1 执行 npm run docs:check 退出码 0，256 份 Markdown 通过。git diff --check 首次因新增尾空行退出码 1；移除额外空行后重新检查通过，错误及修正均保留。\n- N0 三层检查结论保持 PASS；N1 已授权开始。此决定不授权 Home DB、真实用户数据、审批、Agent、业务执行、下游或任何真实副作用。
+- 本次追加主控决定后 WSL Node v24.22.3 / npm 11.19.1 执行 npm run docs:check 退出码 0，256 份 Markdown 通过。git diff --check 首次因新增尾空行退出码 1；移除额外空行后重新检查通过，错误及修正均保留。
+- N0 三层检查结论保持 PASS；N1 已授权开始。此决定不授权 Home DB、真实用户数据、审批、Agent、业务执行、下游或任何真实副作用。
