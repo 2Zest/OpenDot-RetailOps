@@ -82,6 +82,79 @@ describe('RETAIL-05F normalized demand estimators', () => {
     });
   });
 
+  it('reports actual input coverage separately from the caller-declared fixed snapshot digest', () => {
+    const result = estimateNormalizedDemand(request('HISTORICAL_MEAN', [
+      record('2024-03-28', 1.5),
+      record('2024-03-29', 2.5),
+    ]));
+
+    expect(result).toMatchObject({
+      status: 'ESTIMATED',
+      sourceSha256: sourceHash,
+      sourceDigestScope: 'CALLER_DECLARED_FIXED_SNAPSHOT_SUMMARY',
+      inputRowCount: 2,
+      sourceWindow: { start: '2024-03-28', end: '2024-03-29' },
+      sourceCoverage: {
+        declaredDateCount: 2,
+        observedDateCount: 2,
+        coverageRate: 1,
+        actualWindow: { start: '2024-03-28', end: '2024-03-29' },
+        missingDates: [],
+      },
+    });
+  });
+
+  it('returns incomplete coverage and does not estimate across a missing date', () => {
+    const incomplete = estimateNormalizedDemand({
+      ...request('HISTORICAL_MEAN', [record('2024-03-28', 1), record('2024-03-30', 3)]),
+      sourceWindow: { start: '2024-03-28', end: '2024-03-30' },
+      asOf: '2024-03-30',
+      targetWindow: { start: '2024-03-31', end: '2024-04-01' },
+    });
+
+    expect(incomplete).toMatchObject({
+      status: 'INSUFFICIENT_DATA',
+      value: null,
+      inputRowCount: 2,
+      includedRowCount: 0,
+      reasonCode: 'INCOMPLETE_SOURCE_WINDOW',
+      sourceCoverage: {
+        declaredDateCount: 3,
+        observedDateCount: 2,
+        coverageRate: 2 / 3,
+        actualWindow: { start: '2024-03-28', end: '2024-03-30' },
+        missingDates: ['2024-03-29'],
+      },
+    });
+  });
+
+  it('does not report a short input subset as a complete 76-day training window', () => {
+    const shortSequence = estimateNormalizedDemand({
+      ...request('HISTORICAL_MEAN', [record('2024-03-28', 9)]),
+      sourceWindow: { start: '2024-03-28', end: '2024-06-11' },
+      asOf: '2024-06-11',
+      targetWindow: { start: '2024-06-12', end: '2024-06-25' },
+    });
+
+    expect(shortSequence).toMatchObject({
+      status: 'INSUFFICIENT_DATA',
+      value: null,
+      inputRowCount: 1,
+      includedRowCount: 0,
+      reasonCode: 'INCOMPLETE_SOURCE_WINDOW',
+      sourceWindow: { start: '2024-03-28', end: '2024-06-11' },
+      sourceCoverage: {
+        declaredDateCount: 76,
+        observedDateCount: 1,
+        coverageRate: 1 / 76,
+        actualWindow: { start: '2024-03-28', end: '2024-03-28' },
+      },
+    });
+    expect(shortSequence.sourceCoverage.missingDates).toHaveLength(75);
+    expect(shortSequence.sourceCoverage.missingDates[0]).toBe('2024-03-29');
+    expect(shortSequence.sourceCoverage.missingDates.at(-1)).toBe('2024-06-11');
+  });
+
   it('uses only reported zero-out-of-stock-hour rows for the conditional mean', () => {
     const estimate = estimateNormalizedDemand(request('NO_STOCKOUT_DAY_MEAN', [
       record('2024-03-28', 3),

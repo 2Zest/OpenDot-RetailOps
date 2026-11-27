@@ -10,6 +10,19 @@ export const demandEstimationMethodSchema = z.enum([
 ]);
 
 const dateWindowSchema = z.object({ start: z.string().date(), end: z.string().date() }).strict();
+const sourceCoverageSchema = z.object({
+  declaredDateCount: z.number().int().safe().min(1).max(366),
+  observedDateCount: z.number().int().safe().nonnegative().max(366),
+  coverageRate: z.number().finite().min(0).max(1),
+  actualWindow: dateWindowSchema.nullable(),
+  missingDates: z.array(z.string().date()).max(366),
+}).strict().superRefine((coverage, context) => {
+  if (coverage.observedDateCount + coverage.missingDates.length !== coverage.declaredDateCount
+    || coverage.coverageRate !== coverage.observedDateCount / coverage.declaredDateCount
+    || (coverage.observedDateCount === 0) !== (coverage.actualWindow === null)) {
+    context.addIssue({ code: 'custom', path: ['observedDateCount'], message: 'Source coverage counts, rate and actual window must agree' });
+  }
+});
 
 export const demandEstimationRequestSchema = z.object({
   method: demandEstimationMethodSchema,
@@ -25,6 +38,10 @@ export const demandEstimationRequestSchema = z.object({
 }).strict().superRefine((request, context) => {
   const issue = (path: (string | number)[], message: string) => context.addIssue({ code: 'custom', path, message });
   if (request.sourceWindow.start > request.sourceWindow.end) issue(['sourceWindow'], 'Source window must be ordered');
+  if (request.sourceWindow.start <= request.sourceWindow.end
+    && listWindowDates(request.sourceWindow).length > 366) {
+    issue(['sourceWindow'], 'Source window must contain at most 366 calendar dates');
+  }
   if (request.asOf < request.sourceWindow.end) issue(['asOf'], 'Forecast cutoff cannot precede the source window end');
   if (request.targetWindow.start <= request.asOf || request.targetWindow.start > request.targetWindow.end) {
     issue(['targetWindow'], 'Target window must begin after the forecast cutoff and be ordered');
@@ -47,6 +64,7 @@ export const demandEstimateResultSchema = z.object({
   estimatorVersion: z.literal(DEMAND_ESTIMATION_VERSION),
   sourceKind: z.literal('DERIVED'),
   valueMeaning: z.literal('PROVIDER_NORMALIZED_SALE_AMOUNT'),
+  sourceDigestScope: z.literal('CALLER_DECLARED_FIXED_SNAPSHOT_SUMMARY'),
   method: demandEstimationMethodSchema,
   status: z.enum(['ESTIMATED', 'INSUFFICIENT_DATA', 'BLOCKED', 'NOT_COMPUTABLE']),
   value: z.number().finite().nullable(),
@@ -58,9 +76,10 @@ export const demandEstimateResultSchema = z.object({
   storeId: z.number().int().safe().nonnegative(),
   skuId: z.number().int().safe().nonnegative(),
   sourceWindow: dateWindowSchema,
+  sourceCoverage: sourceCoverageSchema,
   asOf: z.string().date(),
   targetWindow: dateWindowSchema,
-  reasonCode: z.enum(['NO_ELIGIBLE_TRAINING_ROWS', 'HOURLY_LABEL_SEMANTICS_UNVERIFIED', 'NUMERIC_OVERFLOW']).nullable(),
+  reasonCode: z.enum(['NO_ELIGIBLE_TRAINING_ROWS', 'INCOMPLETE_SOURCE_WINDOW', 'HOURLY_LABEL_SEMANTICS_UNVERIFIED', 'NUMERIC_OVERFLOW']).nullable(),
   assumptions: z.array(z.string().max(180)).max(4),
 }).strict().superRefine((result, context) => {
   const estimated = result.status === 'ESTIMATED';
@@ -75,8 +94,13 @@ export const demandEstimateResultSchema = z.object({
     || result.reasonCode !== 'HOURLY_LABEL_SEMANTICS_UNVERIFIED' || result.value !== null || result.includedRowCount !== 0)) {
     context.addIssue({ code: 'custom', path: ['reasonCode'], message: 'Only the unverified hourly candidate may be blocked by label semantics' });
   }
-  if (result.status === 'INSUFFICIENT_DATA' && (result.reasonCode !== 'NO_ELIGIBLE_TRAINING_ROWS' || result.includedRowCount !== 0)) {
-    context.addIssue({ code: 'custom', path: ['reasonCode'], message: 'Insufficient estimates require an explicit no-eligible-row reason' });
+  if (result.status === 'INSUFFICIENT_DATA'
+    && (!['NO_ELIGIBLE_TRAINING_ROWS', 'INCOMPLETE_SOURCE_WINDOW'].includes(result.reasonCode ?? '')
+      || result.includedRowCount !== 0)) {
+    context.addIssue({ code: 'custom', path: ['reasonCode'], message: 'Insufficient estimates require an explicit no-eligible-row or incomplete-window reason' });
+  }
+  if (result.status === 'ESTIMATED' && result.sourceCoverage.missingDates.length > 0) {
+    context.addIssue({ code: 'custom', path: ['sourceCoverage'], message: 'An estimate cannot claim a source window with missing dates' });
   }
   if (result.status === 'NOT_COMPUTABLE' && result.reasonCode !== 'NUMERIC_OVERFLOW') {
     context.addIssue({ code: 'custom', path: ['reasonCode'], message: 'Non-computable estimates require an explicit numeric overflow reason' });
@@ -162,6 +186,35 @@ export function summarizeNormalizedForecastMetrics(input: unknown): ForecastMetr
 export type DemandEstimationRequest = z.infer<typeof demandEstimationRequestSchema>;
 export type DemandEstimateResult = z.infer<typeof demandEstimateResultSchema>;
 
+function listWindowDates(window: { readonly start: string; readonly end: string }): string[] {
+  const dates: string[] = [];
+  const cursor = new Date(`${window.start}T00:00:00.000Z`);
+  const end = new Date(`${window.end}T00:00:00.000Z`).getTime();
+  while (cursor.getTime() <= end) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function measureSourceCoverage(
+  records: readonly z.infer<typeof freshRetailNetRecordSchema>[],
+  sourceWindow: { readonly start: string; readonly end: string },
+) {
+  const expectedDates = listWindowDates(sourceWindow);
+  const observedDates = [...new Set(records.map((record) => record.source.dt))].sort();
+  const observed = new Set(observedDates);
+  return {
+    declaredDateCount: expectedDates.length,
+    observedDateCount: observedDates.length,
+    coverageRate: observedDates.length / expectedDates.length,
+    actualWindow: observedDates.length === 0
+      ? null
+      : { start: observedDates[0]!, end: observedDates.at(-1)! },
+    missingDates: expectedDates.filter((date) => !observed.has(date)),
+  };
+}
+
 /**
  * Computes one deterministic, one-step-per-target-window normalized baseline.
  * Source values keep the provider's normalized meaning; this does not infer physical units.
@@ -174,6 +227,7 @@ export function estimateNormalizedDemand(input: DemandEstimationRequest): Demand
     estimatorVersion: DEMAND_ESTIMATION_VERSION,
     sourceKind: 'DERIVED' as const,
     valueMeaning: 'PROVIDER_NORMALIZED_SALE_AMOUNT' as const,
+    sourceDigestScope: 'CALLER_DECLARED_FIXED_SNAPSHOT_SUMMARY' as const,
     method: request.method,
     inputRowCount: request.records.length,
     datasetRevision: request.datasetRevision,
@@ -182,6 +236,7 @@ export function estimateNormalizedDemand(input: DemandEstimationRequest): Demand
     storeId: request.storeId,
     skuId: request.skuId,
     sourceWindow: request.sourceWindow,
+    sourceCoverage: measureSourceCoverage(request.records, request.sourceWindow),
     asOf: request.asOf,
     targetWindow: request.targetWindow,
   };
@@ -211,6 +266,17 @@ export function estimateNormalizedDemand(input: DemandEstimationRequest): Demand
       includedRowCount: 0,
       reasonCode: 'NO_ELIGIBLE_TRAINING_ROWS',
       assumptions: ['NO_VALUE_IS_IMPUTED_FOR_MISSING_OR_INELIGIBLE_HISTORY'],
+    });
+  }
+
+  if (common.sourceCoverage.missingDates.length > 0) {
+    return demandEstimateResultSchema.parse({
+      ...common,
+      status: 'INSUFFICIENT_DATA',
+      value: null,
+      includedRowCount: 0,
+      reasonCode: 'INCOMPLETE_SOURCE_WINDOW',
+      assumptions: ['MISSING_SOURCE_DATES_ARE_REPORTED_AND_NEVER_FILLED_WITH_ZERO'],
     });
   }
 

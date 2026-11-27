@@ -163,6 +163,16 @@ function evaluateForecastSet(targetsBySku, estimatesBySku, split, displayMethods
         forecast: forecast ?? null,
         trainingRows: estimate?.inputRowCount ?? 0,
         includedTrainingRows: estimate?.includedRowCount ?? 0,
+        trainingInputEvidence: estimate === undefined ? null : {
+          declaredWindow: estimate.sourceWindow,
+          actualWindow: estimate.sourceCoverage.actualWindow,
+          declaredDateCount: estimate.sourceCoverage.declaredDateCount,
+          observedDateCount: estimate.sourceCoverage.observedDateCount,
+          coverageRate: estimate.sourceCoverage.coverageRate,
+          missingDates: estimate.sourceCoverage.missingDates,
+          fixedSnapshotSha256: estimate.sourceSha256,
+          fixedSnapshotDigestScope: estimate.sourceDigestScope,
+        },
         coverageRows: pairs.length,
         targetRows: targets.length,
         metrics: summarizeMetrics(pairs),
@@ -286,6 +296,11 @@ function formatReport({ extraction, train, eval: evalRows, trainSha, evalSha, es
       eval: { sha256: evalSha.sha256, bytes: evalSha.bytes, rows: evalRows.length, skuCount: 74, dateWindow: { start: '2024-06-26', end: '2024-07-02' } },
       trainSha256: trainSha256,
       evalSha256: evalSha256,
+    },
+    inputEvidenceSemantics: {
+      fixedSnapshotDigest: 'The evaluator verifies each full JSONL file SHA-256 against the accepted snapshot before parsing it.',
+      estimatorSubsetEvidence: 'Per-SKU row count, declared window, actual date window, observed date count, coverage rate, and missing dates are computed from the records passed to the estimator.',
+      estimatorDigestBoundary: 'The estimator receives the caller-declared full-snapshot SHA-256 for traceability; it does not independently authenticate the source or hash the per-SKU training subset.',
     },
     forecastProtocol: {
       validationTraining: { firstDays: 76, forecastCutoffInclusive: '2024-06-11', targets: '2024-06-12 through 2024-06-25' },
