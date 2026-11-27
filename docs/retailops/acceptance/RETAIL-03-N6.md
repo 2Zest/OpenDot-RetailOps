@@ -1,7 +1,7 @@
 # RETAIL-03（GitHub Issue #22）N6 交付与 Review 回执
 
 日期：2026-11-27
-状态：准备交付；PR 创建后更新为 REVIEW
+状态：REVIEW；PR #91 已创建并等待独立 Review
 RETAIL 编号：RETAIL-03；GitHub Issue #22
 分支：`feat/retail-03`；Worktree：`D:/workSpace/codeAgent/OpenDot-RetailOps-03`
 目标分支：`develop/retailops`
@@ -27,6 +27,15 @@ RETAIL 编号：RETAIL-03；GitHub Issue #22
 |---|---|---|
 | 总体计划/PRD/场景 | 保持已批准的 V0 单 SKU/单 Batch 仿真与数据来源隔离，无真实运行或业务副作用 | PASS |
 | Issue #22/原 Plan/Execution Plan | 只实现 #22 的仿真合同、事件、指标和测试；不改基础合同/DAG/共享 migration/config | PASS |
-| N6 节点交付标准 | 独立分支推送、PR 目标 develop/retailops、Issue/Projects 回读 REVIEW，不合并、不 DONE、不启动下游 | 待提交后更新 |
+| N6 节点交付标准 | 独立分支推送、PR 目标 develop/retailops、Issue/Projects 回读 REVIEW，不合并、不 DONE、不启动下游 | PASS |
 
 未验证/限制：本项目仍不具备从此仿真结果推断真实需求、价格因果、生产经营 KPI 或业务执行授权的证据。#7 仍 BLOCKED。
+
+## 最终交付回读
+
+- 实现提交：`3e4a6f69ef5d619c27bd5aac794680059244dc05`；分支 `feat/retail-03` 已推送，PR 分支目标为 `develop/retailops`。
+- PR：[ #91 RETAIL-03：单 SKU 经营仿真器](https://github.com/2Zest/OpenDot-RetailOps/pull/91)，回读状态 OPEN，等待独立 Review。
+- 全包回归：`npm --prefix apps/retailops run build`、`npm --prefix apps/retailops run typecheck`、`npm --prefix apps/retailops test` 均退出码 0；测试 14 个文件、120/120 通过（含原109项）。仿真定向测试 11/11 通过。
+- 文档与差异：`npm run docs:check` 检查281份 Markdown 并退出码 0；`git diff --check` 与 `git diff --cached --check` 均退出码 0。
+- Issue #22 回读 OPEN，标签 REVIEW，assignee 2Zest；Project #2 回读状态 Review。未关闭 Issue、未标记 DONE、未启动下游任务。
+- N6 三层对齐均为 PASS；未验证限制保持如上。Issue #7 保持 BLOCKED。
