@@ -24,7 +24,7 @@ Issue / Plan 版本 / 节点：#26 RETAIL-07 / `RETAIL-07-PLAN.md` 与 `RETAIL-0
 | `npm --prefix apps/retailops run build`（WSL Node 24.22.3） | 0；TypeScript 生产构建通过 |
 | `npm --prefix apps/retailops run typecheck`（WSL Node 24.22.3） | 0；测试 TypeScript 检查通过 |
 | `npm --prefix apps/retailops test`（WSL Node 24.22.3） | 0；16 个测试文件、136/136 通过 |
-| `npm run docs:check`（WSL Node 24.22.3，显式 `GIT_DIR` / `GIT_WORK_TREE`） | 0；278 份仓库 Markdown 通过（最终文档状态复跑） |
+| `npm run docs:check`（WSL Node 24.22.3，显式 `GIT_DIR` / `GIT_WORK_TREE`） | 0；277 份仓库 Markdown 通过（最终文档状态复跑；临时 Issue 正文文件已移除） |
 | `git diff --cached --check`（Windows Git） | 0；暂存差异无 whitespace error |
 
 历史失败记录保留：N4 初次定向回归包含一个 v2 fixture ledger 断言未计入 synthetic v0 行，修正期望后通过。首次全量回归发现既有 `database.test.ts` 仍预期最高 ledger=2；更新为 v3 断言后全量回归通过。未删除或弱化既有测试。早先所有 N1–N3 回执中 108 项既有测试/断言继续保留；本轮仅追加覆盖，并按最终完整测试结果报告总量。
@@ -40,9 +40,9 @@ Issue / Plan 版本 / 节点：#26 RETAIL-07 / `RETAIL-07-PLAN.md` 与 `RETAIL-0
 ## N5：交付与状态同步
 
 - 实际 PR：[#90 Draft 修订正式 SQLite 持久化](https://github.com/2Zest/OpenDot-RetailOps/pull/90)，目标 `develop/retailops`，状态 OPEN / MERGEABLE；创建时 head 为 `69386c78119bacc171d346ac3f8e2e7212461c3a`。未自动合并。
-- 本轮初始实施提交：`69386c78119bacc171d346ac3f8e2e7212461c3a`；最终 PR head 以提交本回执状态补充后的实际 GitHub 读取为准。
+- 本轮初始实施提交：`69386c78119bacc171d346ac3f8e2e7212461c3a`；其后仅追加计划/回执状态的文档提交 `cfb17ff43cd6b4e813072df1b8ee96105a1c435d`。PR HEAD 在最终状态补录后以该 PR 当前 GitHub 读取为准。
 - 实际修改路径：`apps/retailops/src/adapters/persistence/sqlite/migration-runner.ts`、`apps/retailops/src/adapters/persistence/sqlite/migrations/0003_draft_revisions.ts`、`apps/retailops/test/unit/persistence/sqlite/database.test.ts`、`apps/retailops/test/unit/persistence/sqlite/draft-revision-repository.test.ts`、`apps/retailops/test/unit/persistence/sqlite/migration-runner.test.ts`、本执行计划及 `RETAIL-07-N0.md`、`RETAIL-07-N1-N3.md`、本回执。没有改 package/lockfile、基础领域合同、共享根注册入口或 #21 实现文件。
-- `git diff --cached --check` 退出 0。PR #90 已推送，Issue/Project 的最终 REVIEW 写入及回读结果在本回执最后追加。
+- `git diff --cached --check` 退出 0。GitHub 回读确认 Issue #26 为 OPEN、标签 `REVIEW`；Project #2 item `PVTI_lAHODjlUWM4BtKkTzhLw5Eg` 标签 `REVIEW`、Status=`Review`；PR #90 为 OPEN / MERGEABLE，目标 `develop/retailops`。
 - Issue #26 保持 OPEN / REVIEW；不得标记 DONE 或关闭。Project #2 同步 REVIEW。
 - 不运行真实模型、Harness、MCP、审批、业务执行或 Runtime；不解锁下游任务。#7 仍 BLOCKED。
 
