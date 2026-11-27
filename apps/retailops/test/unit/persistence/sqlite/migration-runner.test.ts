@@ -9,6 +9,7 @@ import { SqlitePolicyRepository } from '../../../../src/adapters/persistence/sql
 import { SqliteProductRepository } from '../../../../src/adapters/persistence/sqlite/product-repository.js';
 import { migrateRetailOpsDatabase } from '../../../../src/adapters/persistence/sqlite/migration-runner.js';
 import { initialRetailOpsMigration } from '../../../../src/adapters/persistence/sqlite/migrations/0001_initial.js';
+import { publicHistoryMigration } from '../../../../src/adapters/persistence/sqlite/migrations/0002_public_history.js';
 
 const syntheticLegacySchema = readFileSync(
   new URL('../../../fixtures/persistence/sqlite/legacy-retailops-v0.sql', import.meta.url),
@@ -22,7 +23,7 @@ describe('RetailOps SQLite migrations', () => {
       database.exec(syntheticLegacySchema);
       migrateRetailOpsDatabase(database);
 
-      expect(database.prepare('SELECT MAX(version) AS version FROM retailops_schema_migrations').get()).toEqual({ version: 1 });
+      expect(database.prepare('SELECT MAX(version) AS version FROM retailops_schema_migrations').get()).toEqual({ version: 2 });
       expect(new SqliteProductRepository(database).findById('product-synthetic-01')).toEqual({
         contractVersion: '0.3.0',
         id: 'product-synthetic-01',
@@ -205,6 +206,128 @@ describe('RetailOps SQLite migrations', () => {
       database.exec('DROP TABLE product_evidence; CREATE TABLE product_evidence(product_id TEXT NOT NULL, evidence_id TEXT NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(product_id, position))');
       expect(() => migrateRetailOpsDatabase(database)).toThrow(/foreign key product_evidence\.(product_id|evidence_id)/i);
     } finally {
+      database.close();
+    }
+  });
+
+  it('upgrades an empty database through v1 and v2 and remains idempotent', () => {
+    const database = new Database(':memory:');
+    try {
+      migrateRetailOpsDatabase(database);
+      migrateRetailOpsDatabase(database);
+      expect(database.prepare('SELECT version, name FROM retailops_schema_migrations ORDER BY version').all()).toEqual([
+        { version: 1, name: 'initial-retailops-contract-storage' },
+        { version: 2, name: 'public-history-import-storage' },
+      ]);
+      expect(database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'public_history_%' ORDER BY name").all())
+        .toEqual([
+          { name: 'public_history_import_rows' },
+          { name: 'public_history_imports' },
+          { name: 'public_history_records' },
+        ]);
+    } finally {
+      database.close();
+    }
+  });
+
+  it('upgrades a populated v1 database to v2 without losing v1 records', () => {
+    const database = new Database(':memory:');
+    try {
+      database.exec(syntheticLegacySchema);
+      initialRetailOpsMigration.up(database);
+      database.prepare('INSERT INTO retailops_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)')
+        .run(1, 'initial-retailops-contract-storage', '2026-11-27T00:00:00.000Z');
+
+      expect(database.prepare('SELECT COUNT(*) AS count FROM products').get()).toEqual({ count: 1 });
+      migrateRetailOpsDatabase(database);
+
+      expect(database.prepare('SELECT version FROM retailops_schema_migrations ORDER BY version').all())
+        .toEqual([{ version: 0 }, { version: 1 }, { version: 2 }]);
+      expect(database.prepare('SELECT id FROM products').all()).toEqual([{ id: 'product-synthetic-01' }]);
+      expect(database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='legacy_records'").all()).toEqual([]);
+    } finally {
+      database.close();
+    }
+  });
+
+  it('rejects v2 tables that exist without a v2 migration ledger entry', () => {
+    const database = new Database(':memory:');
+    try {
+      initialRetailOpsMigration.up(database);
+      database.exec('CREATE TABLE retailops_schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, applied_at TEXT NOT NULL)');
+      database.prepare('INSERT INTO retailops_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)')
+        .run(1, 'initial-retailops-contract-storage', '2026-11-27T00:00:00.000Z');
+      publicHistoryMigration.up(database);
+
+      expect(() => migrateRetailOpsDatabase(database)).toThrow(/without migration version 2 ledger entry.*public_history_/i);
+      expect(database.prepare('SELECT version FROM retailops_schema_migrations ORDER BY version').all()).toEqual([{ version: 1 }]);
+    } finally {
+      database.close();
+    }
+  });
+
+  it('validates v1 schema without requiring v2 tables before applying v2', () => {
+    const database = new Database(':memory:');
+    const originalUp = publicHistoryMigration.up;
+    try {
+      publicHistoryMigration.up = () => { throw new Error('intentional-v2-stop'); };
+      expect(() => migrateRetailOpsDatabase(database)).toThrow('intentional-v2-stop');
+      expect(database.prepare('SELECT version FROM retailops_schema_migrations ORDER BY version').all()).toEqual([{ version: 1 }]);
+      expect(database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='public_history_records'").all()).toEqual([]);
+      publicHistoryMigration.up = originalUp;
+      migrateRetailOpsDatabase(database);
+      expect(database.prepare('SELECT MAX(version) AS version FROM retailops_schema_migrations').get()).toEqual({ version: 2 });
+    } finally {
+      publicHistoryMigration.up = originalUp;
+      database.close();
+    }
+  });
+
+  it('rejects a v2 ledger whose required public-history table is missing', () => {
+    const database = new Database(':memory:');
+    try {
+      migrateRetailOpsDatabase(database);
+      database.exec('DROP TABLE public_history_records');
+      expect(() => migrateRetailOpsDatabase(database)).toThrow(/schema is missing required table public_history_records/i);
+    } finally {
+      database.close();
+    }
+  });
+
+  it('rejects a v2 relation table whose foreign keys were removed', () => {
+    const database = new Database(':memory:');
+    try {
+      migrateRetailOpsDatabase(database);
+      database.exec([
+        'DROP TABLE public_history_import_rows;',
+        'CREATE TABLE public_history_import_rows (',
+        '  import_id TEXT NOT NULL, dataset TEXT NOT NULL, dataset_revision TEXT NOT NULL,',
+        "  source_split TEXT NOT NULL CHECK (source_split IN ('train', 'eval')),",
+        '  store_id INTEGER NOT NULL CHECK (store_id >= 0), product_id INTEGER NOT NULL CHECK (product_id >= 0),',
+        '  dt TEXT NOT NULL,',
+        '  PRIMARY KEY (import_id, dataset, dataset_revision, source_split, store_id, product_id, dt)',
+        ');',
+      ].join('\n'));
+
+      expect(() => migrateRetailOpsDatabase(database)).toThrow(/foreign key|composite/i);
+    } finally {
+      database.close();
+    }
+  });
+
+  it('rolls v2 schema and ledger back when schema validation fails before commit', () => {
+    const database = new Database(':memory:');
+    const originalUp = publicHistoryMigration.up;
+    try {
+      publicHistoryMigration.up = (migrationDatabase) => {
+        originalUp(migrationDatabase);
+        migrationDatabase.exec('DROP TABLE public_history_records');
+      };
+      expect(() => migrateRetailOpsDatabase(database)).toThrow(/public_history_records/);
+      expect(database.prepare('SELECT version FROM retailops_schema_migrations ORDER BY version').all()).toEqual([{ version: 1 }]);
+      expect(database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'public_history_%'").all()).toEqual([]);
+    } finally {
+      publicHistoryMigration.up = originalUp;
       database.close();
     }
   });
