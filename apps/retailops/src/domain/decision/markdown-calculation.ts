@@ -836,7 +836,11 @@ function checkQuantityConservation(metrics: z.infer<typeof metricsSchema>, index
     context.addIssue({ code: 'custom', path: ['candidates', index, 'metrics'], message: 'All quantity metrics must use one unit' });
     return;
   }
-  const values = [metrics.openingQty.value, metrics.simulatedDemandQty.value, metrics.simulatedSoldQty.value, metrics.remainingAfterSalesQty.value, metrics.reportedLossQty.value];
+  const values = [
+    metrics.openingQty.value, metrics.simulatedDemandQty.value, metrics.simulatedSoldQty.value,
+    metrics.remainingAfterSalesQty.value, metrics.reportedLossQty.value,
+    ...(metrics.endingQty === null ? [] : [metrics.endingQty.value]),
+  ];
   const scale = Math.max(...values.map(decimalScale));
   const opening = decimalToScaledInteger(metrics.openingQty.value, scale);
   const demand = decimalToScaledInteger(metrics.simulatedDemandQty.value, scale);
@@ -879,6 +883,10 @@ function checkMetricArithmetic(
     return;
   }
   const qScale = precision.quantityScale;
+  if (!Number.isSafeInteger(qScale) || qScale < 0 || qScale > MAX_SCALE) {
+    context.addIssue({ code: 'custom', path: ['candidates', index, 'metrics', 'precision', 'quantityScale'], message: 'Reported quantity precision is outside supported bounds' });
+    return;
+  }
   const outputQuantities = [
     metrics.openingQty, metrics.simulatedDemandQty, metrics.simulatedSoldQty,
     metrics.remainingAfterSalesQty, metrics.reportedLossQty,
@@ -886,6 +894,10 @@ function checkMetricArithmetic(
   ];
   if (!outputQuantities.every((item) => item !== null && typeof item === 'object' && safeQuantity(item.value, true))) {
     context.addIssue({ code: 'custom', path: ['candidates', index, 'metrics'], message: 'Output quantity is outside safe decimal dimensions' });
+    return;
+  }
+  if (outputQuantities.some((item) => decimalScale(item.value) > qScale)) {
+    context.addIssue({ code: 'custom', path: ['candidates', index, 'metrics', 'precision', 'quantityScale'], message: 'Output quantity precision exceeds the declared quantity scale' });
     return;
   }
   const rawQuantities = [openingQty.value, sourceInput.demandQty.value, sourceInput.lossQty.value];

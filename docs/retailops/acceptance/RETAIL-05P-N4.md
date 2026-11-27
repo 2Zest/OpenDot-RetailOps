@@ -52,3 +52,22 @@ N3 新增合同回归包含：输入/结果技术维度保护（4096 位字符�
 | 节点验收 | 红测真实捕获五类缺陷；修复后定向 24/24、build、typecheck、全包 50/50 均通过。 | PASS |
 
 未解决事项：无代码或测试阻塞；等待主控复核及 PR #88 独立 Review。N5 文档检查、差异检查和 GitHub 状态回读记于 N5 追加记录。
+
+## PR #88 精度边界最终修订与合并基线集成
+
+PR #87 已于 2026-11-27 实际合并至 `develop/retailops`，merge SHA 为 `048f3a7ef64a54986bfda1e839396b961969e46d`。本分支从最新远程 `develop/retailops`（该 merge SHA）同步；集成 merge commit 为 `a42228aa1260cf2c1e10db25c098b81c27c7dc78`，无冲突。#20 持久化测试与 #24 计算测试在同一包内完成集成回归。
+
+本轮先增加两个精度负向测试：非 null `endingQty` 的 scale 高于声明 scale；`simulatedSoldQty` 的小数位高于声明 `quantityScale`。修复前契约测试 14 项中 12 通过、2 失败，均复现 `RangeError: Scale must be a non-negative safe integer that covers the decimal fraction`。修复后两种输入均由 Schema 返回结构化失败，不再有未捕获异常。
+
+修复限定为计算模块与该契约测试：`checkQuantityConservation` 将非 null `endingQty` 纳入共同数量 scale；`checkMetricArithmetic` 在任何数量 BigInt 转换前验证 `quantityScale` 有界且所有输出数量精度不超过该 scale。没有更改公式、业务默认值、执行授权、基础领域合同或下游能力。
+
+| 实际命令（WSL Ubuntu，Node v24.22.3 / npm 11.19.1） | 退出码 | 结果 |
+|---|---:|---|
+| `npm test -- test/contract/decision/markdown-calculation.test.ts`（新增测试修复前） | 1 | 14 项中 12 通过、2 失败；分别复现 ending/sold 小数精度导致未捕获 RangeError。 |
+| 同上（修复后） | 0 | 14/14 通过，两个异常结果均被结构化拒绝。 |
+| `npm ci`（锁文件未修改） | 0 | 安装独立包依赖；better-sqlite3 12.11.1 原生模块可加载，SQLite 3.53.2。 |
+| `npm run build` | 0 | 集成后的 RetailOps 包编译通过。首次运行因合并后尚未安装 #20 新增依赖而报 TS2307；按 lockfile 安装后复跑通过。 |
+| `npm run typecheck` | 0 | 源代码和测试类型检查通过。 |
+| `npm test` | 0 | 9 个测试文件、87/87 通过；包含 #20 SQLite 持久化与 #24 计算合同测试。 |
+
+三层一致性：PRD 语义与业务边界未变（PASS）；Issue #24/Plan 仍限于确定性计算与结果精度校验（PASS）；两个新异常精度用例先红后绿，集成全量回归通过（PASS）。无真实数据、Runtime、模型或业务副作用。

@@ -47,3 +47,22 @@ Issue / Plan 版本 / 节点 ID：GitHub Issue #24、RETAIL-05P-PLAN、细化 Ex
 GitHub 状态回读（修订提交 `37f356c35da801352b9c18749b5ccffc469870b3` 推送后）：PR #88 为 OPEN、base `develop/retailops`，head 为该提交；PR 描述已更新回归结果。Issue #24 为 OPEN、标签 REVIEW，正文状态与 HEAD 链接已更新；没有关闭或标 DONE。Project #2 在本轮之前最后确认的状态为 Review；本轮尝试 `gh project item-list 2 --owner 2Zest --format json` 时返回 token 缺少 `read:project` scope，未能在本轮重新回读，因此不声称本轮 Project 写入/回读成功。该限制未影响 PR/Issue；主控可在具有 `read:project` scope 的会话确认现有 Review 状态。未合并、不标 DONE、不启动下游。
 
 三层检查：总体计划/场景仍保持模拟不等于真实因果、硬规则优先（PASS）；Issue #24/Plan 范围限纯计算 schema 与测试（PASS）；N5 的 docs/diff/路径范围检查通过（PASS）。本次修订不改变 N1 公式、阈值或业务参数。
+
+## PR #88 最终精度修订与 #87 合并收尾复验
+
+- 已基于合并 PR #87 后的 `develop/retailops`（`048f3a7ef64a54986bfda1e839396b961969e46d`）更新原 `feat/retail-05p` 分支；集成 merge commit 为 `a42228aa1260cf2c1e10db25c098b81c27c7dc78`，无冲突。没有重建 PR。
+- 本轮代码仅修改 `apps/retailops/src/domain/decision/markdown-calculation.ts` 和 `apps/retailops/test/contract/decision/markdown-calculation.test.ts`；另更新 N4/N5 回执。没有修改公式、依赖版本、基础领域合同或 DAG。
+- 新增 endingQty 与 simulatedSoldQty 精度负向用例；先行红测 14 项中 2 项因未捕获 RangeError 失败，修复后定向 14/14 通过。
+
+| 实际命令 | 退出码 | 结果 |
+|---|---:|---|
+| `npm ci`（apps/retailops 锁文件） | 0 | 安装成功；better-sqlite3@12.11.1 可在 WSL Node 24 下加载，SQLite 3.53.2。 |
+| `npm run build` | 0 | 集成包编译通过。 |
+| `npm run typecheck` | 0 | 通过。 |
+| `npm test` | 0 | 9 个文件、87/87 通过；同时覆盖 #20 和 #24。 |
+| `npm run docs:check`（WSL，显式设置 `GIT_DIR` / `GIT_WORK_TREE`） | 0 | 269 份仓库 Markdown 通过。未设置这两个路径时，WSL 首次检查因 Windows Worktree `.git` 指针格式失败；设置后通过。 |
+| `git diff --check`（Windows Git） | 0 | 通过。WSL Git 直接检查 Windows CRLF Worktree 时把大量既有行尾当作尾随空格；该环境输出未用于判定，本次以 Worktree 原生 Windows Git 检查为准。 |
+
+最新 Issue #20 合并收尾：PR #87 审查 HEAD `2d93fb59836da1eee9c43032aac680d5c1558c4b`，merge SHA `048f3a7ef64a54986bfda1e839396b961969e46d`；Issue #20 为 CLOSED/DONE，Project #2 为 Done。依赖核验后 #21（依赖 #20/#13）、#22（依赖 #20/#12）、#26（依赖 #20）均无未满足硬依赖，Issue/Project 状态为 READY/Ready，均未认领。
+
+本回执新增内容是测试和文档证据；不得解读为正式业务执行授权。PR #88 将保持开放等待最终复审，不合并、不 DONE、不启动其他 Issue。#7 仍为 BLOCKED。

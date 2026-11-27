@@ -240,6 +240,32 @@ describe('RETAIL-05P candidate schemas', () => {
     }).success).toBe(false);
   });
 
+  it('rejects ending quantity precision beyond the declared scale without throwing', () => {
+    const result = calculateMarkdownCandidates(validInput);
+    const candidate = result.candidates[0]!;
+    const metrics = candidate.metrics!;
+    const withFractionalEnding = {
+      ...result,
+      candidates: [{ ...candidate, metrics: { ...metrics, endingQty: { value: '0.1', unitCode: 'EA' } } }],
+    };
+
+    expect(() => markdownCalculationResultSchema.safeParse(withFractionalEnding)).not.toThrow();
+    expect(markdownCalculationResultSchema.safeParse(withFractionalEnding).success).toBe(false);
+  });
+
+  it('rejects sold quantity precision beyond the declared scale without throwing', () => {
+    const result = calculateMarkdownCandidates(validInput);
+    const candidate = result.candidates[0]!;
+    const metrics = candidate.metrics!;
+    const withFractionalSold = {
+      ...result,
+      candidates: [{ ...candidate, metrics: { ...metrics, simulatedSoldQty: { value: '0.1', unitCode: 'EA' } } }],
+    };
+
+    expect(() => markdownCalculationResultSchema.safeParse(withFractionalSold)).not.toThrow();
+    expect(markdownCalculationResultSchema.safeParse(withFractionalSold).success).toBe(false);
+  });
+
   it('requires an explicit demand assessment and rejects uncertain demand without metrics', () => {
     const candidate = validInput.discountList.candidates[0]!;
     const { demandAssessment: _assessment, ...missingAssessment } = candidate;
