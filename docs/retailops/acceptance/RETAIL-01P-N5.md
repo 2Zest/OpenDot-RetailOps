@@ -29,3 +29,11 @@
 - 文档检查最终结果：在上述 WSL worktree 环境执行 npm run docs:check，退出码 0，261 个仓库 Markdown 文件通过。
 - 差异检查最终结果：在相同环境执行 git diff --check，退出码 0，无空白错误。Git 输出 LF 将由 core.autocrlf 转为 CRLF 的提示；未格式化或修改其他基线文件。
 - N5 范围/语义结论：PASS（Review 修订范围仍限 #20）。N1–N5 回执追加真实复验结果；Issue #20 与 Project #2 保持 REVIEW，PR #87 开放、不合并。
+
+## Review 后补充事务上下文最终复验（2026-11-27）
+
+- 最新源码 / 测试后复测：npm run build 0；npm run typecheck 0；npm test 0，7 files / 56 tests；detached Repository microtask 定向测试红测 1 failed / 14 skipped，加入 scope guard 后 1 passed / 14 skipped；dist migration smoke 0。
+- Node AsyncLocalStorage 只保护同一数据库上的 RetailOps Repository / withRetailOpsTransaction 写操作；延迟执行写入发现过期 scope 即拒绝。同步嵌套事务和事务后的普通独立写入测试通过。通过裸 database 调用绕过 Repository 的写入不属于保证范围。
+- 本节写入后重跑根目录 npm run docs:check、git diff --check；最新结果附下。
+
+- 根目录检查最终结果：在 WSL worktree 环境运行 npm run docs:check 退出码 0，261 份仓库 Markdown 通过；git diff --check 退出码 0。设置仅用于本次命令的 GIT_DIR/GIT_WORK_TREE/GIT_OPTIONAL_LOCKS/core.autocrlf，未修改仓库全局配置。

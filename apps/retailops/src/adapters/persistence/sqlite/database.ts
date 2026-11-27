@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import Database from 'better-sqlite3';
 import { migrateRetailOpsDatabase } from './migration-runner.js';
 
@@ -138,28 +139,58 @@ export function assertReferences(
 
 type SynchronousTransactionResult<T> = T extends PromiseLike<unknown> ? never : T;
 
+interface RetailOpsTransactionScope {
+  readonly database: Database.Database;
+  active: boolean;
+  readonly parent: RetailOpsTransactionScope | undefined;
+}
+
+const transactionScope = new AsyncLocalStorage<RetailOpsTransactionScope>();
+
+function rejectExpiredRepositoryTransaction(database: Database.Database): void {
+  for (let scope = transactionScope.getStore(); scope !== undefined; scope = scope.parent) {
+    if (scope.database === database && !scope.active) {
+      throw new TypeError("RetailOps Repository write attempted after its transaction callback returned");
+    }
+  }
+}
+
 /**
  * Runs a synchronous callback in a SQLite transaction. Callbacks must not start
- * fire-and-forget work: arbitrary asynchronous work cannot be cancelled after
- * a callback has scheduled it. Async functions are rejected before invocation;
- * any thenable result from a regular function is rejected before commit.
+ * fire-and-forget work. Async functions are rejected before invocation; any
+ * thenable result from a regular function is rejected before commit. Repository
+ * transactions scheduled in this callback's async context are rejected after
+ * it returns. Direct SQLite calls that bypass RetailOps Repositories cannot be
+ * intercepted by this guard.
  */
 export function withRetailOpsTransaction<T>(
   database: Database.Database,
   action: () => SynchronousTransactionResult<T>,
 ): T {
+  rejectExpiredRepositoryTransaction(database);
   if (action.constructor.name === "AsyncFunction") {
     throw new TypeError("RetailOps SQLite transactions require a synchronous callback");
   }
-  const run = database.transaction(() => {
-    const result = action();
-    if (result !== null && (typeof result === "object" || typeof result === "function")
-      && typeof (result as { then?: unknown }).then === "function") {
-      throw new TypeError("RetailOps SQLite transaction callbacks must not return a thenable");
-    }
-    return result as T;
-  });
-  return run();
+  const scope: RetailOpsTransactionScope = {
+    database,
+    active: true,
+    parent: transactionScope.getStore(),
+  };
+  try {
+    return transactionScope.run(scope, () => {
+      const run = database.transaction(() => {
+        const result = action();
+        if (result !== null && (typeof result === "object" || typeof result === "function")
+          && typeof (result as { then?: unknown }).then === "function") {
+          throw new TypeError("RetailOps SQLite transaction callbacks must not return a thenable");
+        }
+        return result as T;
+      });
+      return run();
+    });
+  } finally {
+    scope.active = false;
+  }
 }
 
 export function openRetailOpsDatabase(filePath: string): Database.Database {

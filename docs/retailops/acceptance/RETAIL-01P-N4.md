@@ -34,3 +34,11 @@
 | @vitest/mocker@4.1.8 → vitest → node_modules/@vitest/mocker（间接） | development | GHSA-82fw-gwwq-j7x9 同上（修复版本 4.1.11）；GHSA-qxg6-89mg-rqv8，受影响 >=2.1.0-beta.7 <4.1.12（修复版本 4.1.12），未认证手工 mock 注册 WebSocket 路径可触发代码注入；网络可达性未验证。 | 已存在于基线；未升级或运行 npm audit fix。 |
 
 - 依赖基线对比：origin/develop/retailops 的 RetailOps manifest 与 lock 已含 Zod 4.4.3、Vitest 4.1.8、@vitest/mocker 4.1.8；本轮新增 SQLite 版本 12.11.1 未出现在 audit findings。无需本任务擅自升级依赖。
+
+## 事务上下文防 detached write 复验（2026-11-27）
+
+- 红测：npm test -- test/unit/persistence/sqlite/repositories.test.ts -t "Repository writes queued from a transaction callback" 退出码 1，1 failed / 14 skipped；错误为预期 TypeError 未发生，证明 Repository 微任务写入会在事务 callback 返回后另起事务成功。
+- 修复：使用 Node 内置 AsyncLocalStorage scope；callback 返回后（无论提交或抛错回滚）在 finally 失效。与当前 scope 数据库相同的旧上下文无法再开启 Repository transaction；测试不调用裸 SQLite 写入。
+- 绿测：npm test -- test/unit/persistence/sqlite/repositories.test.ts -t "detached Repository writes" 退出码 0，1 passed / 14 skipped。覆盖同步嵌套 save、成功事务后的 queued save 拒绝、失败事务后的 queued save 拒绝，以及后续独立同步 save 可正常落库。
+- 更新后完整 npm run build 退出码 0；npm run typecheck 退出码 0；npm test 退出码 0，7 files / 56 tests passed。dist migration smoke 输出 version 1 / initial-retailops-contract-storage，退出码 0。
+- 保留之前完整回归 55 项的记录；本次新增 1 项用例，没有删除或弱化原有 41 项测试断言。AsyncLocalStorage 的 Repository 写保护边界和裸 SQLite 限制见 N3。

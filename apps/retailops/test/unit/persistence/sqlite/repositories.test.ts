@@ -418,4 +418,60 @@ describe('RetailOps SQLite repositories', () => {
       database.close();
     }
   });
+
+  it('rejects detached Repository writes while preserving nested and later independent synchronous writes', async () => {
+    const database = openRetailOpsDatabase(':memory:');
+    try {
+      const repo = new SqliteEvidenceRepository(database);
+      let finishQueuedWrite!: () => void;
+      let writeError: unknown;
+      const queuedWriteFinished = new Promise<void>((resolve) => { finishQueuedWrite = resolve; });
+      const synchronousEntity = { ...evidence(), id: 'nested-sync-evidence' };
+
+      withRetailOpsTransaction(database, () => {
+        repo.save(synchronousEntity);
+        queueMicrotask(() => {
+          try {
+            repo.save({ ...evidence(), id: 'detached-evidence' });
+          } catch (error) {
+            writeError = error;
+          } finally {
+            finishQueuedWrite();
+          }
+        });
+      });
+
+      await queuedWriteFinished;
+      expect(writeError).toBeInstanceOf(TypeError);
+      expect(repo.findById(synchronousEntity.id)).toEqual(synchronousEntity);
+      expect(database.prepare('SELECT COUNT(*) AS count FROM evidence WHERE id = ?').get('detached-evidence'))
+        .toEqual({ count: 0 });
+
+      const independentEntity = { ...evidence(), id: 'independent-evidence' };
+      expect(repo.save(independentEntity)).toEqual(independentEntity);
+
+      let finishFailedTransactionWrite!: () => void;
+      let failedTransactionWriteError: unknown;
+      const failedTransactionWriteFinished = new Promise<void>((resolve) => { finishFailedTransactionWrite = resolve; });
+      expect(() => withRetailOpsTransaction(database, () => {
+        queueMicrotask(() => {
+          try {
+            repo.save({ ...evidence(), id: 'detached-after-rollback' });
+          } catch (error) {
+            failedTransactionWriteError = error;
+          } finally {
+            finishFailedTransactionWrite();
+          }
+        });
+        throw new Error('injected rollback');
+      })).toThrow('injected rollback');
+
+      await failedTransactionWriteFinished;
+      expect(failedTransactionWriteError).toBeInstanceOf(TypeError);
+      expect(database.prepare('SELECT COUNT(*) AS count FROM evidence WHERE id = ?').get('detached-after-rollback'))
+        .toEqual({ count: 0 });
+    } finally {
+      database.close();
+    }
+  });
 });

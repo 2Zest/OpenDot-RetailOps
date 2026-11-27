@@ -24,3 +24,10 @@
 - `withRetailOpsTransaction` 静态签名拒绝 PromiseLike 返回类型；运行时调用前拒绝 AsyncFunction，普通函数返回 thenable 时在提交前报错并回滚同步写入。合同明确禁止 callback 调度 fire-and-forget 副作用；普通 wrapper 不能取消任意已调度的异步副作用，本实现不声称可以拦截。
 - Synthetic v0 迁移要求 JSON 经当前合同解析不丢弃/重解释字段，envelope ID 与实体 ID 一致；逐类检查六实体记录数及引用表行数。校验失败时事务回滚，源记录不会被静默删除。
 - 测试红绿与最终结果见 N4：保留既有 41 项测试和断言，本轮完整套件 7 files / 55 tests 通过。
+
+## 事务上下文延迟写入防护补充（2026-11-27）
+
+- 使用 Node 内置 AsyncLocalStorage 记录 Repository 事务的数据库身份和 active 状态。事务 callback 完成、提交或回滚后 finally 将对应 scope 设为 inactive；scope 保留 parent 链以便识别嵌套其他数据库调用时继承的旧上下文。
+- 同一数据库的 RetailOps Repository 写入若来自该事务 callback 返回后执行的 microtask，会在启动新的 Repository SQLite 事务前被 TypeError 拒绝。同步嵌套 Repository 写入仍可使用活动 parent scope；事务结束后的普通独立 Repository 写入不受影响。
+- 该保护只覆盖使用 RetailOps Repository / withRetailOpsTransaction 的写入；调用方绕过 Repository 对 database.prepare(...).run() 的裸 SQLite 写入无法由此拦截。也不声称取消任意异步副作用。
+- 回归先红后绿：未实现 scope guard 时 microtask 测试退出码 1，writeError 为 undefined 且写入可完成；实现后退出码 0。测试还覆盖活动外层中的嵌套同步 save、失败回滚后排队写入拒绝、以及随后独立同步 save 成功。最终完整测试见 N4。
