@@ -1,6 +1,6 @@
 # RETAIL-05P（GitHub Issue #24）执行 Plan
 
-状态：原 N0–N5 已验收；PR #88 最终针对性修订已完成本地定向与全量检查，正在更新原 PR 交付记录。PR #88（base develop/retailops）保持 OPEN；Issue #24 目标保持 OPEN/REVIEW，Project #2 为 Review。未合并、不标 DONE、不解锁下游。此细化 Plan 保留原 RETAIL-05P-PLAN 的节点语义，不修改总体计划或 DAG。
+状态：原 N0–N5 已验收；本轮最终针对性修订提交 `37f356c35da801352b9c18749b5ccffc469870b3` 已推送至原分支，并完成本地 PR/Issue 状态同步。PR #88（base develop/retailops）保持 OPEN；Issue #24 保持 OPEN/REVIEW。Project #2 最近一次确认状态为 Review；本轮读取被缺少 `read:project` scope 阻断，状态未写入。未合并、不标 DONE、不解锁下游。此细化 Plan 保留原 RETAIL-05P-PLAN 的节点语义，不修改总体计划或 DAG。
 
 ## 基线、授权与上游
 

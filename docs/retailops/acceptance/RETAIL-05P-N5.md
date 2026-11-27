@@ -44,6 +44,6 @@ Issue / Plan 版本 / 节点 ID：GitHub Issue #24、RETAIL-05P-PLAN、细化 Ex
 | `git diff --check` | 0 | 本轮全部改动无空白错误。 |
 | `git status --short` / 文件范围检查 | 0 | 本轮修改限于 `apps/retailops/src/domain/decision/markdown-calculation.ts`、`apps/retailops/test/unit/decision/markdown-calculation.test.ts`、`apps/retailops/test/contract/decision/markdown-calculation.test.ts`、本 N3/N4/N5 回执。未修改 #20、基础领域合同、依赖、总体计划或 DAG。 |
 
-N5 的 GitHub 状态将在修订提交推送后按实际远端 HEAD 更新：仅更新现有 PR #88，不新建 PR；Issue #24 保持 OPEN/REVIEW，Project #2 保持 Review；不合并、不标 DONE、不启动下游。
+GitHub 状态回读（修订提交 `37f356c35da801352b9c18749b5ccffc469870b3` 推送后）：PR #88 为 OPEN、base `develop/retailops`，head 为该提交；PR 描述已更新回归结果。Issue #24 为 OPEN、标签 REVIEW，正文状态与 HEAD 链接已更新；没有关闭或标 DONE。Project #2 在本轮之前最后确认的状态为 Review；本轮尝试 `gh project item-list 2 --owner 2Zest --format json` 时返回 token 缺少 `read:project` scope，未能在本轮重新回读，因此不声称本轮 Project 写入/回读成功。该限制未影响 PR/Issue；主控可在具有 `read:project` scope 的会话确认现有 Review 状态。未合并、不标 DONE、不启动下游。
 
 三层检查：总体计划/场景仍保持模拟不等于真实因果、硬规则优先（PASS）；Issue #24/Plan 范围限纯计算 schema 与测试（PASS）；N5 的 docs/diff/路径范围检查通过（PASS）。本次修订不改变 N1 公式、阈值或业务参数。
