@@ -81,8 +81,8 @@ RETAIL 编号：RETAIL-05F；GitHub Issue #23
 
 ## N5 PR 回读
 
-- PR：待创建后回填链接与实际 HEAD。
-- Issue #23 与 Project #2 将在 PR 创建后同步为 REVIEW 并回读；不合并、不 DONE。
+- PR：[RETAIL-05F：公开历史需求估计与固定快照评估 #92](https://github.com/2Zest/OpenDot-RetailOps/pull/92)，目标 `develop/retailops`，创建时源码提交 `a5ae73f5e5489cd9cb11ba37bb0688b9dad54619`。
+- PR #92 创建后回读为 OPEN；Issue #23 和 Project #2 已同步为 REVIEW 并回读；不合并、不 DONE。PR 的最新 HEAD 以 GitHub 最终回读为准。
 
 ## 未验证事项与风险边界
 
