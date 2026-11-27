@@ -6,6 +6,7 @@
 - Issue / 原 Plan：GitHub Issue #24 / RETAIL-05P-PLAN。
 - 执行 Plan：`../plans/RETAIL-05P-EXECUTION-PLAN.md`；N1 批准口径：`../plans/RETAIL-05P-N1-FORMULA-DECISIONS.md`。
 - Git 基线：develop/retailops `8ca176ff3f9e5990b6c2487e41be2953e682c192`；节点开始分支 HEAD `03f568545392c00e411f9ce37d7884746b1a88fc`。
+- N2 源码与测试提交：`cf871b884bc426a4415a65084c79dcbaf56ff4ca`；该提交包含本节点实现与测试，后续回执状态整理在独立提交。
 - Worktree / 分支：`D:/workSpace/codeAgent/OpenDot-RetailOps-05p` / `feat/retail-05p`。
 - 上游：Issue #19 / PR #86 merge SHA `8ca176ff3f9e5990b6c2487e41be2953e682c192`，领域合同 0.3.0；Issue #14 / PR #83 合并记录保持 N0 回执所载。#7 仍 BLOCKED。
 - 主控决定：N1 允许每候选显式、带来源的 Q_demand/Q_loss 和版本化折价列表；Contribution 为收入减直接商品成本；BigInt 精确金额策略及显式毛利规则获准。未批准生产默认数值、损耗 KPI 或领域合同变更。
