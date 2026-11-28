@@ -108,3 +108,86 @@ N0：**PASS**。N1：**BLOCKED**，原因是 Debian APT 代理对包文件请求
 - N1 最终判定仍 BLOCKED：文档检查通过不能替代可验证的可信镜像、镜像 ID/工具版本与 smoke 证据。
 - 三层语义：总体计划 BLOCKED；Issue/Plan BLOCKED；N1 节点 BLOCKED。Issue #7 保持 Open/BLOCKED 且未分配；不进入 N2/N3、不标 DONE、不解锁 #8/#16/#17/#18。
 - PR #76 仍为阶段性证据归档 PR，保持 Open、目标 develop/retailops，等待独立 Review。
+
+## N1 远程可信镜像构建与本地导入复测（2026-11-28）
+
+### 节点基线
+
+- Issue #7：当前 GitHub 状态仍为 `OPEN`、标签 `BLOCKED`、未分配；本回执不更新 Issue 或 Project 状态。
+- Issue 契约 blob：`f6a4252cc1187a6f85c3c8d7e2838591df9d1df2`；Plan blob：`c8b139ea41b7853d33db84427800723550fee395`。
+- 总体计划/PRD/ADR：RetailOps V0.2 APPROVED；计划文件 blob：`f4baf060fc335a2844b8bf783c2f044cb3b89170`。
+- 本次回执分支：`codex/retail-00f-n1-receipt`，从 `develop/retailops` HEAD `a71185311a699db7da29dbf6b8374c7c5dadd3ae` 创建；PR #94 已合并到 `main`，merge SHA `f82c3cd7af99a33478bacbf6dfec3353ee058e6d`。
+- Actions Run：[#46114549179](https://github.com/2Zest/OpenDot-RetailOps/actions/runs/46114549179)，Job `140885337279`，结论 `success`。工作流 HEAD 为 `f82c3cd7af99a33478bacbf6dfec3353ee058e6d`。
+- 构建源码固定为 `a71185311a699db7da29dbf6b8374c7c5dadd3ae`；`container/Dockerfile` blob 为 `840e53c73a152bea6927a59825d3db2d27bea8b1`。未修改 Dockerfile、Runtime、测试、依赖或安全策略。
+
+### 远程构建与来源校验
+
+Runner 为 GitHub-hosted `ubuntu-24.04`，实测 Ubuntu `24.04.5 LTS`、linux/amd64；Docker Engine `28.0.4`、Buildx `v0.39.1`、BuildKit `v0.20.2`。实际步骤及结果：
+
+| 步骤 | 结果 |
+|---|---|
+| 固定源码 SHA 与 Dockerfile blob 核验 | PASS，退出码 0 |
+| 拉取并记录基础镜像、Registry index 到 `linux/amd64` manifest 映射 | PASS，退出码 0；各 index 中恰有一个 amd64 子 manifest |
+| 原 `container/Dockerfile` 构建（启用 `--pull`） | PASS，退出码 0 |
+| provenance 摘要核验 | PASS，退出码 0；两项 LLB `image.resolvemode=pull` |
+| 镜像元数据与工具版本记录 | PASS |
+| 原远程 Smoke Test | PASS，退出码 0；Chromium CDP HTTP Smoke 通过 |
+| 镜像压缩导出与 Artifact 上传 | PASS，退出码 0 |
+| 诊断 Artifact 上传 | PASS，退出码 0 |
+
+| 基础镜像 | BuildKit provenance 摘要 | 预拉取 Registry index | Registry 映射的 amd64 manifest | 比对层级 |
+|---|---|---|---|---|
+| Node | `sha256:873f586f3794f52281bd039bf02c048a0be08fde619338f9941bad1eb6b34530` | `sha256:873f586f3794f52281bd039bf02c048a0be08fde619338f9941bad1eb6b34530` | `sha256:e0e989b967dacc279681ed81774b2ce9eeebbb0efb8e0c427573235bebf1eda1` | BuildKit 值匹配多架构 index |
+| uv | `sha256:a3ea1357342c1a4bf9a0c53a3deb1b55379aefa037338d8113d5771efa01774f` | `sha256:a3ea1357342c1a4bf9a0c53a3deb1b55379aefa037338d8113d5771efa01774f` | `sha256:e6f7bcfb74272969c1540d61db9dca207e65d348554ffd7bf4398495d88f8c9f` | BuildKit 值匹配多架构 index |
+
+这次 `--pull` 结果中，BuildKit 摘要与预拉取 index 完全相同；Registry 映射另行记录 amd64 子 manifest，没有把两种摘要层级互相冒充。
+
+### Artifact 下载、校验与本地导入
+
+- 镜像 Artifact：ID `15251415387`，上传大小 `1,096,111,688` bytes；压缩 tar `1,096,111,216` bytes。诊断 Artifact：ID `15250909688`，上传大小 `473,459` bytes。
+- 下载目录：`D:\workSpace\codeAgent\artifacts\retail-00f-run-46114549179\`（目录不纳入仓库）。执行 `sha256sum -c miniclaw-agent-00f-linux-amd64.tar.gz.sha256` 得到 `OK`；Windows SHA-256 与随包摘要相同：`5b1321c5c7c6b2a86d377e2c2e1778997014ddc6d7589409380f497133e5c340`。
+- `docker load` 退出码 0，输出 `Loaded image: retailops/miniclaw-agent:00f`。未删除或清理既有镜像、容器、卷或缓存。
+- 远端 Image ID：`sha256:9d7156efd64e0af6736eb444fcd93ec1a2da1d5fa8190e7ee6f0a12441c449dc`。本地 Docker Desktop `29.9.3` 导入后的 Image ID：`sha256:3be6d22242492c2eb5d57be1774e6200e767c0b49a858680d0ff4abe09c311e5`。两者不一致，原因尚未确认；未将 Image ID 声称为相同，也未将其冒充 Registry RepoDigest。
+- 同时核对：远端与本地均为 `linux/amd64`；OCI `revision` 均为 `a71185311a699db7da29dbf6b8374c7c5dadd3ae`，`source` 均为 `https://github.com/2Zest/OpenDot-RetailOps`；11 行内部工具版本文本完全相同；Artifact 原始 config blob 的 SHA-256 与远端 Image ID 一致；本地 `RootFS` DiffID 序列及可见 image config 字段与 Artifact config 相同。上述匹配不能消除本地 Image ID 差异。
+
+### 本地 Smoke Test
+
+第一次运行原脚本因 WSL Ubuntu 主机未安装 `jq` 而中断；没有修改脚本或安装系统级包。随后将 Ubuntu APT 的 `jq 1.7.1`、`libjq1`、`libonig5` 解包到 `/tmp/retailops-jq-46114549179/`，仅为本次命令提供临时 PATH/LD_LIBRARY_PATH，再运行固定源码 worktree 中原始脚本：
+
+```bash
+bash scripts/smoke-agent-image.sh retailops/miniclaw-agent:00f amd64
+```
+
+第二次退出码 0，Chromium CDP HTTP Smoke 通过；脚本退出清理了其临时容器。源码来自独立、干净的 Linux worktree `/home/szz_user/projects/OpenDot-RetailOps-00f-source-a7118531`，HEAD 为固定 SHA。输出留存在本地诊断目录 `local-smoke.log`。WSL 原工作区的未提交图标、文档及验证文件均未触碰。
+
+### 节点语义一致性回执
+
+Issue / Plan 版本 / 节点 ID：Issue #7 / `RETAIL-00F-PLAN` / N1。
+
+总体计划、Issue 契约、执行 Plan 及节点标准：沿用 develop/retailops 上已批准版本；本轮只执行 N1 镜像获取与 Smoke 验证。
+
+实际 Git HEAD / worktree / 执行角色：回执 worktree `D:\workSpace\codeAgent\OpenDot-RetailOps-00f-n1-receipt` / `codex/retail-00f-n1-receipt`；工作流 HEAD `f82c3cd7af99a33478bacbf6dfec3353ee058e6d`；源码 HEAD `a71185311a699db7da29dbf6b8374c7c5dadd3ae`；Linux 源码 worktree 如上；执行角色 Codex。
+
+依赖 Issue 状态、合并 SHA、证据：#7 仍 `OPEN/BLOCKED`；PR #94 已合并，merge SHA 如上；Run 和 Artifact ID 如上。
+
+允许修改路径与实际 diff：本次验收不修改仓库业务文件；回执本节为唯一仓库变更。Dockerfile、Runtime、安全策略均未变更。
+
+实际行为与命令：远程构建、摘要核验、远程 Smoke、导出和上传均成功；SHA-256 校验及 `docker load` 成功；本地 Smoke 退出码 0。远端与本地 Image ID 对照为不一致，见上表。
+
+证据位置：Run `46114549179` 及其两个 Artifact；本机诊断目录包括 `build-metadata.json`、`build.log`、`base-image-build-resolution.txt`、`image-metadata.json`、`tool-versions.txt`、`smoke.log`、`local-smoke.log`、`local-import-verification.txt` 和镜像 SHA-256 文件。大型镜像和原始诊断文件不提交到 Git。
+
+| 对齐层 | 预期语义 | 实际事实及证据 | 判定 |
+|---|---|---|---|
+| 总体计划 / 场景 | 取得来源可追溯的 linux/amd64 Agent 镜像，不扩大业务功能 | 固定源码、固定 Dockerfile；远程 provenance、Smoke、Artifact SHA 校验均有真实证据；本地运行 Smoke 通过 | PARTIAL：Image ID 对照未闭合 |
+| Issue / Plan | 在真实隔离环境准备可信镜像，保持原 Runtime 与安全限制 | 原 Dockerfile 未改；本次未执行 N2/N3 权限隔离；Issue #7 仍 BLOCKED | PARTIAL |
+| N1 节点验收 | 构建、来源核验、Smoke、导出及本地导入核验 | 远程步骤全部通过；本地 checksum、架构、OCI 标签、工具版本、RootFS 和 Smoke 通过，但本地 Image ID 与 Artifact 记录不一致 | PARTIAL，停止于 N1 |
+
+偏差 ID / 影响 / 根因 / 修订措施：`RETAIL-00F-N1-R1`；本地 image ID 与远端/Artifact ID 不一致，影响“本地导入身份等同于远端构建镜像”的确认。根因未确认，不在本轮修改 Runtime 或 Docker 配置；请主控审查差异证据并决定后续诊断条件。
+
+复测结果与回归范围：无源码或测试修改；原远程 Smoke 与原本地 Smoke 均真实执行并通过。此报告不声称本地 Image ID 一致。
+
+尚未验证项与风险：本地 Image ID 差异原因；N2 隔离、N3 强制权限、销毁/复用、安全负向测试均未运行；Durable Runtime 等下游未验证。
+
+决定：停止在 N1，提交本回执供主控审查；在 Image ID 差异经审查前不把 N1 标为 PASS，不启动 N2/N3，不解锁 #8、#16、#17、#18，不关闭 Issue #7。
+
+审核者及时间：待主控审查。
