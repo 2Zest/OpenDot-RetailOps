@@ -1,0 +1,252 @@
+name: RetailOps Agent image build (AMD64)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_artifact_storage_and_public_boundary:
+        description: Confirm available Artifact storage and approve publishing this runnable image as an Artifact in the public repository.
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: retailops-agent-image-amd64
+  cancel-in-progress: false
+
+env:
+  SOURCE_SHA: a71185311a699db7da29dbf6b8374c7c5dadd3ae
+  DOCKERFILE_BLOB: 840e53c73a152bea6927a59825d3db2d27bea8b1
+  IMAGE_REF: retailops/miniclaw-agent:00f
+  IMAGE_SOURCE: https://github.com/2Zest/OpenDot-RetailOps
+  NODE_BASE: node:24-slim
+  UV_BASE: ghcr.io/astral-sh/uv:latest
+  ARTIFACT_DIR: /tmp/retailops-agent-build
+
+jobs:
+  build-smoke-export:
+    name: Build, smoke, and export linux/amd64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Require artifact and public visibility approval
+        env:
+          APPROVED: ${{ inputs.confirm_artifact_storage_and_public_boundary }}
+        run: |
+          if [[ "$APPROVED" != "true" ]]; then
+            echo "::error::Before building, confirm Artifact capacity and public-image exposure in the workflow input."
+            exit 1
+          fi
+
+      - name: Prepare evidence directory
+        run: mkdir -p "$ARTIFACT_DIR"
+
+      - name: Check out fixed source baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: a71185311a699db7da29dbf6b8374c7c5dadd3ae
+          path: source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify source and Dockerfile blob
+        working-directory: source
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          actual_dockerfile_blob="$(git rev-parse "${SOURCE_SHA}:container/Dockerfile")"
+          printf 'source_sha=%s\n' "$actual_sha" | tee "$ARTIFACT_DIR/source.txt"
+          printf 'dockerfile_blob=%s\n' "$actual_dockerfile_blob" | tee -a "$ARTIFACT_DIR/source.txt"
+          test "$actual_sha" = "$SOURCE_SHA"
+          test "$actual_dockerfile_blob" = "$DOCKERFILE_BLOB"
+
+      - name: Record runner, resources, Docker, and Buildx
+        run: |
+          set -euo pipefail
+          builder_info="$(docker buildx inspect default)"
+          {
+            printf 'runner_name=%s\nrunner_os=%s\nrunner_arch=%s\n' "$RUNNER_NAME" "$RUNNER_OS" "$RUNNER_ARCH"
+            printf 'runner_image_os=%s\nrunner_image_version=%s\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}"
+            cat /etc/os-release
+            uname -a
+            printf '\nCPU count\n'
+            nproc
+            printf '\nMemory\n'
+            free -h
+            printf '\nFilesystem\n'
+            df -h / "$RUNNER_TEMP"
+            printf '\nDocker version\n'
+            docker version
+            printf '\nBuildx version\n'
+            docker buildx version
+            printf '\nBuildx default builder\n'
+            printf '%s\n' "$builder_info"
+            printf '\nDocker storage\n'
+            docker system df
+            printf '\njq version\n'
+            jq --version
+          } 2>&1 | tee "$ARTIFACT_DIR/runner-environment.txt"
+          if ! printf '%s\n' "$builder_info" | awk '
+            /^[[:space:]]*Driver[[:space:]]*:/ {
+              count++
+              sub(/^[^:]*:[[:space:]]*/, "")
+              sub(/[[:space:]]+$/, "")
+              driver = $0
+            }
+            END { exit !(count == 1 && driver == "docker") }
+          '; then
+            echo "::error::Expected exactly one Buildx driver named docker."
+            exit 1
+          fi
+
+      - name: Pull and record pre-pull base image digests
+        working-directory: source
+        run: |
+          set -euo pipefail
+          {
+            docker pull --platform linux/amd64 "$NODE_BASE"
+            docker pull --platform linux/amd64 "$UV_BASE"
+          } 2>&1 | tee "$ARTIFACT_DIR/base-image-pulls.log"
+          node_base_digest="$(docker image inspect "$NODE_BASE" --format '{{json .RepoDigests}}' | jq -r 'map(select(test("(^|/)node@"))) | first // empty')"
+          uv_base_digest="$(docker image inspect "$UV_BASE" --format '{{json .RepoDigests}}' | jq -r 'map(select(test("(^|/)uv@"))) | first // empty')"
+          test -n "$node_base_digest"
+          test -n "$uv_base_digest"
+          printf 'node_pre_pull=%s\nuv_pre_pull=%s\n' "$node_base_digest" "$uv_base_digest" | tee "$ARTIFACT_DIR/base-image-prepull-digests.txt"
+
+      - name: Build original Agent image
+        working-directory: source
+        env:
+          BUILDX_METADATA_PROVENANCE: max
+        run: |
+          set -uo pipefail
+          set +e
+          docker buildx build \
+            --builder default \
+            --platform linux/amd64 \
+            --no-cache \
+            --progress=plain \
+            --file container/Dockerfile \
+            --tag "$IMAGE_REF" \
+            --load \
+            --metadata-file "$ARTIFACT_DIR/build-metadata.json" \
+            --build-arg "TOOL_REFRESH=$SOURCE_SHA" \
+            --label "org.opencontainers.image.revision=$SOURCE_SHA" \
+            --label "org.opencontainers.image.source=$IMAGE_SOURCE" \
+            container 2>&1 | tee "$ARTIFACT_DIR/build.log"
+          build_exit_code=${PIPESTATUS[0]}
+          printf '%s\n' "$build_exit_code" | tee "$ARTIFACT_DIR/build-exit-code.txt"
+          printf 'Build exit code: `%s`\n' "$build_exit_code" >> "$GITHUB_STEP_SUMMARY"
+          exit "$build_exit_code"
+
+      - name: Verify builder-resolved base image digests
+        working-directory: source
+        run: |
+          set -euo pipefail
+          resolved_digest() {
+            local image_pattern="$1"
+            node - "$ARTIFACT_DIR/build-metadata.json" "$image_pattern" <<'NODE'
+          const fs = require('node:fs');
+          const [metadataPath, imagePattern] = process.argv.slice(2);
+          const provenance = JSON.parse(fs.readFileSync(metadataPath, 'utf8'))['buildx.build.provenance'];
+          if (!provenance || typeof provenance !== 'object') {
+            throw new Error('Buildx metadata is missing buildx.build.provenance');
+          }
+          const matcher = new RegExp(imagePattern);
+          const digests = new Set();
+          function collect(value) {
+            if (Array.isArray(value)) {
+              for (const item of value) collect(item);
+              return;
+            }
+            if (!value || typeof value !== 'object') return;
+            if (typeof value.uri === 'string' && matcher.test(value.uri)
+              && value.digest && typeof value.digest.sha256 === 'string') {
+              digests.add(value.digest.sha256);
+            }
+            for (const child of Object.values(value)) collect(child);
+          }
+          collect(provenance);
+          if (digests.size !== 1) {
+            throw new Error(`Expected one resolved SHA-256 for ${imagePattern}, found ${digests.size}`);
+          }
+          process.stdout.write(`${digests.values().next().value}\n`);
+          NODE
+          }
+          pre_pull_node="$(awk -F= '$1 == "node_pre_pull" { print $2 }' "$ARTIFACT_DIR/base-image-prepull-digests.txt")"
+          pre_pull_uv="$(awk -F= '$1 == "uv_pre_pull" { print $2 }' "$ARTIFACT_DIR/base-image-prepull-digests.txt")"
+          test -n "$pre_pull_node"
+          test -n "$pre_pull_uv"
+          resolved_node="$(resolved_digest 'pkg:docker/(.*/)?node@')"
+          resolved_uv="$(resolved_digest 'pkg:docker/(.*/)?astral-sh/uv@')"
+          pre_pull_node_sha="${pre_pull_node##*@sha256:}"
+          pre_pull_uv_sha="${pre_pull_uv##*@sha256:}"
+          test "$pre_pull_node_sha" != "$pre_pull_node"
+          test "$pre_pull_uv_sha" != "$pre_pull_uv"
+          test "$resolved_node" = "$pre_pull_node_sha"
+          test "$resolved_uv" = "$pre_pull_uv_sha"
+          {
+            printf 'node_pre_pull=%s\n' "$pre_pull_node"
+            printf 'node_build_resolved=sha256:%s\n' "$resolved_node"
+            printf 'node_digest_match=true\n'
+            printf 'uv_pre_pull=%s\n' "$pre_pull_uv"
+            printf 'uv_build_resolved=sha256:%s\n' "$resolved_uv"
+            printf 'uv_digest_match=true\n'
+          } | tee "$ARTIFACT_DIR/base-image-build-resolution.txt"
+
+      - name: Record built image metadata and tool versions
+        working-directory: source
+        run: |
+          set -euo pipefail
+          docker image inspect "$IMAGE_REF" | jq '.[0] | {Id, Os, Architecture, RepoDigests, Labels: .Config.Labels}' > "$ARTIFACT_DIR/image-metadata.json"
+          docker run --rm --entrypoint /bin/cat "$IMAGE_REF" /usr/local/share/miniclaw-tool-versions.txt | tee "$ARTIFACT_DIR/tool-versions.txt"
+          {
+            printf 'source_sha=%s\n' "$SOURCE_SHA"
+            printf 'dockerfile_blob=%s\n' "$DOCKERFILE_BLOB"
+            printf 'target_platform=linux/amd64\n'
+            printf 'image_ref=%s\n' "$IMAGE_REF"
+            printf 'image_id=%s\n' "$(docker image inspect "$IMAGE_REF" --format '{{.Id}}')"
+            printf 'architecture=%s\n' "$(docker image inspect "$IMAGE_REF" --format '{{.Architecture}}')"
+            printf 'oci_revision=%s\n' "$(docker image inspect "$IMAGE_REF" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+            printf 'oci_source=%s\n' "$(docker image inspect "$IMAGE_REF" --format '{{index .Config.Labels "org.opencontainers.image.source"}}')"
+            printf 'registry_repo_digest=unavailable_not_pushed\n'
+            cat "$ARTIFACT_DIR/base-image-prepull-digests.txt"
+            cat "$ARTIFACT_DIR/base-image-build-resolution.txt"
+          } | tee "$ARTIFACT_DIR/build-report.txt" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run original container Smoke Test
+        working-directory: source
+        run: |
+          set -uo pipefail
+          set +e
+          bash scripts/smoke-agent-image.sh "$IMAGE_REF" amd64 2>&1 | tee "$ARTIFACT_DIR/smoke.log"
+          smoke_exit_code=${PIPESTATUS[0]}
+          printf '%s\n' "$smoke_exit_code" | tee "$ARTIFACT_DIR/smoke-exit-code.txt"
+          printf 'Smoke exit code: `%s`\n' "$smoke_exit_code" >> "$GITHUB_STEP_SUMMARY"
+          exit "$smoke_exit_code"
+
+      - name: Export compressed image after Smoke Test
+        working-directory: source
+        run: |
+          set -euo pipefail
+          archive_tmp="$RUNNER_TEMP/miniclaw-agent-00f-linux-amd64.tar.gz.partial"
+          docker save "$IMAGE_REF" | gzip -1 > "$archive_tmp"
+          mv "$archive_tmp" "$ARTIFACT_DIR/miniclaw-agent-00f-linux-amd64.tar.gz"
+          (
+            cd "$ARTIFACT_DIR"
+            sha256sum miniclaw-agent-00f-linux-amd64.tar.gz | tee miniclaw-agent-00f-linux-amd64.tar.gz.sha256
+          )
+          archive_sha256="$(cut -d ' ' -f1 "$ARTIFACT_DIR/miniclaw-agent-00f-linux-amd64.tar.gz.sha256")"
+          printf 'archive_sha256=%s\n' "$archive_sha256" | tee -a "$ARTIFACT_DIR/build-report.txt" >> "$GITHUB_STEP_SUMMARY"
+          stat --printf='compressed_image_bytes=%s\n' "$ARTIFACT_DIR/miniclaw-agent-00f-linux-amd64.tar.gz" | tee "$ARTIFACT_DIR/compressed-image-size.txt" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload build evidence and approved image Artifact
+        if: ${{ always() && inputs.confirm_artifact_storage_and_public_boundary }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: retailops-miniclaw-agent-00f-linux-amd64-a7118531
+          path: /tmp/retailops-agent-build/
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
