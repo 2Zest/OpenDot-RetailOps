@@ -68,3 +68,36 @@ N0 提交后，仅在 /tmp/retail-00b-02v-* HOME/config/cache 下使用锁文件
     git diff --check
 
 真实 Durable 服务、真实模型、实际 Run/checkpoint/recovery 在本回执创建时均未运行。
+## N0 后补充：锁定 SDK 源码与 fixture 回归
+
+以下证据在 N0 回执先提交后取得；不改变节点判定和已冻结的产品运行边界。
+
+### 安装与回归结果
+
+- 首次 npm ci 环境检查命令 exit 1：user/global 配置都指向 /dev/null，npm 在配置解析阶段因 double-loading config 停止，尚未安装包。随后改为独立的 /tmp 配置文件路径重试。
+- 安装命令：在本 worktree 运行 npm ci --ignore-scripts --no-audit --no-fund；HOME、npm user/global config、cache 均指向 /tmp/retail-00b-02v-*。退出码 0，803 packages / 19s；lifecycle scripts 被明确忽略，没有运行依赖安装脚本。
+- npm 提示旧版或弃用包：rimraf@2.6.3、prebuild-install@7.1.3、inflight@1.0.6、glob@7.2.3、node-domexception@1.0.0、boolean@3.2.0、@opentelemetry/sdk-trace-base@2.5.1；另有 npm 新版本提示。未运行 audit/fund；没有升级包。
+- git diff --exit-code -- package.json package-lock.json：退出码 0，锁文件和 package.json 未变化。
+- 在同一隔离 HOME/config/cache 下运行 npm run demo:durable-runtime：退出码 0，5 个测试文件、26 项通过。
+- 文件结果：pi-durable-runtime 9、pi-durable-input-ledger 4、pi-durable-process-recovery 5、pi-durable-ownership 6、durable-model-smoke 2，全部通过。
+- 故障测试使用隔离子进程和模拟服务回执，覆盖 before-effect、after-effect、after-checkpoint、模拟 provider 请求恢复与 request receipt；ownership 测试包括同数据库单实例获得 Harness、SIGKILL 后本地 SQLite owner 释放。durable-model-smoke.test.ts 明确使用 fauxProvider。它们确实通过原生 Pi Durable Harness / SQLite adapter，不是普通 Pi Session，但都属临时 SQLite、fixture provider、模拟 effects 和测试子进程；不是 Product Runtime/API/真实模型，不证明本 Issue 的真实 Run、checkpoint、中断/恢复或收费/副作用语义。
+
+### 锁定 Pi Durable 1.3.0 的源码结构核验
+
+安装后只读检查 node_modules 中由 package-lock 固定的 @earendil-works/pi-durable 1.3.0 文件；未创建本任务 Product Runtime 数据库。SQLite migration v1 定义 durable_schema、durable_metadata、record_ids、conversations、entries、tasks、submissions、documents、document_revisions 与关联索引；durable_metadata 持有 next_id / next_seq，record_ids 记录 conversation / entry / task / submission / document 类型，payload record 用 JSON 校验。
+
+SubmissionId 与 TaskId 是 SDK 的数值型品牌 ID。Submission 记录含 conversationId、可选 requestId 和 queued / placed / done / unanswered 状态；SQLite 索引 requestId 的查找范围是 Conversation。SDK admitSubmission 对已见 requestId 返回同 type 的既有 submission ID，不比较 payload；MiniClaw 产品层的 requestId + payload digest ledger 才负责拦截同 ID 不同内容，不能把 SDK 去重称 exactly-once。
+
+Task record 的 pending / running / waiting 状态保存完整 checkpoint；completing / terminal 状态保存 outcome，不再保存 checkpoint。Task 记录另有 kind/version/input、abortRequested、background 和活跃期 memos。Document revisions 以 base/delta 保存。Harness.open 调用 openTasks，将遗留 running Tasks 协调回 pending；在 MiniClaw 路径中还需先过 owner/receipt 校验，再由 adapter.activate 调 harness.resume。Node SQLite adapter 使用 WAL、synchronous=NORMAL、默认 1000 页 WAL autocheckpoint。以上是锁定 SDK 源码静态核验，不代表本任务实际 SQLite 文件或崩溃恢复实测。
+
+### 当前状态仍然阻塞
+
+npm fixture suite 退出码 0 只证明锁定 SDK adapter 的模拟路径正常。因无安全注入后的真实模型凭据，且 #8 Relay 尚未实际可用，本任务没有启动产品服务或模型，仍没有真实 Product Durable Run ID、Task checkpoint、状态轨迹、工具 receipt、幂等/取消/失败/uncertain 结果。N1 BLOCKED；N2–N4 NOT RUN；不能将 fixture 结果记作真实恢复 PASS。
+
+### 文档与差异检查
+
+- 使用隔离 HOME/config/cache 和 Node v24.22.3 执行 npm run docs:check：退出码 0，292 个仓库 Markdown 文件通过。
+- git diff --check：退出码 0。
+- git diff --exit-code -- package.json package-lock.json：退出码 0。
+- N0 commit 之后，工作树唯一已跟踪改动仍为本验收回执；node_modules 属忽略的本地依赖安装。未运行全量测试、build 或 Product Runtime。
+- N5 判定：fixture 回归和文档/差异检查通过；由于 N1 BLOCKED，真实模型/真实 Product Durable 节点不通过也未运行。N2–N4 保持 NOT RUN。
