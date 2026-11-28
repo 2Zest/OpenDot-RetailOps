@@ -17,6 +17,11 @@ import { randomUUID } from 'node:crypto';
 import { applyContainerProxyEnv } from './container-proxy-env.js';
 import { runnerSourceMounts } from './runner-source-mounts.js';
 import {
+  buildReadonlyValidationWorkspace,
+  resolveHostPermissionMode,
+  type RuntimePermissionMode,
+} from './readonly-validation-policy.js';
+import {
   checkContainerImage,
   containerStartupError,
 } from './container-image.js';
@@ -1114,6 +1119,16 @@ export function cleanupContainerTaskRuntimeEnvDirs(
   }
 }
 
+const READONLY_VALIDATION_PROVIDER_ENV = new Set([
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_MODEL',
+  'CLAUDE_ENDPOINT_KIND',
+  'MINICLAW_CLAUDE_ENDPOINT_KIND',
+  'MINICLAW_MODEL_API',
+]);
+
 export function buildVolumeMounts(
   group: RegisteredGroup,
   isAdminHome: boolean,
@@ -1125,6 +1140,7 @@ export function buildVolumeMounts(
   ipcAgentId?: string,
   agentProfile?: RunnerAgentProfile,
   channelContext?: ChannelTurnContext,
+  permissionMode: RuntimePermissionMode = resolveHostPermissionMode(),
 ): VolumeMount[] {
   if (group.containerConfigError) {
     throw new AdditionalMountValidationError([
@@ -1137,6 +1153,60 @@ export function buildVolumeMounts(
   }
   const configuredAdditionalMounts =
     parsedContainerConfig.config?.additionalMounts;
+  const projectRoot = process.cwd();
+  if (permissionMode === 'readonly_validation') {
+    if (
+      isAdminHome ||
+      group.is_home === true ||
+      group.folder === 'main' ||
+      ownerHomeFolder ||
+      (configuredAdditionalMounts?.length ?? 0) > 0 ||
+      !taskRunId
+    ) {
+      throw new Error(
+        'readonly_validation requires a non-home group, taskRunId, and no additional mounts',
+      );
+    }
+    if (process.env.MINICLAW_CONTAINER_LIVE_SOURCE !== 'true') {
+      throw new Error(
+        'readonly_validation requires MINICLAW_CONTAINER_LIVE_SOURCE=true for the isolated validation process',
+      );
+    }
+    const workspace = buildReadonlyValidationWorkspace(DATA_DIR, taskRunId);
+    const sourceMounts = runnerSourceMounts(projectRoot, true);
+    if (
+      sourceMounts.length !== 2 ||
+      sourceMounts.some((mount) => !mount.readonly) ||
+      !sourceMounts.some((mount) => mount.containerPath === '/app/src') ||
+      !sourceMounts.some((mount) => mount.containerPath === '/app/prompts')
+    ) {
+      throw new Error(
+        'readonly_validation source overlay must contain only read-only src and prompts mounts',
+      );
+    }
+    const mounts: VolumeMount[] = [...workspace.mounts, ...sourceMounts];
+    const envLines = buildContainerEnvLines(
+      resolvedProvider?.config ?? getClaudeProviderConfig(),
+      { customEnv: {} },
+    ).filter((line) =>
+      READONLY_VALIDATION_PROVIDER_ENV.has(line.slice(0, line.indexOf('='))),
+    );
+    if (envLines.length > 0) {
+      const envFilePath = path.join(workspace.envDir, 'env');
+      fs.writeFileSync(
+        envFilePath,
+        shellQuoteEnvLines(envLines).join('\n') + '\n',
+        { mode: 0o600 },
+      );
+      fs.chmodSync(envFilePath, 0o600);
+      mounts.push({
+        hostPath: workspace.envDir,
+        containerPath: '/workspace/env-dir',
+        readonly: true,
+      });
+    }
+    return mounts;
+  }
   if (configuredAdditionalMounts && configuredAdditionalMounts.length > 0) {
     let currentOwner;
     try {
@@ -1155,7 +1225,6 @@ export function buildVolumeMounts(
 
   const mounts: VolumeMount[] = [];
   let feishuCliBinding: FeishuCliRuntimeBinding | null = null;
-  const projectRoot = process.cwd();
   const groupDir = path.join(GROUPS_DIR, group.folder);
   const ownerId = group.created_by;
 
@@ -1402,12 +1471,23 @@ export function buildVolumeMounts(
     effectiveContainerOverride,
     resolvedProvider?.customEnv,
   );
+  for (let index = envLines.length - 1; index >= 0; index -= 1) {
+    const key = envLines[index]?.slice(0, envLines[index]?.indexOf('='));
+    if (
+      key === 'MINICLAW_HOST_PERMISSION_MODE' ||
+      key === 'MINICLAW_RUNTIME_PERMISSION_MODE'
+    ) {
+      envLines.splice(index, 1);
+    }
+  }
   applyContainerProxyEnv(envLines);
   const agentEffort = resolveAgentSdkEffort(agentProfile?.runtimePolicy);
   removeProviderEffortEnv(envLines, agentEffort);
   // Agent policy is authoritative; do not inherit global/custom runtime env.
   for (let index = envLines.length - 1; index >= 0; index -= 1) {
     if (
+      envLines[index]?.startsWith('MINICLAW_HOST_PERMISSION_MODE=') ||
+      envLines[index]?.startsWith('MINICLAW_RUNTIME_PERMISSION_MODE=') ||
       envLines[index]?.startsWith('AUTO_COMPACT_WINDOW=') ||
       envLines[index]?.startsWith('AUTO_COMPACT_PERCENTAGE=') ||
       envLines[index]?.startsWith('MINICLAW_AGENT_TOOL_POLICY=') ||
@@ -1652,8 +1732,12 @@ export function buildContainerArgs(
   containerName: string,
   tz: string,
   hostIdentity: ContainerHostIdentity = detectContainerHostIdentity(),
+  permissionMode: RuntimePermissionMode = resolveHostPermissionMode(),
 ): string[] {
   const args: string[] = ['run', '-i', '--rm', '--name', containerName];
+  if (permissionMode === 'readonly_validation') {
+    args.push('-e', 'MINICLAW_RUNTIME_PERMISSION_MODE=readonly_validation');
+  }
 
   // Set timezone so container Node.js processes use local time (Asia/Shanghai)
   args.push('-e', `TZ=${tz}`);
@@ -1708,11 +1792,12 @@ export async function runContainerAgent(
       error: imageError,
     };
   }
+  const permissionMode = resolveHostPermissionMode();
   const startTime = Date.now();
   const sessionAgentId = input.sessionAgentId ?? input.agentId;
 
   const groupDir = path.join(GROUPS_DIR, group.folder);
-  mkdirForContainer(groupDir);
+  if (permissionMode === 'standard') mkdirForContainer(groupDir);
 
   // ─── Provider Pool selection ───
   const poolResult = trySelectPoolProvider(
@@ -1755,13 +1840,16 @@ export async function runContainerAgent(
     agentId: input.agentId ?? null,
     taskRunId: input.taskRunId ?? null,
   };
-  const {
-    runnerInstanceId: workspaceMemoryRunnerInstanceId,
-    signingSecret: workspaceMemoryMutationSigningSecret,
-  } = issueWorkspaceMemoryWriteCapability(
-    workspaceMemoryCapabilityScope,
-    input.turnId,
-  );
+  let workspaceMemoryRunnerInstanceId: string | undefined;
+  let workspaceMemoryMutationSigningSecret: string | undefined;
+  if (permissionMode === 'standard') {
+    const capability = issueWorkspaceMemoryWriteCapability(
+      workspaceMemoryCapabilityScope,
+      input.turnId,
+    );
+    workspaceMemoryRunnerInstanceId = capability.runnerInstanceId;
+    workspaceMemoryMutationSigningSecret = capability.signingSecret;
+  }
   try {
     const isAdminHome = !!input.isAdminHome;
     // Per-user skills: always mount if the group has an owner
@@ -1777,13 +1865,20 @@ export async function runContainerAgent(
       input.agentId,
       input.agentProfile,
       input.channelContext,
+      permissionMode,
     );
     const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
     const agentSuffix = sessionAgentId
       ? `-${sessionAgentId.replace(/[^a-zA-Z0-9-]/g, '-')}`
       : '';
     const containerName = `miniclaw-${safeName}${agentSuffix}-${Date.now()}`;
-    const containerArgs = buildContainerArgs(mounts, containerName, TIMEZONE);
+    const containerArgs = buildContainerArgs(
+      mounts,
+      containerName,
+      TIMEZONE,
+      undefined,
+      permissionMode,
+    );
 
     logger.debug(
       {
@@ -1808,7 +1903,17 @@ export async function runContainerAgent(
       'Spawning container agent',
     );
 
-    const logsDir = path.join(GROUPS_DIR, group.folder, 'logs');
+    const logsDir =
+      permissionMode === 'readonly_validation'
+        ? path.join(
+            DATA_DIR,
+            'retailops',
+            '00f-validation',
+            input.taskRunId!,
+            'instance',
+            'logs',
+          )
+        : path.join(GROUPS_DIR, group.folder, 'logs');
     fs.mkdirSync(logsDir, { recursive: true });
 
     const result = await new Promise<ContainerOutput>((resolve) => {
@@ -1832,106 +1937,131 @@ export async function runContainerAgent(
       // Derive a new input with docker-runtime plugins injected; never mutate
       // the caller's `input` object (queue/log/retry paths reuse the same ref).
       const dockerInput: ContainerInput = {
-        ...input,
-        workspaceMemoryMutationSigningSecret,
-        workspaceMemoryRunnerInstanceId,
-        plugins: group.created_by
-          ? loadUserPlugins(group.created_by, { runtime: 'docker' })
-          : [],
-        contextAudit: (() => {
-          const skillsPolicy = resolveAgentProfileUserSkillsPolicy(
-            group.created_by,
-            input.agentProfile,
-          );
-          const audit = buildClaudeContextPlan({
-            executionMode: 'container',
-            group,
-            ownerHomeFolder,
-            externalClaudeDir: getEffectiveExternalDir(),
-            projectRoot: process.cwd(),
-            dataDir: DATA_DIR,
-            groupSessionsDir: sessionAgentId
-              ? path.join(
-                  DATA_DIR,
-                  'sessions',
-                  group.folder,
-                  'agents',
-                  sessionAgentId,
-                  '.claude',
-                )
-              : path.join(DATA_DIR, 'sessions', group.folder, '.claude'),
-            includeHostClaudeContext: shouldIncludeHostClaudeContext(
-              input.agentProfile,
-            ),
-            hostSkillPolicy: resolveAgentProfileHostSkillPolicy(
-              input.agentProfile,
-            ),
-            mountUserSkills:
-              shouldMountUserSkills && skillsPolicy.mountUserSkills,
-            userSkillsDirOverride: skillsPolicy.userSkillsDirOverride,
-            managedSkillPolicy: input.agentProfile?.runtimePolicy?.skills,
-            pluginSkillLayers: pluginSkillLayers(
-              group.created_by
-                ? loadUserPlugins(group.created_by, { runtime: 'host' })
-                : [],
-            ),
-          }).audit;
-          const mcpManifest = buildRuntimeMcpManifest(
-            group,
-            input.agentProfile,
-            group.created_by
-              ? loadUserPlugins(group.created_by, { runtime: 'host' })
-              : [],
-          );
-          audit.mcp = {
-            manifestHash: mcpManifest.hash,
-            serverIds: mcpManifest.serverIds,
-          };
-          return audit;
-        })(),
-        skillManifest: (() => {
-          const skillsPolicy = resolveAgentProfileUserSkillsPolicy(
-            group.created_by,
-            input.agentProfile,
-          );
-          const manifest = buildClaudeContextPlan({
-            executionMode: 'container',
-            group,
-            ownerHomeFolder,
-            externalClaudeDir: getEffectiveExternalDir(),
-            projectRoot: process.cwd(),
-            dataDir: DATA_DIR,
-            groupSessionsDir: sessionAgentId
-              ? path.join(
-                  DATA_DIR,
-                  'sessions',
-                  group.folder,
-                  'agents',
-                  sessionAgentId,
-                  '.claude',
-                )
-              : path.join(DATA_DIR, 'sessions', group.folder, '.claude'),
-            includeHostClaudeContext: shouldIncludeHostClaudeContext(
-              input.agentProfile,
-            ),
-            hostSkillPolicy: resolveAgentProfileHostSkillPolicy(
-              input.agentProfile,
-            ),
-            mountUserSkills:
-              shouldMountUserSkills && skillsPolicy.mountUserSkills,
-            userSkillsDirOverride: skillsPolicy.userSkillsDirOverride,
-            managedSkillPolicy: input.agentProfile?.runtimePolicy?.skills,
-            pluginSkillLayers: pluginSkillLayers(
-              group.created_by
-                ? loadUserPlugins(group.created_by, { runtime: 'host' })
-                : [],
-            ),
-          }).effectiveSkills;
-          return {
-            hash: manifest.hash,
-            selectedSkillIds: manifest.selected.map((skill) => skill.id),
-          };
-        })(),
+        ...(permissionMode === 'readonly_validation'
+          ? {
+              prompt: input.prompt,
+              groupFolder: group.folder,
+              chatJid: 'validation:retail-00f',
+              taskRunId: input.taskRunId,
+              turnId: input.turnId,
+              interactionMode: 'assistant' as const,
+              isMain: false,
+              isHome: false,
+              isAdminHome: false,
+            }
+          : input),
+        workspaceMemoryMutationSigningSecret:
+          permissionMode === 'standard'
+            ? workspaceMemoryMutationSigningSecret
+            : undefined,
+        workspaceMemoryRunnerInstanceId:
+          permissionMode === 'standard'
+            ? workspaceMemoryRunnerInstanceId
+            : undefined,
+        plugins:
+          permissionMode === 'standard' && group.created_by
+            ? loadUserPlugins(group.created_by, { runtime: 'docker' })
+            : [],
+        contextAudit:
+          permissionMode === 'standard'
+            ? (() => {
+                const skillsPolicy = resolveAgentProfileUserSkillsPolicy(
+                  group.created_by,
+                  input.agentProfile,
+                );
+                const audit = buildClaudeContextPlan({
+                  executionMode: 'container',
+                  group,
+                  ownerHomeFolder,
+                  externalClaudeDir: getEffectiveExternalDir(),
+                  projectRoot: process.cwd(),
+                  dataDir: DATA_DIR,
+                  groupSessionsDir: sessionAgentId
+                    ? path.join(
+                        DATA_DIR,
+                        'sessions',
+                        group.folder,
+                        'agents',
+                        sessionAgentId,
+                        '.claude',
+                      )
+                    : path.join(DATA_DIR, 'sessions', group.folder, '.claude'),
+                  includeHostClaudeContext: shouldIncludeHostClaudeContext(
+                    input.agentProfile,
+                  ),
+                  hostSkillPolicy: resolveAgentProfileHostSkillPolicy(
+                    input.agentProfile,
+                  ),
+                  mountUserSkills:
+                    shouldMountUserSkills && skillsPolicy.mountUserSkills,
+                  userSkillsDirOverride: skillsPolicy.userSkillsDirOverride,
+                  managedSkillPolicy: input.agentProfile?.runtimePolicy?.skills,
+                  pluginSkillLayers: pluginSkillLayers(
+                    group.created_by
+                      ? loadUserPlugins(group.created_by, { runtime: 'host' })
+                      : [],
+                  ),
+                }).audit;
+                const mcpManifest = buildRuntimeMcpManifest(
+                  group,
+                  input.agentProfile,
+                  group.created_by
+                    ? loadUserPlugins(group.created_by, { runtime: 'host' })
+                    : [],
+                );
+                audit.mcp = {
+                  manifestHash: mcpManifest.hash,
+                  serverIds: mcpManifest.serverIds,
+                };
+                return audit;
+              })()
+            : undefined,
+        skillManifest:
+          permissionMode === 'standard'
+            ? (() => {
+                const skillsPolicy = resolveAgentProfileUserSkillsPolicy(
+                  group.created_by,
+                  input.agentProfile,
+                );
+                const manifest = buildClaudeContextPlan({
+                  executionMode: 'container',
+                  group,
+                  ownerHomeFolder,
+                  externalClaudeDir: getEffectiveExternalDir(),
+                  projectRoot: process.cwd(),
+                  dataDir: DATA_DIR,
+                  groupSessionsDir: sessionAgentId
+                    ? path.join(
+                        DATA_DIR,
+                        'sessions',
+                        group.folder,
+                        'agents',
+                        sessionAgentId,
+                        '.claude',
+                      )
+                    : path.join(DATA_DIR, 'sessions', group.folder, '.claude'),
+                  includeHostClaudeContext: shouldIncludeHostClaudeContext(
+                    input.agentProfile,
+                  ),
+                  hostSkillPolicy: resolveAgentProfileHostSkillPolicy(
+                    input.agentProfile,
+                  ),
+                  mountUserSkills:
+                    shouldMountUserSkills && skillsPolicy.mountUserSkills,
+                  userSkillsDirOverride: skillsPolicy.userSkillsDirOverride,
+                  managedSkillPolicy: input.agentProfile?.runtimePolicy?.skills,
+                  pluginSkillLayers: pluginSkillLayers(
+                    group.created_by
+                      ? loadUserPlugins(group.created_by, { runtime: 'host' })
+                      : [],
+                  ),
+                }).effectiveSkills;
+                return {
+                  hash: manifest.hash,
+                  selectedSkillIds: manifest.selected.map((skill) => skill.id),
+                };
+              })()
+            : undefined,
       };
       container.stdin.write(JSON.stringify(dockerInput));
       container.stdin.end();
@@ -2201,17 +2331,19 @@ export async function runContainerAgent(
 
     return result;
   } finally {
-    revokeWorkspaceMemoryWriteCapability(
-      workspaceMemoryCapabilityScope,
-      workspaceMemoryRunnerInstanceId,
-    );
-    try {
-      releaseMiniclawOwnerIntroductionLease(workspaceMemoryRunnerInstanceId);
-    } catch (err) {
-      logger.warn(
-        { err, runnerInstanceId: workspaceMemoryRunnerInstanceId },
-        'Failed to release Owner Profile introduction lease',
+    if (workspaceMemoryRunnerInstanceId) {
+      revokeWorkspaceMemoryWriteCapability(
+        workspaceMemoryCapabilityScope,
+        workspaceMemoryRunnerInstanceId,
       );
+      try {
+        releaseMiniclawOwnerIntroductionLease(workspaceMemoryRunnerInstanceId);
+      } catch (err) {
+        logger.warn(
+          { err, runnerInstanceId: workspaceMemoryRunnerInstanceId },
+          'Failed to release Owner Profile introduction lease',
+        );
+      }
     }
     // Guarantee session release even if buildVolumeMounts/spawn throws
     if (selectedProfileId) {
