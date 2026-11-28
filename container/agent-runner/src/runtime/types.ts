@@ -29,6 +29,13 @@ export type RuntimeUsage = {
   numTurns?: number;
 };
 
+export type RuntimePermissionMode = 'standard' | 'readonly_validation';
+
+export type RuntimeReadonlyValidationRoots = {
+  fixtures: string;
+  evidence: string;
+};
+
 export type RuntimeResult = {
   text: string;
   sessionId: string;
@@ -130,6 +137,10 @@ export type RuntimeSessionOptions = {
     | 'max';
   allowedTools?: string[];
   excludedTools?: string[];
+  /** Trusted host-selected permission mode. User prompts cannot change it. */
+  permissionMode?: RuntimePermissionMode;
+  /** Explicit read-only fixture/evidence roots for readonly_validation. */
+  readonlyValidationRoots?: RuntimeReadonlyValidationRoots;
   /** Runtime-native custom tools. The Pi adapter accepts Pi ToolDefinitions. */
   customTools?: unknown[];
   /** Extra Agent Skills directories exposed through the runtime loader. */

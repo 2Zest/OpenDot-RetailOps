@@ -56,6 +56,17 @@ export const TIMEZONE =
 
 // Web server configuration
 export const WEB_PORT = parseInt(process.env.WEB_PORT || '3000', 10);
+const webLoopbackBind = process.env.MINICLAW_WEB_BIND_LOOPBACK;
+if (
+  webLoopbackBind !== undefined &&
+  webLoopbackBind !== 'true' &&
+  webLoopbackBind !== 'false'
+) {
+  throw new Error('MINICLAW_WEB_BIND_LOOPBACK must be true or false');
+}
+// Dedicated local validation instances can opt into loopback-only binding.
+// Leaving this unset preserves the existing node-server bind behavior.
+export const WEB_HOST = webLoopbackBind === 'true' ? '127.0.0.1' : undefined;
 
 // Cookie configuration
 // When accessed over HTTPS: use __Host- prefix (requires Secure; Path=/; no Domain)

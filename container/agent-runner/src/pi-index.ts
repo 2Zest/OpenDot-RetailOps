@@ -39,6 +39,28 @@ import { adaptClaudeMcpToolsToPi } from './runtime/pi/pi-tools.js';
 import { PiRuntimeAdapter } from './runtime/pi/pi-runtime.js';
 import { loadExternalMcpTools } from './runtime/pi/external-mcp.js';
 import { runPiQueryAttempt } from './runtime/pi/pi-runner.js';
+import {
+  createReadonlyValidationReadTool,
+  READONLY_VALIDATION_TOOL_NAME,
+  type ReadonlyValidationRoots,
+} from './runtime/pi/readonly-validation.js';
+
+const READONLY_VALIDATION_MODE = 'readonly_validation';
+const READONLY_VALIDATION_ROOTS: ReadonlyValidationRoots = {
+  fixtures: '/retailops/fixtures',
+  evidence: '/retailops/evidence',
+};
+
+function resolveRuntimePermissionMode(
+  environment: NodeJS.ProcessEnv = process.env,
+): 'standard' | typeof READONLY_VALIDATION_MODE {
+  const value = environment.MINICLAW_RUNTIME_PERMISSION_MODE;
+  if (value === undefined || value === 'standard') return 'standard';
+  if (value === READONLY_VALIDATION_MODE) return READONLY_VALIDATION_MODE;
+  throw new Error(
+    'Unsupported MINICLAW_RUNTIME_PERMISSION_MODE: ' + (value || '(empty)'),
+  );
+}
 
 const WORKSPACE_GROUP =
   process.env.MINICLAW_WORKSPACE_GROUP || '/workspace/group';
@@ -239,7 +261,19 @@ function applyTurnContext(
     message.receipt?.deliveryId || message.queryRunId || input.turnId || null;
 }
 
-function buildSystemPrompt(input: ContainerInput, ctx: McpContext): string {
+function buildSystemPrompt(
+  input: ContainerInput,
+  ctx: McpContext,
+  permissionMode: 'standard' | typeof READONLY_VALIDATION_MODE,
+): string {
+  if (permissionMode === READONLY_VALIDATION_MODE) {
+    return [
+      'This is a restricted RetailOps validation session.',
+      'The only available capability is the registered retailops_read_file tool.',
+      'It can read files only from the mounted fixtures and evidence roots.',
+      'Do not claim to write files, run commands, access other data, or invoke other agents.',
+    ].join('\n');
+  }
   const channel = (input.currentSourceJid || input.chatJid).split(':')[0];
   const channelPrompt = fs.existsSync(
     path.join(PROMPTS_DIR, 'channels', `${channel}.md`),
@@ -304,38 +338,51 @@ async function runTurn(
   interrupted: boolean;
   pending: IpcInputMessage[];
 }> {
-  const [memory, owner, privateRecall] = await Promise.all([
-    loadWorkspaceMemoryTurnContext(prompt, (query) =>
-      fetchWorkspaceMemorySnapshot(ctx, query),
-    ),
-    loadMiniclawOwnerProfileTurnContext(() =>
-      fetchMiniclawOwnerProfileTurn(ctx),
-    ),
-    fetchCodingMem0Recall(ctx).catch(() => null),
-  ]);
-  if (!memory.snapshot)
-    logWarn(
-      'Workspace memory snapshot unavailable; continuing without durable memory context',
-    );
-  const turnPrompt = [
-    owner.block,
-    memory.block,
-    privateRecall,
-    formatChannelTurnContextForPrompt(input.channelContext),
-    prompt,
-  ]
-    .filter(Boolean)
-    .join('\n\n');
+  const permissionMode = resolveRuntimePermissionMode();
+  const restricted = permissionMode === READONLY_VALIDATION_MODE;
+  let owner:
+    | Awaited<ReturnType<typeof loadMiniclawOwnerProfileTurnContext>>
+    | undefined;
+  let turnPrompt = prompt;
+  if (!restricted) {
+    const [memory, ownerTurn, privateRecall] = await Promise.all([
+      loadWorkspaceMemoryTurnContext(prompt, (query) =>
+        fetchWorkspaceMemorySnapshot(ctx, query),
+      ),
+      loadMiniclawOwnerProfileTurnContext(() =>
+        fetchMiniclawOwnerProfileTurn(ctx),
+      ),
+      fetchCodingMem0Recall(ctx).catch(() => null),
+    ]);
+    owner = ownerTurn;
+    if (!memory.snapshot)
+      logWarn(
+        'Workspace memory snapshot unavailable; continuing without durable memory context',
+      );
+    turnPrompt = [
+      owner.block,
+      memory.block,
+      privateRecall,
+      formatChannelTurnContextForPrompt(input.channelContext),
+      prompt,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+  }
   const tracker = new IpcTurnDeliveryTracker(initialMessages);
-  const customTools = adaptClaudeMcpToolsToPi(createMcpTools(ctx), {
-    namespace: 'mcp__miniclaw',
-  });
+  const customTools = restricted
+    ? [createReadonlyValidationReadTool(READONLY_VALIDATION_ROOTS)]
+    : adaptClaudeMcpToolsToPi(createMcpTools(ctx), {
+        namespace: 'mcp__miniclaw',
+      });
   // The optional catalog is issued by the Host for the active turn only;
   // failure leaves external tools unavailable while the conversation works.
-  const externalTools = await loadExternalMcpTools(ctx).catch(() => {
-    logWarn('External MCP catalog unavailable for this turn');
-    return [];
-  });
+  const externalTools = restricted
+    ? []
+    : await loadExternalMcpTools(ctx).catch(() => {
+        logWarn('External MCP catalog unavailable for this turn');
+        return [];
+      });
   const provider = resolveClaudeProviderRuntime(process.env);
   const runtime = new PiRuntimeAdapter();
   activeInputTurnId =
@@ -352,11 +399,31 @@ async function runTurn(
       ),
       sessionId: input.sessionId,
       model: provider.model || undefined,
-      systemPrompt: buildSystemPrompt(input, ctx),
-      allowedTools: [
-        ...DEFAULT_ALLOWED_TOOLS,
-        ...externalTools.map((tool) => tool.name),
-      ],
+      systemPrompt: buildSystemPrompt(input, ctx, permissionMode),
+      ...(restricted
+        ? {
+            permissionMode,
+            readonlyValidationRoots: READONLY_VALIDATION_ROOTS,
+            allowedTools: [READONLY_VALIDATION_TOOL_NAME],
+            excludedTools: [
+              'Bash',
+              'Read',
+              'Write',
+              'Edit',
+              'Glob',
+              'Grep',
+              'Task',
+              'TaskOutput',
+              'TaskStop',
+              'mcp__miniclaw__*',
+            ],
+          }
+        : {
+            allowedTools: [
+              ...DEFAULT_ALLOWED_TOOLS,
+              ...externalTools.map((tool) => tool.name),
+            ],
+          }),
       customTools: [...customTools, ...externalTools],
       provider: {
         endpointKind: provider.endpointKind,
@@ -365,10 +432,12 @@ async function runTurn(
         apiKey:
           process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN,
       },
-      skillPaths: [
-        path.join(process.env.CLAUDE_CONFIG_DIR || '', 'skills'),
-        path.join(WORKSPACE_GROUP, '.claude', 'skills'),
-      ].filter((entry) => entry && fs.existsSync(entry)),
+      skillPaths: restricted
+        ? []
+        : [
+            path.join(process.env.CLAUDE_CONFIG_DIR || '', 'skills'),
+            path.join(WORKSPACE_GROUP, '.claude', 'skills'),
+          ].filter((entry) => entry && fs.existsSync(entry)),
       // The historical Claude SDK auto-compact knobs are advisory under Pi:
       // the product always keeps compaction enabled and Pi decides its own
       // reserve-based threshold. An explicit runtime-level disable remains
@@ -382,7 +451,7 @@ async function runTurn(
     emit: (output) => {
       if (
         !firstWakeAcknowledgementStarted &&
-        owner.result?.firstWake === true &&
+        owner?.result?.firstWake === true &&
         output.streamEvent?.eventType === 'text_delta'
       ) {
         const leaseToken = owner.result.projection.onboarding.leaseToken;
@@ -439,6 +508,17 @@ async function runTurn(
 
 async function main(): Promise<void> {
   const input = JSON.parse(await readStdin()) as ContainerInput;
+  const permissionMode = resolveRuntimePermissionMode();
+  if (
+    permissionMode === READONLY_VALIDATION_MODE &&
+    (input.isHome === true ||
+      input.isAdminHome === true ||
+      input.isMain === true)
+  ) {
+    throw new Error(
+      'readonly_validation cannot start for a home or admin-home workspace',
+    );
+  }
   input.turnId ||= generateTurnId();
   fs.mkdirSync(INPUT_DIR, { recursive: true });
   if (resolveAgentRuntimeKind(process.env) !== 'pi') {

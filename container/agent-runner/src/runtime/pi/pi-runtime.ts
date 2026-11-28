@@ -17,6 +17,7 @@ import type {
 } from '../types.js';
 import { resolvePiProvider } from './pi-provider.js';
 import { PiRuntimeSession } from './pi-session.js';
+import { READONLY_VALIDATION_TOOL_NAME } from './readonly-validation.js';
 
 const require = createRequire(import.meta.url);
 
@@ -47,6 +48,35 @@ export class PiRuntimeAdapter implements AgentRuntime {
   readonly kind = 'pi' as const;
 
   async createSession(options: RuntimeSessionOptions): Promise<RuntimeSession> {
+    const permissionMode = options.permissionMode ?? 'standard';
+    if (
+      permissionMode !== 'standard' &&
+      permissionMode !== 'readonly_validation'
+    ) {
+      throw new Error(
+        'Unsupported Pi runtime permission mode: ' + String(permissionMode),
+      );
+    }
+    if (permissionMode === 'readonly_validation') {
+      const roots = options.readonlyValidationRoots;
+      const customTools = options.customTools ?? [];
+      if (
+        !roots?.fixtures ||
+        !roots.evidence ||
+        !options.allowedTools ||
+        options.allowedTools.length !== 1 ||
+        options.allowedTools[0] !== READONLY_VALIDATION_TOOL_NAME ||
+        customTools.length !== 1 ||
+        (customTools[0] as { name?: unknown } | undefined)?.name !==
+          READONLY_VALIDATION_TOOL_NAME ||
+        (options.extensionPaths?.length ?? 0) > 0 ||
+        (options.skillPaths?.length ?? 0) > 0
+      ) {
+        throw new Error(
+          'Invalid readonly_validation runtime configuration; refusing to start',
+        );
+      }
+    }
     const agentDir = path.join(options.sessionDir, '..', 'agent');
     fs.mkdirSync(options.sessionDir, { recursive: true });
     fs.mkdirSync(agentDir, { recursive: true });
@@ -71,8 +101,13 @@ export class PiRuntimeAdapter implements AgentRuntime {
     });
 
     const eventBus = createEventBus();
-    const extensionPaths = [...(options.extensionPaths ?? [])];
-    const subagentsExtension = resolveSubagentsExtension();
+    const restricted = permissionMode === 'readonly_validation';
+    const extensionPaths = restricted
+      ? []
+      : [...(options.extensionPaths ?? [])];
+    const subagentsExtension = restricted
+      ? undefined
+      : resolveSubagentsExtension();
     if (subagentsExtension && !extensionPaths.includes(subagentsExtension)) {
       extensionPaths.push(subagentsExtension);
     }
@@ -82,8 +117,18 @@ export class PiRuntimeAdapter implements AgentRuntime {
       settingsManager,
       eventBus,
       systemPrompt: options.systemPrompt,
-      additionalSkillPaths: options.skillPaths,
-      additionalExtensionPaths: extensionPaths,
+      ...(restricted
+        ? {
+            noExtensions: true,
+            noSkills: true,
+            noPromptTemplates: true,
+            noThemes: true,
+            noContextFiles: true,
+          }
+        : {
+            additionalSkillPaths: options.skillPaths,
+            additionalExtensionPaths: extensionPaths,
+          }),
     });
     try {
       await resourceLoader.reload({ resolveProjectTrust: async () => true });
@@ -157,7 +202,7 @@ export class PiRuntimeAdapter implements AgentRuntime {
       (name) => toolAliases[name] || name,
     );
 
-    const { session } = await createAgentSession({
+    const { session, extensionsResult } = await createAgentSession({
       cwd: options.cwd,
       agentDir,
       modelRuntime,
@@ -166,11 +211,29 @@ export class PiRuntimeAdapter implements AgentRuntime {
         options.thinkingLevel === 'off' ? 'minimal' : options.thinkingLevel,
       ...(selectedTools ? { tools: selectedTools } : {}),
       ...(excludedTools ? { excludeTools: excludedTools } : {}),
+      ...(restricted ? { noTools: 'builtin' as const } : {}),
       customTools,
       resourceLoader,
       sessionManager,
       settingsManager,
     });
+    if (restricted) {
+      const activeNames = session.getActiveToolNames().sort();
+      const loadedExtensions = extensionsResult.extensions;
+      if (
+        activeNames.length !== 1 ||
+        activeNames[0] !== READONLY_VALIDATION_TOOL_NAME ||
+        loadedExtensions.length !== 0
+      ) {
+        session.dispose();
+        throw new Error(
+          'readonly_validation SDK capability check failed: tools=' +
+            (activeNames.join(',') || '(none)') +
+            ', extensions=' +
+            loadedExtensions.length,
+        );
+      }
+    }
     return new PiRuntimeSession(session, eventBus);
   }
 }
