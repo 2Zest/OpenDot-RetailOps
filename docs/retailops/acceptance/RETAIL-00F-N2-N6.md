@@ -13,7 +13,21 @@
 - 复用 N1 镜像 `retailops/miniclaw-agent:00f`，Manifest ID `sha256:3be6d22242492c2eb5d57be1774e6200e767c0b49a858680d0ff4abe09c311e5`，linux/amd64；未重新构建或下载。
 - worktree：`/home/szz_user/projects/OpenDot-RetailOps-00F-N2-N6`。专用数据位于 `data/retailops/00f-validation/retail00f-evidence-20261128/`。
 - Pi SDK 锁定 `@earendil-works/pi-coding-agent@0.84.2`。实际核验了 `tools`、`excludeTools`、`noTools`、`customTools` 和 ResourceLoader 禁用开关。SDK 的 `AgentToolResult` 不含 `isError`；拒绝操作通过抛出脱敏异常回流为错误 tool result。
-- 冻结文件：agent-runner 的 runtime types、Pi adapter、Pi entry 和新增受控 Read 工具；宿主容器挂载策略和新只读策略模块；两份定向测试；本回执、运行手册及三个非敏感 fixture。无范围外源码、断言、依赖或 lockfile 变更。
+- 冻结并实际修改的 13 个文件：
+  1. `container/agent-runner/src/runtime/types.ts`
+  2. `container/agent-runner/src/runtime/pi/pi-runtime.ts`
+  3. `container/agent-runner/src/runtime/pi/readonly-validation.ts`
+  4. `container/agent-runner/src/pi-index.ts`
+  5. `src/container-runner.ts`
+  6. `src/readonly-validation-policy.ts`
+  7. `tests/retail-00f-readonly-runtime.test.ts`
+  8. `tests/retail-00f-readonly-policy.test.ts`
+  9. `docs/retailops/acceptance/fixtures/retail-00f/fixture-a.json`
+  10. `docs/retailops/acceptance/fixtures/retail-00f/fixture-b.json`
+  11. `docs/retailops/acceptance/fixtures/retail-00f/evidence-example.md`
+  12. `docs/retailops/acceptance/RETAIL-00F-N2-N6.md`
+  13. `docs/retailops/environment/RETAIL-00F-READONLY-RUNBOOK.md`
+- 无范围外源码、断言、依赖或 lockfile 变更。
 
 ## N2：独立实例
 
@@ -74,6 +88,7 @@ Runner 容器级验证通过：使用专用 task id `retail00f-evidence-20261128
 
 ## N6：交付
 
+- 独立 PR：[PR #96](https://github.com/2Zest/OpenDot-RetailOps/pull/96)，目标 `develop/retailops`，关联 #7，当前 Open/Review；不自动合并。
 - 原始隔离日志保存在本地忽略目录 `data/retailops/00f-validation/retail00f-evidence-20261128/logs/`，包含 agent、合成 Provider、全量测试、自检及构建日志；不提交原始运行日志。
 - 仅提交本回执、隔离运行手册及非敏感 fixture；凭证与真实用户数据未加入工作树。
 - 结论保持 PARTIAL，等待主控 Review。PR 合并前 #7 保持 OPEN，不标 DONE，不解锁下游任务。
