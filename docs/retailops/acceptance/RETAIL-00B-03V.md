@@ -82,4 +82,7 @@
 ## N6：Review 交付
 
 - 仅新增 N0 receipt、专用 MCP stdio fixture 与定向集成测试；没有 runtime、readonly gate、通用安全策略、依赖、lockfile、SQLite schema 或路由改动。
-- 当前分支 `feat/retail-00b-03v`；PR 将独立提交到 `develop/retailops` 并保持未合并。创建 PR 后将把链接、HEAD、Issue/Project Review 状态回读补入本节。
+- 分支 `feat/retail-00b-03v`；PR [#99](https://github.com/2Zest/OpenDot-RetailOps/pull/99) 目标 `develop/retailops`，GitHub 回读状态 Open / 未合并；实现提交 `401b4f648de9761ff26bd2847ceef596e49f7526`。
+
+- GitHub Issue #17 回读为 Open / label REVIEW；GitHub Projects #2（RetailOps V0.2）item PVTI_lAHODjlUWM4BtKkTzhLw5Cs 回读为 Status Review、label REVIEW。
+- PR / Issue / Project 均保持 Review，未合并、未标 DONE；没有未完成的 N0–N5 工作。
