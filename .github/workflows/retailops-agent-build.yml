@@ -65,6 +65,7 @@ jobs:
       - name: Record runner, resources, Docker, and Buildx
         run: |
           set -euo pipefail
+          builder_info="$(docker buildx inspect default)"
           {
             printf 'runner_name=%s\nrunner_os=%s\nrunner_arch=%s\n' "$RUNNER_NAME" "$RUNNER_OS" "$RUNNER_ARCH"
             printf 'runner_image_os=%s\nrunner_image_version=%s\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}"
@@ -81,15 +82,26 @@ jobs:
             printf '\nBuildx version\n'
             docker buildx version
             printf '\nBuildx default builder\n'
-            docker buildx inspect default
+            printf '%s\n' "$builder_info"
             printf '\nDocker storage\n'
             docker system df
             printf '\njq version\n'
             jq --version
           } 2>&1 | tee "$ARTIFACT_DIR/runner-environment.txt"
-          grep -qx 'Driver: docker' <(docker buildx inspect default)
+          if ! printf '%s\n' "$builder_info" | awk '
+            /^[[:space:]]*Driver[[:space:]]*:/ {
+              count++
+              sub(/^[^:]*:[[:space:]]*/, "")
+              sub(/[[:space:]]+$/, "")
+              driver = $0
+            }
+            END { exit !(count == 1 && driver == "docker") }
+          '; then
+            echo "::error::Expected exactly one Buildx driver named docker."
+            exit 1
+          fi
 
-      - name: Pull and record the original Dockerfile base images
+      - name: Pull and record pre-pull base image digests
         working-directory: source
         run: |
           set -euo pipefail
@@ -97,14 +109,16 @@ jobs:
             docker pull --platform linux/amd64 "$NODE_BASE"
             docker pull --platform linux/amd64 "$UV_BASE"
           } 2>&1 | tee "$ARTIFACT_DIR/base-image-pulls.log"
-          node_base_digest="$(docker image inspect "$NODE_BASE" --format '{{json .RepoDigests}}' | jq -r 'map(select(startswith("node@"))) | first // empty')"
-          uv_base_digest="$(docker image inspect "$UV_BASE" --format '{{json .RepoDigests}}' | jq -r 'map(select(startswith("ghcr.io/astral-sh/uv@"))) | first // empty')"
+          node_base_digest="$(docker image inspect "$NODE_BASE" --format '{{json .RepoDigests}}' | jq -r 'map(select(test("(^|/)node@"))) | first // empty')"
+          uv_base_digest="$(docker image inspect "$UV_BASE" --format '{{json .RepoDigests}}' | jq -r 'map(select(test("(^|/)uv@"))) | first // empty')"
           test -n "$node_base_digest"
           test -n "$uv_base_digest"
-          printf 'node_base=%s\nuv_base=%s\n' "$node_base_digest" "$uv_base_digest" | tee "$ARTIFACT_DIR/base-image-digests.txt"
+          printf 'node_pre_pull=%s\nuv_pre_pull=%s\n' "$node_base_digest" "$uv_base_digest" | tee "$ARTIFACT_DIR/base-image-prepull-digests.txt"
 
       - name: Build original Agent image
         working-directory: source
+        env:
+          BUILDX_METADATA_PROVENANCE: max
         run: |
           set -uo pipefail
           set +e
@@ -126,6 +140,61 @@ jobs:
           printf 'Build exit code: `%s`\n' "$build_exit_code" >> "$GITHUB_STEP_SUMMARY"
           exit "$build_exit_code"
 
+      - name: Verify builder-resolved base image digests
+        working-directory: source
+        run: |
+          set -euo pipefail
+          resolved_digest() {
+            local image_pattern="$1"
+            node - "$ARTIFACT_DIR/build-metadata.json" "$image_pattern" <<'NODE'
+          const fs = require('node:fs');
+          const [metadataPath, imagePattern] = process.argv.slice(2);
+          const provenance = JSON.parse(fs.readFileSync(metadataPath, 'utf8'))['buildx.build.provenance'];
+          if (!provenance || typeof provenance !== 'object') {
+            throw new Error('Buildx metadata is missing buildx.build.provenance');
+          }
+          const matcher = new RegExp(imagePattern);
+          const digests = new Set();
+          function collect(value) {
+            if (Array.isArray(value)) {
+              for (const item of value) collect(item);
+              return;
+            }
+            if (!value || typeof value !== 'object') return;
+            if (typeof value.uri === 'string' && matcher.test(value.uri)
+              && value.digest && typeof value.digest.sha256 === 'string') {
+              digests.add(value.digest.sha256);
+            }
+            for (const child of Object.values(value)) collect(child);
+          }
+          collect(provenance);
+          if (digests.size !== 1) {
+            throw new Error(`Expected one resolved SHA-256 for ${imagePattern}, found ${digests.size}`);
+          }
+          process.stdout.write(`${digests.values().next().value}\n`);
+          NODE
+          }
+          pre_pull_node="$(awk -F= '$1 == "node_pre_pull" { print $2 }' "$ARTIFACT_DIR/base-image-prepull-digests.txt")"
+          pre_pull_uv="$(awk -F= '$1 == "uv_pre_pull" { print $2 }' "$ARTIFACT_DIR/base-image-prepull-digests.txt")"
+          test -n "$pre_pull_node"
+          test -n "$pre_pull_uv"
+          resolved_node="$(resolved_digest 'pkg:docker/(.*/)?node@')"
+          resolved_uv="$(resolved_digest 'pkg:docker/(.*/)?astral-sh/uv@')"
+          pre_pull_node_sha="${pre_pull_node##*@sha256:}"
+          pre_pull_uv_sha="${pre_pull_uv##*@sha256:}"
+          test "$pre_pull_node_sha" != "$pre_pull_node"
+          test "$pre_pull_uv_sha" != "$pre_pull_uv"
+          test "$resolved_node" = "$pre_pull_node_sha"
+          test "$resolved_uv" = "$pre_pull_uv_sha"
+          {
+            printf 'node_pre_pull=%s\n' "$pre_pull_node"
+            printf 'node_build_resolved=sha256:%s\n' "$resolved_node"
+            printf 'node_digest_match=true\n'
+            printf 'uv_pre_pull=%s\n' "$pre_pull_uv"
+            printf 'uv_build_resolved=sha256:%s\n' "$resolved_uv"
+            printf 'uv_digest_match=true\n'
+          } | tee "$ARTIFACT_DIR/base-image-build-resolution.txt"
+
       - name: Record built image metadata and tool versions
         working-directory: source
         run: |
@@ -142,7 +211,8 @@ jobs:
             printf 'oci_revision=%s\n' "$(docker image inspect "$IMAGE_REF" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
             printf 'oci_source=%s\n' "$(docker image inspect "$IMAGE_REF" --format '{{index .Config.Labels "org.opencontainers.image.source"}}')"
             printf 'registry_repo_digest=unavailable_not_pushed\n'
-            cat "$ARTIFACT_DIR/base-image-digests.txt"
+            cat "$ARTIFACT_DIR/base-image-prepull-digests.txt"
+            cat "$ARTIFACT_DIR/base-image-build-resolution.txt"
           } | tee "$ARTIFACT_DIR/build-report.txt" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run original container Smoke Test
@@ -163,7 +233,10 @@ jobs:
           archive_tmp="$RUNNER_TEMP/miniclaw-agent-00f-linux-amd64.tar.gz.partial"
           docker save "$IMAGE_REF" | gzip -1 > "$archive_tmp"
           mv "$archive_tmp" "$ARTIFACT_DIR/miniclaw-agent-00f-linux-amd64.tar.gz"
-          sha256sum "$ARTIFACT_DIR/miniclaw-agent-00f-linux-amd64.tar.gz" | tee "$ARTIFACT_DIR/miniclaw-agent-00f-linux-amd64.tar.gz.sha256"
+          (
+            cd "$ARTIFACT_DIR"
+            sha256sum miniclaw-agent-00f-linux-amd64.tar.gz | tee miniclaw-agent-00f-linux-amd64.tar.gz.sha256
+          )
           archive_sha256="$(cut -d ' ' -f1 "$ARTIFACT_DIR/miniclaw-agent-00f-linux-amd64.tar.gz.sha256")"
           printf 'archive_sha256=%s\n' "$archive_sha256" | tee -a "$ARTIFACT_DIR/build-report.txt" >> "$GITHUB_STEP_SUMMARY"
           stat --printf='compressed_image_bytes=%s\n' "$ARTIFACT_DIR/miniclaw-agent-00f-linux-amd64.tar.gz" | tee "$ARTIFACT_DIR/compressed-image-size.txt" >> "$GITHUB_STEP_SUMMARY"
