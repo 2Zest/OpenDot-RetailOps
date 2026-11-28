@@ -101,3 +101,13 @@ npm fixture suite 退出码 0 只证明锁定 SDK adapter 的模拟路径正常�
 - git diff --exit-code -- package.json package-lock.json：退出码 0。
 - N0 commit 之后，工作树唯一已跟踪改动仍为本验收回执；node_modules 属忽略的本地依赖安装。未运行全量测试、build 或 Product Runtime。
 - N5 判定：fixture 回归和文档/差异检查通过；由于 N1 BLOCKED，真实模型/真实 Product Durable 节点不通过也未运行。N2–N4 保持 NOT RUN。
+
+
+## 最终 Issue / PR / Project 状态回读（2026-11-28）
+
+本节为当前状态的最新回读，覆盖本回执前文较早记录的 Project #2「尚未同步 / In Progress」信息。
+
+- Issue #16：保持 Open，标签为 BLOCKED；Issue 正文保留 N0 PASS、N1 BLOCKED、N2–N4 NOT RUN 的阶段判定。
+- PR #98：保持 Open、未合并，目标分支 develop/retailops，源分支 feat/retail-00b-02v。本次回读时 PR HEAD 为 64b26b958c5fdd5eb15b4f914c87a3b8799c67d6；本次文档补充提交将成为新的 PR HEAD，提交 SHA 由该提交记录及 PR 更新后的 head 回读确认。
+- GitHub Project #2 的 #16 卡片：由 #17 owner 的认证 gh context 更新，并通过 project item-list 回读确认为 Blocked（label BLOCKED）。
+- 三处状态目前均为未完成阻塞态；此更新只补充状态回执，不改变 N1–N4 判定，不代表真实 Durable Run 或恢复验收通过。
