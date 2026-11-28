@@ -23,7 +23,8 @@ env:
   IMAGE_SOURCE: https://github.com/2Zest/OpenDot-RetailOps
   NODE_BASE: node:24-slim
   UV_BASE: ghcr.io/astral-sh/uv:latest
-  ARTIFACT_DIR: /tmp/retailops-agent-build
+  ARTIFACT_DIR: /tmp/retailops-agent-diagnostics
+  IMAGE_ARTIFACT_DIR: /tmp/retailops-agent-image
 
 jobs:
   build-smoke-export:
@@ -41,7 +42,7 @@ jobs:
           fi
 
       - name: Prepare evidence directory
-        run: mkdir -p "$ARTIFACT_DIR"
+        run: mkdir -p "$ARTIFACT_DIR" "$IMAGE_ARTIFACT_DIR"
 
       - name: Check out fixed source baseline
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -115,6 +116,55 @@ jobs:
           test -n "$uv_base_digest"
           printf 'node_pre_pull=%s\nuv_pre_pull=%s\n' "$node_base_digest" "$uv_base_digest" | tee "$ARTIFACT_DIR/base-image-prepull-digests.txt"
 
+      - name: Map pre-pull indexes to linux/amd64 manifests
+        working-directory: source
+        run: |
+          set -euo pipefail
+          map_platform_manifest() {
+            local image_name="$1"
+            local image_ref="$2"
+            local index_file="$ARTIFACT_DIR/${image_name}-registry-index.json"
+            local manifest_file="$ARTIFACT_DIR/${image_name}-registry-amd64-manifest.json"
+            local manifest_digest
+
+            docker buildx imagetools inspect --raw "$image_ref" > "$index_file"
+            manifest_digest="$(node - "$index_file" <<'NODE'
+          const fs = require('node:fs');
+          const index = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (!['application/vnd.oci.image.index.v1+json', 'application/vnd.docker.distribution.manifest.list.v2+json'].includes(index.mediaType)) {
+            throw new Error(`Expected a multi-platform image index, got mediaType=${index.mediaType ?? 'missing'}`);
+          }
+          const matches = (index.manifests ?? []).filter((entry) =>
+            entry.platform?.os === 'linux' && entry.platform?.architecture === 'amd64'
+          );
+          if (matches.length !== 1 || !/^sha256:[a-f0-9]{64}$/.test(matches[0]?.digest ?? '')) {
+            throw new Error(`Expected exactly one linux/amd64 manifest in index, found ${matches.length}`);
+          }
+          process.stdout.write(`${matches[0].digest}\n`);
+          NODE
+          )"
+
+            docker buildx imagetools inspect --raw "${image_ref%@*}@${manifest_digest}" > "$manifest_file"
+            node - "$manifest_file" <<'NODE'
+          const fs = require('node:fs');
+          const manifest = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (!['application/vnd.oci.image.manifest.v1+json', 'application/vnd.docker.distribution.manifest.v2+json'].includes(manifest.mediaType)) {
+            throw new Error(`Expected an image manifest for the linux/amd64 child, got mediaType=${manifest.mediaType ?? 'missing'}`);
+          }
+          NODE
+            printf '%s_index=%s\n%s_linux_amd64_manifest=%s\n' \
+              "$image_name" "$image_ref" "$image_name" "$manifest_digest" \
+              | tee -a "$ARTIFACT_DIR/base-image-registry-platform-digests.txt"
+          }
+
+          : > "$ARTIFACT_DIR/base-image-registry-platform-digests.txt"
+          node_ref="$(awk -F= '$1 == "node_pre_pull" { print $2 }' "$ARTIFACT_DIR/base-image-prepull-digests.txt")"
+          uv_ref="$(awk -F= '$1 == "uv_pre_pull" { print $2 }' "$ARTIFACT_DIR/base-image-prepull-digests.txt")"
+          test -n "$node_ref"
+          test -n "$uv_ref"
+          map_platform_manifest node "$node_ref"
+          map_platform_manifest uv "$uv_ref"
+
       - name: Build original Agent image
         working-directory: source
         env:
@@ -125,6 +175,7 @@ jobs:
           docker buildx build \
             --builder default \
             --platform linux/amd64 \
+            --pull \
             --no-cache \
             --progress=plain \
             --file container/Dockerfile \
@@ -144,56 +195,82 @@ jobs:
         working-directory: source
         run: |
           set -euo pipefail
-          resolved_digest() {
-            local image_pattern="$1"
-            node - "$ARTIFACT_DIR/build-metadata.json" "$image_pattern" <<'NODE'
+          node - \
+            "$ARTIFACT_DIR/build-metadata.json" \
+            "$ARTIFACT_DIR/base-image-prepull-digests.txt" \
+            "$ARTIFACT_DIR/base-image-registry-platform-digests.txt" \
+            "$ARTIFACT_DIR/base-image-build-resolution.txt" <<'NODE'
           const fs = require('node:fs');
-          const [metadataPath, imagePattern] = process.argv.slice(2);
-          const provenance = JSON.parse(fs.readFileSync(metadataPath, 'utf8'))['buildx.build.provenance'];
+          const [metadataPath, prepullPath, mappingPath, resultPath] = process.argv.slice(2);
+          const fail = (message) => {
+            console.error(`Base image provenance verification failed: ${message}`);
+            process.exitCode = 1;
+          };
+          const readPairs = (path) => Object.fromEntries(fs.readFileSync(path, 'utf8')
+            .split(/\r?\n/).filter(Boolean).map((line) => {
+              const separator = line.indexOf('=');
+              if (separator < 1) throw new Error(`Malformed key/value record in ${path}: ${line}`);
+              return [line.slice(0, separator), line.slice(separator + 1)];
+            }));
+          const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+          const provenance = metadata['buildx.build.provenance'];
           if (!provenance || typeof provenance !== 'object') {
             throw new Error('Buildx metadata is missing buildx.build.provenance');
           }
-          const matcher = new RegExp(imagePattern);
-          const digests = new Set();
-          function collect(value) {
-            if (Array.isArray(value)) {
-              for (const item of value) collect(item);
-              return;
+          const prepull = readPairs(prepullPath);
+          const mapping = readPairs(mappingPath);
+          const llbSources = (provenance.buildConfig?.llbDefinition ?? [])
+            .map((entry) => entry?.op?.Op?.source)
+            .filter((source) => source?.identifier?.startsWith('docker-image://'));
+          const materials = provenance.materials ?? [];
+          const specs = [
+            { name: 'node', refKey: 'node_pre_pull', sourcePattern: /(?:^|\/)node(?::|@)/, purlPattern: /^pkg:docker\/(?:[^/]+\/)*node@/ },
+            { name: 'uv', refKey: 'uv_pre_pull', sourcePattern: /(?:^|\/)astral-sh\/uv(?::|@)/, purlPattern: /^pkg:docker\/(?:[^/]+\/)*astral-sh\/uv@/ },
+          ];
+          const lines = [];
+          for (const spec of specs) {
+            const source = llbSources.find((entry) => spec.sourcePattern.test(entry.identifier));
+            const resolveMode = source?.attrs?.['image.resolvemode'];
+            if (!source || !resolveMode || resolveMode === 'local') {
+              fail(`${spec.name}: expected --pull/remote resolution in LLB; source=${source?.identifier ?? 'missing'}, image.resolvemode=${resolveMode ?? 'missing'}`);
             }
-            if (!value || typeof value !== 'object') return;
-            if (typeof value.uri === 'string' && matcher.test(value.uri)
-              && value.digest && typeof value.digest.sha256 === 'string') {
-              digests.add(value.digest.sha256);
+            if (!source) {
+              continue;
             }
-            for (const child of Object.values(value)) collect(child);
+
+            const materialMatches = materials.filter((entry) => {
+              if (typeof entry?.uri !== 'string' || !spec.purlPattern.test(entry.uri)) return false;
+              const query = entry.uri.split('?')[1] ?? '';
+              return new URLSearchParams(query).get('platform') === 'linux/amd64';
+            });
+            const digests = [...new Set(materialMatches.map((entry) => entry?.digest?.sha256).filter(Boolean))];
+            const indexRef = prepull[spec.refKey];
+            const mappedIndexRef = mapping[`${spec.name}_index`];
+            const platformManifest = mapping[`${spec.name}_linux_amd64_manifest`];
+            const indexDigest = indexRef?.match(/@sha256:([a-f0-9]{64})$/)?.[1];
+            if (materialMatches.length !== 1 || digests.length !== 1 || !indexDigest || mappedIndexRef !== indexRef || !/^sha256:[a-f0-9]{64}$/.test(platformManifest ?? '')) {
+              fail(`${spec.name}: expected one linux/amd64 provenance material and a Registry mapping for the same pre-pull index; material_count=${materialMatches.length}, distinct_digests=${digests.length}, prepull_index=${indexRef ?? 'missing'}, mapped_index=${mappedIndexRef ?? 'missing'}, platform_manifest=${platformManifest ?? 'missing'}`);
+              continue;
+            }
+
+            const actual = digests[0];
+            const allowedRegistryDigests = new Set([indexDigest, platformManifest.slice('sha256:'.length)]);
+            const matchedLevel = actual === indexDigest ? 'multiarch_index' : actual === platformManifest.slice('sha256:'.length) ? 'linux_amd64_manifest' : undefined;
+            console.log(`${spec.name}: source=${source.identifier}; image.resolvemode=${resolveMode ?? 'missing'}; provenance_purl=${materialMatches[0].uri}`);
+            console.log(`${spec.name}: buildkit_digest=sha256:${actual}; prepull_index=${indexRef}; registry_linux_amd64_manifest=${platformManifest}`);
+            if (!allowedRegistryDigests.has(actual)) {
+              fail(`${spec.name}: BuildKit digest sha256:${actual} matches neither the captured Registry index sha256:${indexDigest} nor its mapped linux/amd64 manifest ${platformManifest}`);
+              continue;
+            }
+            lines.push(`${spec.name}_prepull_index=${indexRef}`);
+            lines.push(`${spec.name}_registry_linux_amd64_manifest=${platformManifest}`);
+            lines.push(`${spec.name}_buildkit_resolved=sha256:${actual}`);
+            lines.push(`${spec.name}_matched_digest_level=${matchedLevel}`);
           }
-          collect(provenance);
-          if (digests.size !== 1) {
-            throw new Error(`Expected one resolved SHA-256 for ${imagePattern}, found ${digests.size}`);
-          }
-          process.stdout.write(`${digests.values().next().value}\n`);
+          if (process.exitCode) process.exit(process.exitCode);
+          fs.writeFileSync(resultPath, `${lines.join('\n')}\n`);
+          console.log(`Base image provenance verification passed for ${specs.length} pinned linux/amd64 Registry mappings.`);
           NODE
-          }
-          pre_pull_node="$(awk -F= '$1 == "node_pre_pull" { print $2 }' "$ARTIFACT_DIR/base-image-prepull-digests.txt")"
-          pre_pull_uv="$(awk -F= '$1 == "uv_pre_pull" { print $2 }' "$ARTIFACT_DIR/base-image-prepull-digests.txt")"
-          test -n "$pre_pull_node"
-          test -n "$pre_pull_uv"
-          resolved_node="$(resolved_digest 'pkg:docker/(.*/)?node@')"
-          resolved_uv="$(resolved_digest 'pkg:docker/(.*/)?astral-sh/uv@')"
-          pre_pull_node_sha="${pre_pull_node##*@sha256:}"
-          pre_pull_uv_sha="${pre_pull_uv##*@sha256:}"
-          test "$pre_pull_node_sha" != "$pre_pull_node"
-          test "$pre_pull_uv_sha" != "$pre_pull_uv"
-          test "$resolved_node" = "$pre_pull_node_sha"
-          test "$resolved_uv" = "$pre_pull_uv_sha"
-          {
-            printf 'node_pre_pull=%s\n' "$pre_pull_node"
-            printf 'node_build_resolved=sha256:%s\n' "$resolved_node"
-            printf 'node_digest_match=true\n'
-            printf 'uv_pre_pull=%s\n' "$pre_pull_uv"
-            printf 'uv_build_resolved=sha256:%s\n' "$resolved_uv"
-            printf 'uv_digest_match=true\n'
-          } | tee "$ARTIFACT_DIR/base-image-build-resolution.txt"
 
       - name: Record built image metadata and tool versions
         working-directory: source
@@ -212,6 +289,7 @@ jobs:
             printf 'oci_source=%s\n' "$(docker image inspect "$IMAGE_REF" --format '{{index .Config.Labels "org.opencontainers.image.source"}}')"
             printf 'registry_repo_digest=unavailable_not_pushed\n'
             cat "$ARTIFACT_DIR/base-image-prepull-digests.txt"
+            cat "$ARTIFACT_DIR/base-image-registry-platform-digests.txt"
             cat "$ARTIFACT_DIR/base-image-build-resolution.txt"
           } | tee "$ARTIFACT_DIR/build-report.txt" >> "$GITHUB_STEP_SUMMARY"
 
@@ -232,21 +310,31 @@ jobs:
           set -euo pipefail
           archive_tmp="$RUNNER_TEMP/miniclaw-agent-00f-linux-amd64.tar.gz.partial"
           docker save "$IMAGE_REF" | gzip -1 > "$archive_tmp"
-          mv "$archive_tmp" "$ARTIFACT_DIR/miniclaw-agent-00f-linux-amd64.tar.gz"
+          mv "$archive_tmp" "$IMAGE_ARTIFACT_DIR/miniclaw-agent-00f-linux-amd64.tar.gz"
           (
-            cd "$ARTIFACT_DIR"
+            cd "$IMAGE_ARTIFACT_DIR"
             sha256sum miniclaw-agent-00f-linux-amd64.tar.gz | tee miniclaw-agent-00f-linux-amd64.tar.gz.sha256
           )
-          archive_sha256="$(cut -d ' ' -f1 "$ARTIFACT_DIR/miniclaw-agent-00f-linux-amd64.tar.gz.sha256")"
+          archive_sha256="$(cut -d ' ' -f1 "$IMAGE_ARTIFACT_DIR/miniclaw-agent-00f-linux-amd64.tar.gz.sha256")"
           printf 'archive_sha256=%s\n' "$archive_sha256" | tee -a "$ARTIFACT_DIR/build-report.txt" >> "$GITHUB_STEP_SUMMARY"
-          stat --printf='compressed_image_bytes=%s\n' "$ARTIFACT_DIR/miniclaw-agent-00f-linux-amd64.tar.gz" | tee "$ARTIFACT_DIR/compressed-image-size.txt" >> "$GITHUB_STEP_SUMMARY"
+          stat --printf='compressed_image_bytes=%s\n' "$IMAGE_ARTIFACT_DIR/miniclaw-agent-00f-linux-amd64.tar.gz" | tee "$ARTIFACT_DIR/compressed-image-size.txt" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload build evidence and approved image Artifact
+      - name: Upload approved image Artifact after Smoke and export
+        if: ${{ success() && inputs.confirm_artifact_storage_and_public_boundary }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: retailops-miniclaw-agent-00f-linux-amd64-a7118531-run-${{ github.run_id }}
+          path: /tmp/retailops-agent-image/
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+      - name: Upload diagnostic evidence Artifact
         if: ${{ always() && inputs.confirm_artifact_storage_and_public_boundary }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: retailops-miniclaw-agent-00f-linux-amd64-a7118531
-          path: /tmp/retailops-agent-build/
+          name: retailops-miniclaw-agent-00f-diagnostics-a7118531-run-${{ github.run_id }}
+          path: /tmp/retailops-agent-diagnostics/
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
