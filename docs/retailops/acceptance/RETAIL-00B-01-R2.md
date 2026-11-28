@@ -88,7 +88,7 @@ Relay 边界已经批准，但缺少确切非敏感 Provider 主机和官方模�
 | N3 拒绝写入/重复/取消 | **NOT_RUN** | 没有真实模型任务或 Session；不以 #7 合成 Provider 的 N2/N3 结果代替本轮 |
 | N4 归档 | **PARTIAL** | 本回执保留 N0/阻塞与待批准方案；没有本轮模型事件、Token/cost、取消或运行日志可归档 |
 | N5 文档回归 | PASS | npm run docs:check：292 份 Markdown 通过，退出码 0；git diff --cached --check 通过，退出码 0。不运行源码测试 |
-| N6 交付 | IN_PROGRESS | 仅文档 PR 指向 develop/retailops；不合并、不改变 Issue #2 状态 |
+| N6 交付 | PARTIAL | PR #97 Open，目标 develop/retailops；仅文档变更，未合并；Issue #8 保持 IN_PROGRESS，未改 Issue #2 状态 |
 
 ### 三层语义核对
 
