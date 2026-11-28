@@ -191,3 +191,18 @@ Issue / Plan 版本 / 节点 ID：Issue #7 / `RETAIL-00F-PLAN` / N1。
 决定：停止在 N1，提交本回执供主控审查；在 Image ID 差异经审查前不把 N1 标为 PASS，不启动 N2/N3，不解锁 #8、#16、#17、#18，不关闭 Issue #7。
 
 审核者及时间：待主控审查。
+
+## N1 Image ID 差异复核与最终结论（2026-11-28）
+
+本节复核并更新上文 `RETAIL-00F-N1-R1` 的待确认结论；上文原始观测和历史失败记录保留。
+
+- 本地 `docker info` 实测 `Driver=overlayfs`、`DriverStatus: driver-type=io.containerd.snapshotter.v1`，确认使用 containerd snapshotter；本地 Docker Engine `29.9.3`。远端 Runner Engine 为 `28.0.4`，其存储后端未单独核实，不以版本推断。
+- 原始镜像压缩包 SHA-256 已校验为 `5b1321c5c7c6b2a86d377e2c2e1778997014ddc6d7589409380f497133e5c340`。从原始归档提取的 OCI manifest blob 实际 SHA-256 为 `3be6d22242492c2eb5d57be1774e6200e767c0b49a858680d0ff4abe09c311e5`，等于本地 `docker image inspect .Id`；manifest 的 `config.digest` 指向 `sha256:9d7156efd64e0af6736eb444fcd93ec1a2da1d5fa8190e7ee6f0a12441c449dc`，提取的 config blob 实际 SHA-256 与之相同，也等于远端 `image-metadata.json` 记录的 Image ID。
+- 从本地 `docker save` 流提取的 OCI `index.json` 指向同一个 `sha256:3be6d22242492c2eb5d57be1774e6200e767c0b49a858680d0ff4abe09c311e5` manifest；本地 inspect 的 `.Id` 和本地 RepoDigests 条目也显示该摘要。它是本地 manifest 摘要，不能作为已推送 Registry 的 RepoDigest 证据。
+- 对照原始 config 与本地 inspect：完整 `Config` 字段、`linux/amd64`、OCI revision/source 标签、24 项 RootFS DiffID 的顺序和内容均一致；原始 manifest 的 24 项未压缩 layer digest 与 config 的 DiffID 序列一致。远程和本地工具版本文件的 11 行一致，原远程与本地 Smoke 均退出 0。
+- 因此本次两个不同 ID 分别对应同一镜像的 manifest 与 config；以上原始 blob 哈希、manifest 到 config 的引用、本地导出 index 和运行配置比对建立了两者的对应关系。[Docker CLI issue #5526](https://github.com/docker/cli/issues/5526) 记录了 containerd image store 的类似显示行为，[Docker 文档](https://docs.docker.com/engine/storage/containerd/) 说明了该存储后端。远端具体存储后端不影响本次已验证的摘要链。
+- 证据留存于 `D:\workSpace\codeAgent\artifacts\retail-00f-run-46114549179\diagnostics\`：`archive-manifest-oci.json`、`archive-config-oci.json`、`local-export-index.json`、`local-inspect-current.json`，以及原有 metadata、校验与 Smoke 记录。`docker save` 仅通过管道读取 index，未写入完整临时镜像。
+
+三层复核：总体计划/场景 **PASS**；Issue/Plan 的 N1 镜像准备 **PASS**；N1 构建、来源、归档、导入身份链与远程/本地 Smoke **PASS**。这是 N1 节点结论，Issue #7 完整安全验收尚未完成。
+
+决定：停止于 N1，等待主控最终 Review。N2–N6 尚未执行；Issue #7 保持 OPEN/BLOCKED，不解锁 #8、#16、#17、#18。未改动 Docker 存储配置、Dockerfile、Runtime 或安全策略。
