@@ -18,7 +18,10 @@ import { applyContainerProxyEnv } from './container-proxy-env.js';
 import { runnerSourceMounts } from './runner-source-mounts.js';
 import {
   buildReadonlyValidationWorkspace,
+  buildReadonlyValidationRuntimeDirs,
+  cleanupReadonlyValidationInstance,
   resolveHostPermissionMode,
+  resolveReadonlyValidationNetworkName,
   type RuntimePermissionMode,
 } from './readonly-validation-policy.js';
 import {
@@ -1086,6 +1089,9 @@ export function cleanupContainerTaskRuntimeEnvDirs(
   groupFolder: string,
   taskRunId: string,
 ): void {
+  if (resolveHostPermissionMode() === 'readonly_validation') {
+    cleanupReadonlyValidationInstance(DATA_DIR, taskRunId);
+  }
   const safeTaskRunId = assertRuntimeEnvPathSegment(taskRunId, 'task run id');
   const safeGroupFolder = assertValidWorkspaceFolderName(
     groupFolder,
@@ -1161,10 +1167,11 @@ export function buildVolumeMounts(
       group.folder === 'main' ||
       ownerHomeFolder ||
       (configuredAdditionalMounts?.length ?? 0) > 0 ||
-      !taskRunId
+      !taskRunId ||
+      !sessionAgentId
     ) {
       throw new Error(
-        'readonly_validation requires a non-home group, taskRunId, and no additional mounts',
+        'readonly_validation requires a non-home group, taskRunId, isolated session identity, and no additional mounts',
       );
     }
     if (process.env.MINICLAW_CONTAINER_LIVE_SOURCE !== 'true') {
@@ -1185,6 +1192,29 @@ export function buildVolumeMounts(
       );
     }
     const mounts: VolumeMount[] = [...workspace.mounts, ...sourceMounts];
+    const runtimeDirs = buildReadonlyValidationRuntimeDirs(
+      DATA_DIR,
+      group.folder,
+      sessionAgentId,
+      taskRunId,
+    );
+    for (const name of ['messages', 'tasks', 'input', 'agents'] as const) {
+      const subDir = path.join(runtimeDirs.ipcDir, name);
+      fs.mkdirSync(subDir, { recursive: true, mode: 0o700 });
+      fs.chmodSync(subDir, 0o700);
+    }
+    mounts.push(
+      {
+        hostPath: runtimeDirs.sessionDir,
+        containerPath: '/home/node/.claude',
+        readonly: false,
+      },
+      {
+        hostPath: runtimeDirs.ipcDir,
+        containerPath: '/workspace/ipc',
+        readonly: false,
+      },
+    );
     const envLines = buildContainerEnvLines(
       resolvedProvider?.config ?? getClaudeProviderConfig(),
       { customEnv: {} },
@@ -1736,6 +1766,7 @@ export function buildContainerArgs(
 ): string[] {
   const args: string[] = ['run', '-i', '--rm', '--name', containerName];
   if (permissionMode === 'readonly_validation') {
+    args.push('--network', resolveReadonlyValidationNetworkName());
     args.push('-e', 'MINICLAW_RUNTIME_PERMISSION_MODE=readonly_validation');
   }
 
@@ -1784,6 +1815,30 @@ export async function runContainerAgent(
   onOutput?: (output: ContainerOutput) => Promise<void>,
   ownerHomeFolder?: string,
 ): Promise<ContainerOutput> {
+  const permissionMode = resolveHostPermissionMode();
+  if (permissionMode === 'readonly_validation') {
+    try {
+      const network = resolveReadonlyValidationNetworkName();
+      const internal = execFileSync(
+        'docker',
+        ['network', 'inspect', '--format={{.Internal}}', network],
+        { encoding: 'utf8', timeout: 5_000, stdio: ['ignore', 'pipe', 'pipe'] },
+      ).trim();
+      if (internal !== 'true') {
+        throw new Error('the selected Docker network is not marked internal');
+      }
+    } catch (error) {
+      return {
+        status: 'error',
+        result:
+          '受限验证拒绝启动：专用 Docker internal 网络不可用或未通过校验。',
+        error:
+          error instanceof Error
+            ? `readonly_validation Docker network verification failed: ${error.message}`
+            : 'readonly_validation Docker network verification failed',
+      };
+    }
+  }
   const imageError = await checkContainerImage(CONTAINER_IMAGE);
   if (imageError) {
     return {
@@ -1792,7 +1847,6 @@ export async function runContainerAgent(
       error: imageError,
     };
   }
-  const permissionMode = resolveHostPermissionMode();
   const startTime = Date.now();
   const sessionAgentId = input.sessionAgentId ?? input.agentId;
 
@@ -1859,7 +1913,7 @@ export async function runContainerAgent(
       isAdminHome,
       shouldMountUserSkills,
       sessionAgentId,
-      ownerHomeFolder,
+      permissionMode === 'readonly_validation' ? undefined : ownerHomeFolder,
       input.taskRunId,
       resolvedProvider,
       input.agentId,
@@ -1909,8 +1963,8 @@ export async function runContainerAgent(
             DATA_DIR,
             'retailops',
             '00f-validation',
+            'instances',
             input.taskRunId!,
-            'instance',
             'logs',
           )
         : path.join(GROUPS_DIR, group.folder, 'logs');
@@ -2466,6 +2520,13 @@ export async function runHostAgent(
   onOutput?: (output: ContainerOutput) => Promise<void>,
   ownerHomeFolder?: string,
 ): Promise<ContainerOutput> {
+  if (resolveHostPermissionMode() === 'readonly_validation') {
+    return {
+      status: 'error',
+      result: '受限验证拒绝宿主机执行；请使用已隔离的容器 Runner。',
+      error: 'readonly_validation does not permit Host Execution',
+    };
+  }
   const startTime = Date.now();
   const sessionAgentId = input.sessionAgentId ?? input.agentId;
   const setupInstallHint = 'npm --prefix container/agent-runner install';

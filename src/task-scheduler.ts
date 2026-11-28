@@ -95,6 +95,7 @@ import { GroupQueue } from './group-queue.js';
 import { logger } from './logger.js';
 import { removeFlowArtifacts } from './file-manager.js';
 import { runScript } from './script-runner.js';
+import { resolveHostPermissionMode } from './readonly-validation-policy.js';
 import type { StreamEvent } from './stream-event.types.js';
 import {
   AgentProfile,
@@ -1621,6 +1622,20 @@ async function runScriptTaskInner(
 ): Promise<void> {
   const startTime = Date.now();
   const runLogId = logTaskRunStart(task.id);
+
+  if (resolveHostPermissionMode() === 'readonly_validation') {
+    safeUpdateTaskRunLog(task.id, runLogId, {
+      duration_ms: Date.now() - startTime,
+      status: 'error',
+      result: null,
+      error: 'readonly_validation does not permit Host Execution',
+    });
+    logger.warn(
+      { taskId: task.id },
+      'Blocked script task in readonly_validation mode',
+    );
+    return;
+  }
 
   logger.info(
     { taskId: task.id, group: task.group_folder, executionType: 'script' },
